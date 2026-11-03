@@ -40,7 +40,8 @@ test('signs in through the API and shows the user, keeping the token only in ses
   await openPanel(page, extensionId);
   await expect(page.getByText('Dev User')).toBeVisible();
   await expect(page.getByText('dev@creatorops.local')).toBeVisible();
-  await expect(page.getByText('Dev Workspace')).toBeVisible();
+  // The workspace selector repeats names once the user has several; the list comes first.
+  await expect(page.getByText('Dev Workspace').first()).toBeVisible();
 
   const stored = await page.evaluate(async (key) => {
     const session = (await chrome.storage.session.get(key))[key] as unknown;

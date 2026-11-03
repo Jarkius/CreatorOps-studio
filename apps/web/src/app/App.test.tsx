@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createDashboardClient } from '../api/client.js';
+import { WORKSPACE } from '../test/fakeApi.js';
 import { createTokenStore } from '../api/session.js';
 import { App } from './App.js';
 
@@ -36,6 +37,9 @@ function fakeApi(overrides: { me?: () => Response } = {}) {
       );
     }
     if (url.pathname === '/api/v1/health') return Promise.resolve(json(HEALTH));
+    if (url.pathname === '/api/v1/workspaces') {
+      return Promise.resolve(json({ items: [WORKSPACE] }));
+    }
     if (url.pathname === '/api/v1/me') {
       return Promise.resolve(overrides.me ? overrides.me() : json(ME));
     }
@@ -113,18 +117,18 @@ describe('Overview page', () => {
     expect(meCalls).toBe(2);
   });
 
-  it('exposes the nav as Main with Overview as the only link', async () => {
+  it('exposes the nav as Main with Overview and Products as links', async () => {
     const { fetchFn } = fakeApi();
     renderApp(fetchFn);
     await screen.findByText('Dev User');
 
     const nav = screen.getByRole('navigation', { name: 'Main' });
+    await within(nav).findByRole('link', { name: 'Products' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveTextContent('Overview');
+    expect(links.map((link) => link.textContent)).toEqual(['Overview', 'Products']);
+    expect(links[1]).toHaveAttribute('href', '/w/ws_1/products');
 
     for (const label of [
-      'Products',
       'Campaigns',
       'Content drafts',
       'Asset library',

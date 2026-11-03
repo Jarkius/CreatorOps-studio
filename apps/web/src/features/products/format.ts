@@ -1,0 +1,18 @@
+/**
+ * "990.00 THB" style text. Falls back to the raw "amount currency" text when the browser rejects
+ * the currency code, so a bad code never hides the price.
+ */
+export function formatPrice(amount: string | null, currency: string | null): string {
+  if (amount === null) return 'No price';
+  if (currency === null) return amount;
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+  } catch (error) {
+    if (error instanceof RangeError) return `${amount} ${currency}`;
+    throw error;
+  }
+}
+
+export function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(iso));
+}

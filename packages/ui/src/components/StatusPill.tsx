@@ -1,4 +1,5 @@
 export const PILL_STATUS_VALUES = [
+  'active',
   'queued',
   'running',
   'succeeded',
@@ -21,6 +22,7 @@ interface PillDefinition {
 }
 
 const PILLS: Record<PillStatus, PillDefinition> = {
+  active: { label: 'Active', glyph: '●', tone: 'text-[var(--co-success)]' },
   queued: { label: 'Queued', glyph: '○', tone: 'text-[var(--co-text-muted)]' },
   running: { label: 'Running', glyph: '◐', tone: 'text-[var(--co-accent)]' },
   succeeded: { label: 'Succeeded', glyph: '✓', tone: 'text-[var(--co-success)]' },

@@ -1,7 +1,9 @@
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router';
+
+import { productsPath } from '../features/products/paths.js';
+import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
 
 const DISABLED_ITEMS = [
-  'Products',
   'Campaigns',
   'Content drafts',
   'Asset library',
@@ -15,6 +17,22 @@ const linkClass =
   'flex min-h-11 items-center rounded-md px-3 py-2 font-medium leading-relaxed hover:bg-[var(--co-surface)]';
 
 export function Layout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const workspaces = useWorkspaces();
+  const items = workspaces.data ?? [];
+
+  // The workspace in the URL wins; otherwise the first one the user belongs to.
+  const routeMatch = matchPath('/w/:workspaceId/*', location.pathname);
+  const routeWorkspaceId = routeMatch?.params.workspaceId;
+  const current = items.find((workspace) => workspace.id === routeWorkspaceId) ?? items[0];
+
+  const onProductsList = routeMatch?.params['*'] === 'products';
+  const switchWorkspace = (workspaceId: string) => {
+    // Stay on the product list (keeping the status tab) when already there; otherwise open it.
+    navigate(`${productsPath(workspaceId)}${onProductsList ? location.search : ''}`);
+  };
+
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <a
@@ -26,12 +44,42 @@ export function Layout() {
 
       <aside className="border-b border-[var(--co-border)] bg-[var(--co-surface)] p-4 md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <p className="text-lg font-semibold leading-relaxed">CreatorOps Studio</p>
+        {items.length > 1 && current !== undefined ? (
+          <div className="mt-3">
+            <select
+              aria-label="Workspace"
+              value={current.id}
+              onChange={(event) => switchWorkspace(event.target.value)}
+              className="w-full min-h-11 rounded-md border border-[var(--co-border)] bg-[var(--co-bg)] px-3 py-2 leading-relaxed text-[var(--co-text)]"
+            >
+              {items.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <nav aria-label="Main" className="mt-4">
           <ul className="flex flex-wrap gap-2 md:flex-col md:gap-1">
             <li>
               <NavLink to="/" end className={linkClass}>
                 Overview
               </NavLink>
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
+                  Products
+                </span>
+              ) : (
+                <NavLink to={productsPath(current.id)} className={linkClass}>
+                  Products
+                </NavLink>
+              )}
             </li>
             {DISABLED_ITEMS.map((item) => (
               <li key={item}>

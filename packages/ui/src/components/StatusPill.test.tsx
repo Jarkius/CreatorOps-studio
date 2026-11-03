@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { PILL_STATUS_VALUES, StatusPill } from './StatusPill.js';
 
 const LABELS: Record<(typeof PILL_STATUS_VALUES)[number], string> = {
+  active: 'Active',
   queued: 'Queued',
   running: 'Running',
   succeeded: 'Succeeded',
