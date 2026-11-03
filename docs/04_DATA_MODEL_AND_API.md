@@ -229,3 +229,4 @@ Decided after a design review; see `DECISIONS.md` D-037 to D-041.
 - **Media**: `GET /media/:assetId/:variant` with a signed, expiring query string. Asset responses include `url` and `thumbUrl`.
 - **All request bodies are strict**: unknown fields are rejected.
 - **Lists** return `{ items, nextCursor }` with an opaque cursor.
+- **Product routes are nested** under the workspace (decision D-042): `GET|POST /workspaces/:workspaceId/products`, `GET|PATCH /workspaces/:workspaceId/products/:productId`, and `POST .../products/:productId/archive` and `.../unarchive`. The id-only product routes in section 4 are not implemented.

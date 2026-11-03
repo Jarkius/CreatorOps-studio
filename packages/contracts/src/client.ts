@@ -2,6 +2,22 @@ import type { z } from 'zod';
 
 import { MeResponseSchema, MockTokenResponseSchema } from './auth.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
+import {
+  ProductListResponseSchema,
+  ProductSchema,
+  type CreateProductRequest,
+  type Product,
+  type ProductListQuery,
+  type ProductListResponse,
+  type UpdateProductRequest,
+} from './product.js';
+import {
+  WorkspaceListResponseSchema,
+  WorkspaceSchema,
+  type CreateWorkspaceRequest,
+  type Workspace,
+  type WorkspaceListResponse,
+} from './workspace.js';
 import { ErrorBodySchema, REQUEST_ID_HEADER } from './errors.js';
 import type { ErrorCode, FieldIssue } from './errors.js';
 import { HealthResponseSchema } from './health.js';
@@ -19,6 +35,8 @@ export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | undefined;
   readonly fields: readonly FieldIssue[];
+  /** On 409 from a versioned update: the version the server holds now. */
+  readonly currentVersion: number | undefined;
 
   constructor(init: {
     code: ClientErrorCode;
@@ -26,6 +44,7 @@ export class ApiError extends Error {
     status?: number;
     requestId?: string | undefined;
     fields?: readonly FieldIssue[];
+    currentVersion?: number | undefined;
   }) {
     super(init.message);
     this.name = 'ApiError';
@@ -33,6 +52,7 @@ export class ApiError extends Error {
     this.status = init.status ?? 0;
     this.requestId = init.requestId;
     this.fields = init.fields ?? [];
+    this.currentVersion = init.currentVersion;
   }
 
   /** True when retrying the same request later could succeed. */
@@ -62,6 +82,31 @@ export interface ApiClient {
   /** Development only: exchanges nothing for a token for the seeded user (mock auth mode). */
   mockToken(): Promise<MockTokenResponse>;
   me(): Promise<MeResponse>;
+  workspaces: {
+    list(): Promise<WorkspaceListResponse>;
+    create(body: CreateWorkspaceRequest): Promise<Workspace>;
+    get(workspaceId: string): Promise<Workspace>;
+  };
+  products: {
+    list(workspaceId: string, query?: ProductListQuery): Promise<ProductListResponse>;
+    create(workspaceId: string, body: CreateProductRequest): Promise<Product>;
+    get(workspaceId: string, productId: string): Promise<Product>;
+    /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
+    update(workspaceId: string, productId: string, body: UpdateProductRequest): Promise<Product>;
+    archive(workspaceId: string, productId: string): Promise<Product>;
+    unarchive(workspaceId: string, productId: string): Promise<Product>;
+  };
+}
+
+type Method = 'GET' | 'POST' | 'PATCH';
+
+interface RequestSpec<S extends z.ZodType> {
+  readonly method: Method;
+  readonly path: string;
+  readonly schema: S;
+  readonly authenticated: boolean;
+  readonly body?: unknown;
+  readonly query?: Readonly<Record<string, string | number | undefined>>;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -80,6 +125,16 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function queryString(query: RequestSpec<z.ZodType>['query']): string {
+  if (!query) return '';
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text === '' ? '' : `?${text}`;
+}
+
 function genericMessage(status: number): string {
   if (status === 401) return 'You are not signed in.';
   if (status === 403) return 'You do not have access to this.';
@@ -94,13 +149,11 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   const doFetch = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  async function request<S extends z.ZodType>(
-    method: 'GET' | 'POST',
-    path: string,
-    schema: S,
-    authenticated: boolean,
-  ): Promise<z.infer<S>> {
+  async function request<S extends z.ZodType>(spec: RequestSpec<S>): Promise<z.infer<S>> {
+    const { method, schema, authenticated } = spec;
     const headers: Record<string, string> = { accept: 'application/json' };
+    // Only send a content type when there is a body; an empty JSON body is rejected by the API.
+    if (spec.body !== undefined) headers['content-type'] = 'application/json';
     if (authenticated) {
       const token = await options.getToken?.();
       if (token) headers.authorization = `Bearer ${token}`;
@@ -111,7 +164,12 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     let response: Response;
     let payload: unknown;
     try {
-      response = await doFetch(`${baseUrl}${path}`, { method, headers, signal: controller.signal });
+      response = await doFetch(`${baseUrl}${spec.path}${queryString(spec.query)}`, {
+        method,
+        headers,
+        signal: controller.signal,
+        ...(spec.body === undefined ? {} : { body: JSON.stringify(spec.body) }),
+      });
       // The timer stays armed until the body has been read, so a server that sends headers and
       // then stalls still times out.
       payload = await readJson(response);
@@ -139,6 +197,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
           status: response.status,
           requestId: parsed.data.error.requestId,
           fields: details?.fields ?? [],
+          currentVersion: details?.currentVersion,
         });
       }
       throw new ApiError({
@@ -161,9 +220,46 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     return parsed.data;
   }
 
+  const get = <S extends z.ZodType>(path: string, schema: S, query?: RequestSpec<S>['query']) =>
+    request({ method: 'GET', path, schema, authenticated: true, ...(query ? { query } : {}) });
+  const send = <S extends z.ZodType>(method: Method, path: string, schema: S, body?: unknown) =>
+    request({ method, path, schema, authenticated: true, ...(body === undefined ? {} : { body }) });
+  const id = encodeURIComponent;
+  const products = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}/products`;
+
   return {
-    health: () => request('GET', '/api/v1/health', HealthResponseSchema, false),
-    mockToken: () => request('POST', '/api/v1/auth/mock-token', MockTokenResponseSchema, false),
-    me: () => request('GET', '/api/v1/me', MeResponseSchema, true),
+    health: () =>
+      request({
+        method: 'GET',
+        path: '/api/v1/health',
+        schema: HealthResponseSchema,
+        authenticated: false,
+      }),
+    mockToken: () =>
+      request({
+        method: 'POST',
+        path: '/api/v1/auth/mock-token',
+        schema: MockTokenResponseSchema,
+        authenticated: false,
+      }),
+    me: () => get('/api/v1/me', MeResponseSchema),
+    workspaces: {
+      list: () => get('/api/v1/workspaces', WorkspaceListResponseSchema),
+      create: (body) => send('POST', '/api/v1/workspaces', WorkspaceSchema, body),
+      get: (workspaceId) => get(`/api/v1/workspaces/${id(workspaceId)}`, WorkspaceSchema),
+    },
+    products: {
+      list: (workspaceId, query) =>
+        get(products(workspaceId), ProductListResponseSchema, query as RequestSpec<never>['query']),
+      create: (workspaceId, body) => send('POST', products(workspaceId), ProductSchema, body),
+      get: (workspaceId, productId) =>
+        get(`${products(workspaceId)}/${id(productId)}`, ProductSchema),
+      update: (workspaceId, productId, body) =>
+        send('PATCH', `${products(workspaceId)}/${id(productId)}`, ProductSchema, body),
+      archive: (workspaceId, productId) =>
+        send('POST', `${products(workspaceId)}/${id(productId)}/archive`, ProductSchema),
+      unarchive: (workspaceId, productId) =>
+        send('POST', `${products(workspaceId)}/${id(productId)}/unarchive`, ProductSchema),
+    },
   };
 }

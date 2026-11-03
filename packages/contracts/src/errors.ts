@@ -33,7 +33,13 @@ export const ErrorBodySchema = z.object({
     code: ErrorCodeSchema,
     message: z.string(),
     requestId: z.string(),
-    details: z.object({ fields: z.array(FieldIssueSchema).optional() }).optional(),
+    details: z
+      .object({
+        fields: z.array(FieldIssueSchema).optional(),
+        /** On 409 CONFLICT from a versioned update: the version the server currently holds. */
+        currentVersion: z.number().int().optional(),
+      })
+      .optional(),
   }),
 });
 export type ErrorBody = z.infer<typeof ErrorBodySchema>;

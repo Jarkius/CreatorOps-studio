@@ -45,3 +45,24 @@ export type {
   Workspace,
   WorkspaceListResponse,
 } from './workspace.js';
+
+export {
+  CreateProductRequestSchema,
+  PRODUCT_LIMITS,
+  PRODUCT_STATUS_VALUES,
+  ProductListQuerySchema,
+  ProductListResponseSchema,
+  ProductParamsSchema,
+  ProductSchema,
+  ProductStatusSchema,
+  UpdateProductRequestSchema,
+} from './product.js';
+export type {
+  CreateProductRequest,
+  Product,
+  ProductListQuery,
+  ProductListQueryParsed,
+  ProductListResponse,
+  ProductStatus,
+  UpdateProductRequest,
+} from './product.js';

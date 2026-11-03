@@ -15,6 +15,7 @@ import type { Db } from './db/client.js';
 import { createAuthGuard } from './modules/identity/guard.js';
 import { registerIdentityRoutes } from './modules/identity/routes.js';
 import { createWorkspaceScope } from './modules/identity/scope.js';
+import { registerProductRoutes } from './modules/products/routes.js';
 import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
 import type { ApiConfig } from './platform/config.js';
 import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
@@ -56,12 +57,15 @@ function classify(error: unknown): {
   code: ErrorCode;
   message: string;
   fields?: FieldIssue[];
+  currentVersion?: number;
 } {
   if (error instanceof AppError) {
-    const fields = error.fields === undefined ? undefined : [...error.fields];
-    return fields === undefined
-      ? { code: error.code, message: error.message }
-      : { code: error.code, message: error.message, fields };
+    return {
+      code: error.code,
+      message: error.message,
+      ...(error.fields === undefined ? {} : { fields: [...error.fields] }),
+      ...(error.currentVersion === undefined ? {} : { currentVersion: error.currentVersion }),
+    };
   }
 
   const fastifyError = error as FastifyError;
@@ -167,7 +171,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   app.setErrorHandler((error, request, reply) => {
-    const { code, message, fields } = classify(error);
+    const { code, message, fields, currentVersion } = classify(error);
     const status = STATUS_BY_CODE[code];
 
     if (isResponseSerializationError(error) || status >= 500) {
@@ -181,7 +185,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       .send(
         isResponseSerializationError(error)
           ? toErrorBody('INTERNAL_ERROR', 'Something went wrong. Please try again.', request.id)
-          : toErrorBody(code, message, request.id, fields),
+          : toErrorBody(code, message, request.id, fields, { currentVersion }),
       );
   });
 
@@ -190,6 +194,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const scope = createWorkspaceScope({ db: options.db });
   registerIdentityRoutes(app, { config, db: options.db, guard });
   registerWorkspaceRoutes(app, { db: options.db, guard, scope });
+  registerProductRoutes(app, { db: options.db, guard, scope });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

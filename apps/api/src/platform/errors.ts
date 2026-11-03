@@ -22,13 +22,21 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly fields: readonly FieldIssue[] | undefined;
+  /** For 409 from a versioned update: the version the server holds now. */
+  readonly currentVersion: number | undefined;
 
-  constructor(code: ErrorCode, message: string, fields?: readonly FieldIssue[]) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    fields?: readonly FieldIssue[],
+    extra?: { readonly currentVersion?: number },
+  ) {
     super(message);
     this.name = 'AppError';
     this.code = code;
     this.status = STATUS_BY_CODE[code];
     this.fields = fields;
+    this.currentVersion = extra?.currentVersion;
   }
 }
 
@@ -37,8 +45,12 @@ export function toErrorBody(
   message: string,
   requestId: string,
   fields?: readonly FieldIssue[],
+  extra?: { readonly currentVersion?: number | undefined },
 ): ErrorBody {
   const body: ErrorBody = { error: { code, message, requestId } };
-  if (fields !== undefined && fields.length > 0) body.error.details = { fields: [...fields] };
+  const details: NonNullable<ErrorBody['error']['details']> = {};
+  if (fields !== undefined && fields.length > 0) details.fields = [...fields];
+  if (extra?.currentVersion !== undefined) details.currentVersion = extra.currentVersion;
+  if (Object.keys(details).length > 0) body.error.details = details;
   return body;
 }

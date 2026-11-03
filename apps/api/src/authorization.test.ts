@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from './app.js';
+import { schema } from './db/client.js';
 import { createAuthGuard } from './modules/identity/guard.js';
 import { loadConfig } from './platform/config.js';
 import { createLogger } from './platform/logger.js';
@@ -16,13 +17,24 @@ let testDb: TestDb;
 let victim: Person;
 let attacker: Person;
 let fixtures: HarnessFixtures;
+let victimProductId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
   victim = await createPerson(testDb.db, config.SESSION_SECRET, 'victim');
   attacker = await createPerson(testDb.db, config.SESSION_SECRET, 'attacker');
+  const [product] = await testDb.db
+    .insert(schema.products)
+    .values({ workspaceId: victim.workspaceId, name: 'Victim product' })
+    .returning({ id: schema.products.id });
+  victimProductId = product?.id ?? '';
   fixtures = {
-    foreignParams: { workspaceId: victim.workspaceId },
+    foreignParams: { workspaceId: victim.workspaceId, productId: victimProductId },
+    // Valid sample bodies, so a route that validates before it authorises would show up as 400.
+    bodies: {
+      'POST /api/v1/workspaces/:workspaceId/products': { name: 'Planted' },
+      'PATCH /api/v1/workspaces/:workspaceId/products/:productId': { version: 1, name: 'Pwned' },
+    },
     // Routes without path parameters that act only on the caller's own data. Adding a route
     // here is a review decision: it must not touch anyone else's data.
     selfScoped: new Set(['GET /api/v1/me', 'GET /api/v1/workspaces', 'POST /api/v1/workspaces']),

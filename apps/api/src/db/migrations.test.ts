@@ -6,6 +6,9 @@ import { seedDevData } from './seed.js';
 import { requireDatabaseUrl } from '../test/db-url.js';
 import { createTestDb, type TestDb } from '../test/test-db.js';
 
+// One entry per committed SQL migration in infra/migrations.
+const MIGRATION_COUNT = 2;
+
 let testDb: TestDb;
 
 beforeAll(async () => {
@@ -23,6 +26,7 @@ describe('database schema', () => {
     );
     expect(tables.rows.map((row) => row.table_name)).toEqual([
       'audit_events',
+      'products',
       'users',
       'workspace_members',
       'workspaces',
@@ -30,7 +34,7 @@ describe('database schema', () => {
     const applied = await testDb.pool.query(
       'select count(*)::int as n from drizzle.__drizzle_migrations',
     );
-    expect(applied.rows[0]).toEqual({ n: 1 });
+    expect(applied.rows[0]).toEqual({ n: MIGRATION_COUNT });
   });
 
   it('applying migrations twice is a no-op', async () => {
@@ -38,7 +42,7 @@ describe('database schema', () => {
     const applied = await testDb.pool.query(
       'select count(*)::int as n from drizzle.__drizzle_migrations',
     );
-    expect(applied.rows[0]).toEqual({ n: 1 });
+    expect(applied.rows[0]).toEqual({ n: MIGRATION_COUNT });
   });
 
   it('rejects an unknown membership role', async () => {

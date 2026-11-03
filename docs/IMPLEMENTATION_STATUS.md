@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2: S2.1 done (workspace endpoints, authorization harness, route policy). Next: S2.2 (product API).
+Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2: S2.1 and S2.2 done (workspaces, authorization harness, product API). Next: S2.3 (product UI in the dashboard) and S2.4 (product view in the extension).
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -51,6 +51,7 @@ Verified by the orchestrator (lint, typecheck, test, build, format:check all exi
 - S1.5 exit check against docs/06 Phase 1: dashboard loads (E2E); side panel loads and calls the same API (E2E, as a tab); service-worker restart (E2E); manifest permissions limited to `sidePanel`, `storage`, API origin (unit and E2E).
 - Security review (Opus advisor, 10 findings) fixed: script privilege chain (D-035), request log fields (`req`/`res` serializers) and child-logger redaction, redaction gaps (paths after keys, error causes, Date/URL/Map/Set), mock-token host check and loopback refusal (D-032), proxy trust and 404 rate limiting (D-033), workspace-id brand lint rule and canonical id (D-034), token signature canonical encoding, client timeout through body read, template-database lock, CI permissions. Total tests now: api 114, extension 36, ui 18, contracts 13, config 12, web 7, provider-core 1, plus 13 E2E.
 - S2.1: `apps/api` 135 tests (+21: workspace create/list/get with Thai NFC, strict bodies, per-user limit under concurrency, one-transaction audit, identical 404s; route policy; authorization harness that also proves it can fail). Mutation-checked: scope hook that lets non-members through, route policy that no longer requires the guard, and a non-strict body each fail tests. E2E (13) still pass. Advisor design review for Phase 2 recorded as D-037 to D-041.
+- S2.2: `apps/api` 158 tests (+23: create/normalisation/validation, strict bodies, IDOR through both workspace paths and a stranger's cursor, identical 404s, versioned PATCH incl. 6-way race, archive/unarchive idempotence with one audit event, tied-timestamp pagination, roles, direct database constraints, audit transactionality); `packages/contracts` 27 tests. A test found a real bug (a price without currency returned 500 because Drizzle wraps the Postgres error); fixed. Mutation-checked: dropping the workspace filter, the version check, the role check, and the pagination tie-break each fail tests.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes
@@ -79,4 +80,4 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S2.2 — product API, following D-037 and D-040. Extend the client in `packages/contracts` first (PATCH, bodies, conflict errors), then add the products migration and routes, then fixtures in the authorization harness.
+S2.3 and S2.4 — product screens in the dashboard (create, edit, archive, list with cursor paging) and a read-only product view in the extension side panel. The typed client already has `products.*`.

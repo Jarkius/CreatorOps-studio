@@ -66,6 +66,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-039 | Media reads: HMAC-signed URLs, content type from the database | ACCEPTED |
 | D-040 | API refinements: strict bodies, archive as POST, versioned PATCH, cursor pagination | ACCEPTED |
 | D-041 | Secure-by-default routes: guard and scope enforced at startup | ACCEPTED |
+| D-042 | Product routes are nested under the workspace | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -273,6 +274,11 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 ## D-041 — Secure-by-default routes
 **Status:** ACCEPTED
 **Decision:** Authentication runs in `onRequest`, before body validation, so a stranger gets 401 and learns nothing about a route's schema. Workspace membership for `/workspaces/:workspaceId/...` routes is resolved in `preValidation`, so a non-member gets 404 whatever they send. At startup, every `/api/v1` route must be in `PUBLIC_ROUTES` or use the auth guard (and the workspace scope when it has `:workspaceId`), otherwise the app refuses to start. A test harness walks every registered route with a stranger's token and fails for any route without a fixture.
+
+## D-042 — Product routes nested under the workspace
+**Status:** ACCEPTED (supersedes the id-only product URLs in `docs/04` section 4)
+**Context:** `docs/04` lists `GET/PATCH /products/:productId`. Id-only routes need a lookup among the caller's workspaces to find which workspace owns the id, which is one more place for an authorization mistake.
+**Decision:** All product routes are `/api/v1/workspaces/:workspaceId/products[/:productId[/archive|/unarchive]]`. The workspace scope hook (D-025, D-041) then covers every route uniformly, and every repository query already carries `workspace_id`, so naming another workspace's product id under your own workspace returns 404 by construction. The same shape will be used for assets (`.../assets/...`). Product `DELETE` is replaced by `archive` and `unarchive` (D-040). Role rules: owners, admins and editors can change products; viewers and reviewers can only read.
 
 ---
 
