@@ -3,14 +3,14 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 — documentation complete. Waiting for the owner's go-ahead to start slice S0.1 (first code). No application code exists.
+Phase 0 — S0.1 (monorepo scaffold and CI baseline) done and verified. Next: S0.2.
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
 - [x] Architecture decisions (`docs/DECISIONS.md`, `docs/ARCHITECTURE.md`)
 - [x] Project documents (`docs/01`–`08`, `README.md`, `CLAUDE.md`)
 - [x] Project skill installed (`.claude/skills/app-dev-methodology`)
-- [ ] Monorepo scaffold and CI baseline (S0.1)
+- [x] Monorepo scaffold and CI baseline (S0.1)
 - [ ] Config, logging, local database (S0.2)
 - [ ] API foundation (S1.1–S1.2)
 - [ ] Dashboard shell (S1.3)
@@ -23,13 +23,19 @@ Phase 0 — documentation complete. Waiting for the owner's go-ahead to start sl
 - [ ] Export workflow (Phase 5)
 
 ## Current branch / commit
-Branch `ccr-14958772-bzlatd`. Documentation commits only; no code.
+Branch `ccr-14958772-bzlatd`. S0.1 committed on top of the documentation commits.
 
 ## How to run
-Not available yet. Commands are planned in `docs/ARCHITECTURE.md` §14 and arrive with S0.1–S0.2.
+Node 22+, pnpm 10.28.0. `pnpm install`, then `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm format:check` (see README "Development commands"). Database and dev servers arrive with S0.2 and later slices.
 
 ## Tests
-None yet. No test infrastructure exists until S0.1.
+S0.1, verified by the orchestrator from a clean `pnpm install --frozen-lockfile`: lint, typecheck, test (7 packages), build, and format:check all exit 0. Dependency rules were proven with four throwaway violation files (web→provider-core, extension→apps/api via relative path, api→ui, contracts→ui); all four fail lint.
+Not verified locally: the GitHub Actions workflow (including the gitleaks job) has not run yet.
+
+## Tooling notes
+- TypeScript 6.0.x, not 7: typescript-eslint 8.72.1 does not yet support 7. Revisit when it does.
+- A small inline ESLint rule, `creatorops/no-restricted-relative-reach`, resolves relative imports because `no-restricted-imports` cannot see them.
+- `build` emits tests into `dist/`; test scripts use `vitest run --dir src` so compiled copies do not run.
 
 ## Decisions made
 - 2026-11-03: Final design accepted by owner delegation. Extension-first with a thin Phase 1 extension shell; pack layout; Redis in Phase 3; hybrid methodology. See `docs/DECISIONS.md` (D-001 to D-024).
@@ -43,4 +49,4 @@ None yet. No test infrastructure exists until S0.1.
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S0.1 — monorepo scaffold and CI baseline (`docs/08_PHASE_PLAN.md` §2). Awaiting go-ahead.
+S0.2 — config, logging with redaction, local database (`docs/08_PHASE_PLAN.md` §2).

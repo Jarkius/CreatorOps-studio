@@ -62,3 +62,19 @@ infra/             docker compose and SQL migrations
 ## Project skills
 
 `.claude/skills/app-dev-methodology` is available to Claude Code in this project. It is a general planning guide; project rules in `CLAUDE.md` and `docs/` take precedence.
+
+## Development commands
+
+Requires Node 22 or newer and pnpm 10.28.0 (set in `packageManager`; enable with `corepack enable`).
+
+```
+pnpm install               # install the workspace (uses pnpm-lock.yaml)
+pnpm lint                  # ESLint in every workspace package, including dependency rules
+pnpm typecheck             # tsc --noEmit in every package
+pnpm test                  # Vitest in every package
+pnpm build                 # tsc emit to dist/ in every package
+pnpm format                # Prettier write
+pnpm format:check          # Prettier check
+```
+
+Copy `.env.example` to `.env` for local values. Real `.env` files are git-ignored.

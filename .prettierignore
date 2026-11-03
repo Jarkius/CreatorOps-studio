@@ -1,0 +1,7 @@
+# Owner-controlled documentation and instructions. Not reformatted by this repo's tooling.
+docs/
+prompts/
+.claude/
+CLAUDE.md
+README.md
+pnpm-lock.yaml
