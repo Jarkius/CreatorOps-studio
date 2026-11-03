@@ -1,3 +1,4 @@
+import { testStorage } from '../../test/storage.js';
 import { ErrorBodySchema, MeResponseSchema, MockTokenResponseSchema } from '@creatorops/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -34,6 +35,7 @@ async function app(overrides: Partial<ApiConfig> = {}) {
     config: { ...config, ...overrides } as ApiConfig,
     logger: silent,
     db: testDb.db,
+    storage: testStorage(),
   });
 }
 
@@ -78,7 +80,12 @@ describe('mock token endpoint', () => {
   it('answers 404 with a hint when the development user has not been seeded', async () => {
     const empty = await createTestDb(requireDatabaseUrl());
     try {
-      const instance = await buildApp({ config, logger: silent, db: empty.db });
+      const instance = await buildApp({
+        config,
+        logger: silent,
+        db: empty.db,
+        storage: testStorage(),
+      });
       const response = await instance.inject({
         method: 'POST',
         url: '/api/v1/auth/mock-token',
@@ -286,6 +293,7 @@ describe('auth guard on its own', () => {
       config,
       logger: silent,
       db: testDb.db,
+      storage: testStorage(),
       registerRoutes: (instance) => {
         instance.get(
           '/test/guarded',

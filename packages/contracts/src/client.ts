@@ -1,5 +1,18 @@
 import type { z } from 'zod';
 
+import {
+  AssetListResponseSchema,
+  AssetSchema,
+  DeleteAssetResponseSchema,
+  UploadIntentSchema,
+  type Asset,
+  type AssetListQuery,
+  type AssetListResponse,
+  type CompleteUploadRequest,
+  type CreateUploadIntentRequest,
+  type DeleteAssetResponse,
+  type UploadIntent,
+} from './asset.js';
 import { MeResponseSchema, MockTokenResponseSchema } from './auth.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
 import {
@@ -82,6 +95,8 @@ export interface ApiClient {
   /** Development only: exchanges nothing for a token for the seeded user (mock auth mode). */
   mockToken(): Promise<MockTokenResponse>;
   me(): Promise<MeResponse>;
+  /** Turns an API-relative URL (an asset `url`, an `uploadUrl`) into an absolute one. */
+  resolveUrl(path: string): string;
   workspaces: {
     list(): Promise<WorkspaceListResponse>;
     create(body: CreateWorkspaceRequest): Promise<Workspace>;
@@ -96,9 +111,18 @@ export interface ApiClient {
     archive(workspaceId: string, productId: string): Promise<Product>;
     unarchive(workspaceId: string, productId: string): Promise<Product>;
   };
+  assets: {
+    /** Step 1 of an upload: declare the file; then PUT the bytes to `uploadUrl`. */
+    createUploadIntent(workspaceId: string, body: CreateUploadIntentRequest): Promise<UploadIntent>;
+    /** Step 3: after the PUT succeeded, turn the intent into an asset. Safe to repeat. */
+    completeUpload(workspaceId: string, body: CompleteUploadRequest): Promise<Asset>;
+    list(workspaceId: string, query?: AssetListQuery): Promise<AssetListResponse>;
+    get(workspaceId: string, assetId: string): Promise<Asset>;
+    delete(workspaceId: string, assetId: string): Promise<DeleteAssetResponse>;
+  };
 }
 
-type Method = 'GET' | 'POST' | 'PATCH';
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 interface RequestSpec<S extends z.ZodType> {
   readonly method: Method;
@@ -226,8 +250,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     request({ method, path, schema, authenticated: true, ...(body === undefined ? {} : { body }) });
   const id = encodeURIComponent;
   const products = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}/products`;
+  const assetsPath = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}/assets`;
 
   return {
+    resolveUrl: (path) => new URL(path, `${baseUrl}/`).toString(),
     health: () =>
       request({
         method: 'GET',
@@ -260,6 +286,17 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${products(workspaceId)}/${id(productId)}/archive`, ProductSchema),
       unarchive: (workspaceId, productId) =>
         send('POST', `${products(workspaceId)}/${id(productId)}/unarchive`, ProductSchema),
+    },
+    assets: {
+      createUploadIntent: (workspaceId, body) =>
+        send('POST', `${assetsPath(workspaceId)}/upload-intent`, UploadIntentSchema, body),
+      completeUpload: (workspaceId, body) =>
+        send('POST', `${assetsPath(workspaceId)}/complete-upload`, AssetSchema, body),
+      list: (workspaceId, query) =>
+        get(assetsPath(workspaceId), AssetListResponseSchema, query as RequestSpec<never>['query']),
+      get: (workspaceId, assetId) => get(`${assetsPath(workspaceId)}/${id(assetId)}`, AssetSchema),
+      delete: (workspaceId, assetId) =>
+        send('DELETE', `${assetsPath(workspaceId)}/${id(assetId)}`, DeleteAssetResponseSchema),
     },
   };
 }

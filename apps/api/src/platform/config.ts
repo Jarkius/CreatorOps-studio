@@ -38,6 +38,9 @@ export const apiEnvSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     // Loopback by default; set HOST=0.0.0.0 deliberately when running in a container.
     HOST: z.string().min(1).default('127.0.0.1'),
+    // Where uploaded files are stored (local filesystem adapter). Relative paths resolve against the
+    // working directory of the API process.
+    DATA_DIR: z.string().min(1).default('.data/media'),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
     // Reverse-proxy hops to trust for the client address (X-Forwarded-For). 0 trusts none, so a
     // client cannot spoof its address. Set it to the number of proxies in front of the API.

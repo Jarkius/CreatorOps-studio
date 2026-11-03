@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2: S2.1 and S2.2 done (workspaces, authorization harness, product API). Next: S2.3 (product UI in the dashboard) and S2.4 (product view in the extension).
+Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2: S2.1 to S2.4 and the S2.5/S2.6 backend are done and verified. Remaining: S2.7a/b (asset UI in the dashboard) and S2.8 (exit check).
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -16,8 +16,8 @@ Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified 
 - [x] API foundation, part 2: database schema, mock auth, workspace scope (S1.2)
 - [x] Dashboard shell (S1.3)
 - [x] Extension shell (S1.4)
-- [ ] Workspace/products (S2.1 done; S2.2–S2.4 next)
-- [ ] Media upload/library (S2.5–S2.7)
+- [x] Workspace/products (S2.1–S2.4)
+- [ ] Media upload/library (S2.5, S2.6 backend done; S2.7 dashboard UI next)
 - [ ] Mock generation provider (Phase 3)
 - [ ] Durable jobs (Phase 3)
 - [ ] Real text provider (Phase 4)
@@ -52,6 +52,10 @@ Verified by the orchestrator (lint, typecheck, test, build, format:check all exi
 - Security review (Opus advisor, 10 findings) fixed: script privilege chain (D-035), request log fields (`req`/`res` serializers) and child-logger redaction, redaction gaps (paths after keys, error causes, Date/URL/Map/Set), mock-token host check and loopback refusal (D-032), proxy trust and 404 rate limiting (D-033), workspace-id brand lint rule and canonical id (D-034), token signature canonical encoding, client timeout through body read, template-database lock, CI permissions. Total tests now: api 114, extension 36, ui 18, contracts 13, config 12, web 7, provider-core 1, plus 13 E2E.
 - S2.1: `apps/api` 135 tests (+21: workspace create/list/get with Thai NFC, strict bodies, per-user limit under concurrency, one-transaction audit, identical 404s; route policy; authorization harness that also proves it can fail). Mutation-checked: scope hook that lets non-members through, route policy that no longer requires the guard, and a non-strict body each fail tests. E2E (13) still pass. Advisor design review for Phase 2 recorded as D-037 to D-041.
 - S2.2: `apps/api` 158 tests (+23: create/normalisation/validation, strict bodies, IDOR through both workspace paths and a stranger's cursor, identical 404s, versioned PATCH incl. 6-way race, archive/unarchive idempotence with one audit event, tied-timestamp pagination, roles, direct database constraints, audit transactionality); `packages/contracts` 27 tests. A test found a real bug (a price without currency returned 500 because Drizzle wraps the Postgres error); fixed. Mutation-checked: dropping the workspace filter, the version check, the role check, and the pagination tie-break each fail tests.
+- S2.3 (Haiku worker, verified by the orchestrator): `packages/ui` 43 tests (Button, fields, ConfirmDialog, `active` pill), `apps/web` 35 tests, 8 new Playwright tests (create with Thai name, edit, validation, archive/restore through the dialog, conflict with "Load latest", empty workspace, axe on list/form/errors, keyboard).
+- S2.4 (Haiku worker, verified by the orchestrator): `apps/extension` 48 tests and 5 new Playwright tests run for the first time by the orchestrator (product list, empty workspace, error and retry, 320px width, links in a new tab); extension E2E total 14.
+- S2.5/S2.6 backend: `apps/api` 226 tests (asset suite of 43: image/video upload end to end, EXIF orientation, animated GIF, decompression bomb, corrupt image, type spoofing, SVG/HTML/script, size lies, wrong Content-Type, tampered/expired/replayed signed URLs, single use under concurrency, cross-user completion, quotas, cover-image rules, ranges, sweeping, purging, per-route rate limit). Mutation-checked: validator error listener, media signature without workspace, single-use claim, intent ownership, magic-byte check. Testing found a process-crashing bug (D-043).
+- E2E total 26 (14 extension, 12 dashboard). Unit and integration total: api 226, extension 48, web 35, ui 43, contracts 27, config 12, provider-core 1.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes
@@ -80,4 +84,4 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S2.3 and S2.4 — product screens in the dashboard (create, edit, archive, list with cursor paging) and a read-only product view in the extension side panel. The typed client already has `products.*`.
+S2.7a/b — upload (with progress, using XHR) and gallery UI in the dashboard (preview, set cover image, delete), wired to the typed client's `assets.*` and `resolveUrl`; then S2.8, the Phase 2 exit check against docs/07. Consult the advisor on the Phase 3 slice breakdown before starting Phase 3.

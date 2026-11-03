@@ -1,3 +1,4 @@
+import { testStorage } from '../../test/storage.js';
 import {
   ErrorBodySchema,
   WorkspaceListResponseSchema,
@@ -33,7 +34,7 @@ afterAll(async () => {
 });
 
 async function app() {
-  return buildApp({ config, logger: silent, db: testDb.db });
+  return buildApp({ config, logger: silent, db: testDb.db, storage: testStorage() });
 }
 
 const auth = (person: Person) => ({ authorization: `Bearer ${person.token}` });

@@ -11,12 +11,14 @@ import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
+import { findAsset } from '../assets/repo.js';
 import {
   findProduct,
   insertProduct,
   listProducts as listProductRows,
   setProductArchived,
   updateProductVersioned,
+  type ProductPatch,
   type ProductRow,
   type ProductValues,
 } from './repo.js';
@@ -60,7 +62,7 @@ export function toProduct(row: ProductRow): Product {
     targetAudience: row.targetAudience,
     brandTone: row.brandTone,
     restrictedClaims: row.restrictedClaims,
-    primaryAssetId: null,
+    primaryAssetId: row.primaryAssetId,
     status: row.status === 'archived' ? 'archived' : 'active',
     version: row.version,
     createdAt: row.createdAt.toISOString(),
@@ -91,6 +93,11 @@ function postgresError(error: unknown): { code?: unknown; constraint?: unknown }
 function isPriceCurrencyViolation(error: unknown): boolean {
   const pg = postgresError(error);
   return pg?.code === '23514' && pg.constraint === 'products_price_currency_check';
+}
+
+function isPrimaryAssetViolation(error: unknown): boolean {
+  const pg = postgresError(error);
+  return pg?.code === '23503' && pg.constraint === 'products_primary_asset_fk';
 }
 
 export async function createProduct(
@@ -192,7 +199,7 @@ export async function updateProduct(
 ): Promise<Product> {
   assertCanWrite(ctx);
 
-  const patch: { -readonly [K in keyof ProductValues]?: ProductValues[K] } = {};
+  const patch: { -readonly [K in keyof ProductPatch]?: ProductPatch[K] } = {};
   if (input.name !== undefined) {
     const name = normalizeText(input.name);
     if (name === '') {
@@ -219,6 +226,20 @@ export async function updateProduct(
     patch.restrictedClaims = normalizeList(input.restrictedClaims, 'restrictedClaims');
   }
 
+  if (input.primaryAssetId !== undefined) {
+    if (input.primaryAssetId !== null) {
+      // The cover must be a ready image in this very workspace (the database also enforces the
+      // workspace with a composite foreign key).
+      const asset = await findAsset(db, ctx, input.primaryAssetId);
+      if (asset === null || asset.status !== 'ready' || asset.type !== 'image') {
+        throw new AppError('VALIDATION_ERROR', 'The request is not valid.', [
+          { path: 'primaryAssetId', message: 'must be an image file in this workspace' },
+        ]);
+      }
+    }
+    patch.primaryAssetId = input.primaryAssetId;
+  }
+
   try {
     const row = await db.transaction(async (tx) => {
       const updated = await updateProductVersioned(tx, ctx, productId, input.version, patch);
@@ -235,6 +256,11 @@ export async function updateProduct(
     if (row !== null) return toProduct(row);
   } catch (error) {
     if (isPriceCurrencyViolation(error)) throw pairError();
+    if (isPrimaryAssetViolation(error)) {
+      throw new AppError('VALIDATION_ERROR', 'The request is not valid.', [
+        { path: 'primaryAssetId', message: 'must be an image file in this workspace' },
+      ]);
+    }
     throw error;
   }
 

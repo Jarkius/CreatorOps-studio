@@ -66,3 +66,31 @@ export type {
   ProductStatus,
   UpdateProductRequest,
 } from './product.js';
+
+export {
+  ASSET_LIMITS,
+  ASSET_TYPE_VALUES,
+  AssetListQuerySchema,
+  AssetListResponseSchema,
+  AssetParamsSchema,
+  AssetSchema,
+  AssetTypeSchema,
+  CompleteUploadRequestSchema,
+  CreateUploadIntentRequestSchema,
+  DeleteAssetResponseSchema,
+  UPLOAD_MIME_VALUES,
+  UploadIntentSchema,
+  UploadMimeSchema,
+} from './asset.js';
+export type {
+  Asset,
+  AssetListQuery,
+  AssetListQueryParsed,
+  AssetListResponse,
+  AssetType,
+  CompleteUploadRequest,
+  CreateUploadIntentRequest,
+  DeleteAssetResponse,
+  UploadIntent,
+  UploadMime,
+} from './asset.js';

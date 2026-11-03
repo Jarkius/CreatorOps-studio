@@ -67,6 +67,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-040 | API refinements: strict bodies, archive as POST, versioned PATCH, cursor pagination | ACCEPTED |
 | D-041 | Secure-by-default routes: guard and scope enforced at startup | ACCEPTED |
 | D-042 | Product routes are nested under the workspace | ACCEPTED |
+| D-043 | Upload hardening found in testing: early error listener, configurable per-route limit | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -279,6 +280,15 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 **Status:** ACCEPTED (supersedes the id-only product URLs in `docs/04` section 4)
 **Context:** `docs/04` lists `GET/PATCH /products/:productId`. Id-only routes need a lookup among the caller's workspaces to find which workspace owns the id, which is one more place for an authorization mistake.
 **Decision:** All product routes are `/api/v1/workspaces/:workspaceId/products[/:productId[/archive|/unarchive]]`. The workspace scope hook (D-025, D-041) then covers every route uniformly, and every repository query already carries `workspace_id`, so naming another workspace's product id under your own workspace returns 404 by construction. The same shape will be used for assets (`.../assets/...`). Product `DELETE` is replaced by `archive` and `unarchive` (D-040). Role rules: owners, admins and editors can change products; viewers and reviewers can only read.
+
+## D-043 — Upload hardening found while testing
+**Status:** ACCEPTED
+**Context:** Testing the upload backend exposed two things the design review had not.
+**Decision:**
+- **Crash on a wrong file.** The upload validator rejects a bad file on its first chunk, before the storage layer has attached its error handler. With no listener, that `error` event is an uncaught exception that would terminate the API process, so one wrong file sent to a valid upload URL could take the service down. The validator now gets an error listener at creation; the failure still reaches the request through the pipeline. A test run that reports unhandled errors fails the build (non-zero exit), which is what catches a regression.
+- **Per-route upload limit** (30 a minute per address by default) is configurable through `uploadRateLimitMax` so test suites can exercise many uploads; a dedicated test proves the default limit answers `429 RATE_LIMITED`.
+- **Storage never deletes what it did not create.** A failed `put` onto an existing key removes nothing (found by a storage test).
+- **Hand-written migration** `0003` carries the products-to-assets composite foreign key because Drizzle cannot type the circular reference; database tests prove the constraint.
 
 ---
 

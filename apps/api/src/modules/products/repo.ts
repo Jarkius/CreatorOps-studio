@@ -81,13 +81,15 @@ export async function listProducts(
     .limit(options.limit);
 }
 
+export type ProductPatch = Partial<ProductValues> & { readonly primaryAssetId?: string | null };
+
 /** Applies the patch only if the stored version still equals `version`; null otherwise. */
 export async function updateProductVersioned(
   db: DbOrTx,
   ctx: RequestContext,
   productId: string,
   version: number,
-  patch: Partial<ProductValues>,
+  patch: ProductPatch,
 ): Promise<ProductRow | null> {
   if (!UUID.test(productId)) return null;
   const rows = await db

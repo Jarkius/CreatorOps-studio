@@ -1,3 +1,4 @@
+import { testStorage } from './test/storage.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from './app.js';
@@ -18,6 +19,7 @@ let victim: Person;
 let attacker: Person;
 let fixtures: HarnessFixtures;
 let victimProductId: string;
+let victimAssetId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -28,12 +30,30 @@ beforeAll(async () => {
     .values({ workspaceId: victim.workspaceId, name: 'Victim product' })
     .returning({ id: schema.products.id });
   victimProductId = product?.id ?? '';
+  const asset = await testDb.pool.query<{ id: string }>(
+    `insert into assets (workspace_id, type, mime_type, size_bytes, original_filename, sha256, storage_key, created_by)
+     values ($1, 'image', 'image/png', 10, 'v.png', repeat('c', 64), 'ws/x/y/original.png', $2) returning id`,
+    [victim.workspaceId, victim.userId],
+  );
+  victimAssetId = asset.rows[0]?.id ?? '';
   fixtures = {
-    foreignParams: { workspaceId: victim.workspaceId, productId: victimProductId },
+    foreignParams: {
+      workspaceId: victim.workspaceId,
+      productId: victimProductId,
+      assetId: victimAssetId,
+    },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
       'POST /api/v1/workspaces/:workspaceId/products': { name: 'Planted' },
       'PATCH /api/v1/workspaces/:workspaceId/products/:productId': { version: 1, name: 'Pwned' },
+      'POST /api/v1/workspaces/:workspaceId/assets/upload-intent': {
+        filename: 'a.png',
+        mimeType: 'image/png',
+        sizeBytes: 10,
+      },
+      'POST /api/v1/workspaces/:workspaceId/assets/complete-upload': {
+        intentId: '00000000-0000-4000-8000-000000000000',
+      },
     },
     // Routes without path parameters that act only on the caller's own data. Adding a route
     // here is a review decision: it must not touch anyone else's data.
@@ -47,7 +67,7 @@ afterAll(async () => {
 
 describe('authorization harness over every registered route', () => {
   it('denies a stranger on every route: 401 without a token, 404 for another workspace', async () => {
-    const app = await buildApp({ config, logger: silent, db: testDb.db });
+    const app = await buildApp({ config, logger: silent, db: testDb.db, storage: testStorage() });
     const report = await runAuthorizationHarness(app, attacker.token, fixtures);
     expect(report.failures).toEqual([]);
     // Guards against a harness that silently checks nothing.
@@ -68,6 +88,7 @@ describe('authorization harness over every registered route', () => {
       config,
       logger: silent,
       db: testDb.db,
+      storage: testStorage(),
       registerRoutes: (instance) => {
         // Guarded, but returns 200 for any workspace id: the bug the harness exists to find.
         instance.get('/api/v1/leaky/:workspaceId', { onRequest: guard }, () => ({ leaked: true }));
@@ -84,6 +105,7 @@ describe('authorization harness over every registered route', () => {
       config,
       logger: silent,
       db: testDb.db,
+      storage: testStorage(),
       registerRoutes: (instance) => {
         instance.get('/api/v1/things/:thingId', { onRequest: guard }, () => ({}));
       },
@@ -99,6 +121,7 @@ describe('authorization harness over every registered route', () => {
       config,
       logger: silent,
       db: testDb.db,
+      storage: testStorage(),
       registerRoutes: (instance) => {
         instance.get('/api/v1/everything', { onRequest: guard }, () => ({}));
       },
@@ -109,7 +132,7 @@ describe('authorization harness over every registered route', () => {
   });
 
   it('proves the attacker really is a valid, authenticated user', async () => {
-    const app = await buildApp({ config, logger: silent, db: testDb.db });
+    const app = await buildApp({ config, logger: silent, db: testDb.db, storage: testStorage() });
     const own = await app.inject({
       method: 'GET',
       url: `/api/v1/workspaces/${attacker.workspaceId}`,

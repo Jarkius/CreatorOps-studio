@@ -1,3 +1,4 @@
+import { testStorage } from '../../test/storage.js';
 import { ErrorBodySchema, ProductListResponseSchema, ProductSchema } from '@creatorops/contracts';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -32,7 +33,7 @@ async function addMember(person: Person, workspaceId: string, role: string): Pro
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
-  app = await buildApp({ config, logger: silent, db: testDb.db });
+  app = await buildApp({ config, logger: silent, db: testDb.db, storage: testStorage() });
   alice = await createPerson(testDb.db, config.SESSION_SECRET, 'alice');
   bob = await createPerson(testDb.db, config.SESSION_SECRET, 'bob');
   viewer = await createPerson(testDb.db, config.SESSION_SECRET, 'viewer');

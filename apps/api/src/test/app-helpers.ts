@@ -1,3 +1,4 @@
+import { testStorage } from './storage.js';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 
@@ -7,7 +8,9 @@ import { loadConfig } from '../platform/config.js';
 import { createLogger } from '../platform/logger.js';
 import { validEnv } from './db-url.js';
 
-export interface MakeAppOverrides extends Partial<Omit<AppOptions, 'config' | 'logger' | 'db'>> {
+export interface MakeAppOverrides extends Partial<
+  Omit<AppOptions, 'config' | 'logger' | 'db' | 'storage'>
+> {
   /** Environment variables layered over validEnv(). */
   readonly env?: Record<string, string | undefined>;
 }
@@ -42,6 +45,7 @@ export async function makeApp({
   const app = await buildApp({
     config,
     db,
+    storage: testStorage(),
     logger: createLogger({ level: 'info', stream }),
     ...optionOverrides,
   });

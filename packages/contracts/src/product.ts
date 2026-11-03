@@ -106,6 +106,8 @@ export const UpdateProductRequestSchema = z
     targetAudience: shortText.nullable().optional(),
     brandTone: shortText.nullable().optional(),
     restrictedClaims: textList.optional(),
+    /** The cover image: an image asset of this workspace, or null to clear it. */
+    primaryAssetId: z.string().max(64).nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).some((key) => key !== 'version'), {

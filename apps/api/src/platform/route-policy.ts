@@ -13,6 +13,9 @@ export const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
   'GET /api/v1/health',
   'GET /api/v1/openapi.json',
   'POST /api/v1/auth/mock-token',
+  // Authorised by a signed URL (D-038, D-039), each with its own signature tests.
+  'PUT /api/v1/uploads/:intentId',
+  'GET /api/v1/media/:assetId/:variant',
 ]);
 
 export interface RegisteredRoute {

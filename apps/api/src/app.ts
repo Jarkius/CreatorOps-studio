@@ -15,6 +15,8 @@ import type { Db } from './db/client.js';
 import { createAuthGuard } from './modules/identity/guard.js';
 import { registerIdentityRoutes } from './modules/identity/routes.js';
 import { createWorkspaceScope } from './modules/identity/scope.js';
+import { createAssetDeps } from './modules/assets/deps.js';
+import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
 import type { ApiConfig } from './platform/config.js';
@@ -22,14 +24,18 @@ import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
 import type { Logger } from './platform/logger.js';
 import { generateRequestId } from './platform/request-id.js';
 import { installRoutePolicy } from './platform/route-policy.js';
+import type { Storage } from './storage/storage.js';
 import { registerHealthRoutes } from './routes/health.js';
 
 export interface AppOptions {
   readonly config: ApiConfig;
   readonly logger: Logger;
   readonly db: Db;
+  readonly storage: Storage;
   /** Requests per minute per client address. Defaults to 300. */
   readonly rateLimitMax?: number;
+  /** Uploads per minute per client address (the PUT to a signed upload URL). Defaults to 30. */
+  readonly uploadRateLimitMax?: number;
   /** Maximum JSON body size in bytes. Defaults to 1 MiB. */
   readonly bodyLimit?: number;
   /** Extra routes, used by tests. Registered before the app is ready. */
@@ -37,7 +43,7 @@ export interface AppOptions {
 }
 
 const ALLOWED_HEADERS = ['authorization', 'content-type', 'idempotency-key', REQUEST_ID_HEADER];
-const ALLOWED_METHODS = ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'];
+const ALLOWED_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
 /** Converts a JSON pointer such as "/sellingPoints/0" to a dotted path "sellingPoints.0". */
 function toDottedPath(instancePath: string): string {
@@ -127,7 +133,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   app.addHook('onSend', (_request, reply, _payload, done) => {
     void reply.header('x-content-type-options', 'nosniff');
     void reply.header('referrer-policy', 'no-referrer');
-    void reply.header('cache-control', 'no-store');
+    // Private API responses are never cached; routes that set their own policy (signed media) win.
+    if (!reply.hasHeader('cache-control')) void reply.header('cache-control', 'no-store');
     done();
   });
 
@@ -195,6 +202,17 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerIdentityRoutes(app, { config, db: options.db, guard });
   registerWorkspaceRoutes(app, { db: options.db, guard, scope });
   registerProductRoutes(app, { db: options.db, guard, scope });
+  const assetDeps = createAssetDeps({
+    db: options.db,
+    storage: options.storage,
+    sessionSecret: config.SESSION_SECRET,
+  });
+  registerAssetRoutes(app, { deps: assetDeps, guard, scope });
+  registerSignedRoutes(app, assetDeps, {
+    ...(options.uploadRateLimitMax === undefined
+      ? {}
+      : { uploadsPerMinute: options.uploadRateLimitMax }),
+  });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 
