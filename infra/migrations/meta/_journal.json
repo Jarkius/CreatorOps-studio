@@ -15,6 +15,20 @@
       "when": 1793727571714,
       "tag": "0001_products",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793728109152,
+      "tag": "0002_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793728110108,
+      "tag": "0003_primary_asset_fk",
+      "breakpoints": true
     }
   ]
 }

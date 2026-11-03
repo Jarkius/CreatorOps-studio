@@ -26,3 +26,6 @@ export function validEnv(overrides: Record<string, string | undefined> = {}) {
     ...overrides,
   };
 }
+
+/** The session secret used by validEnv(); tests that mint tokens directly need it. */
+export const SECRET_FOR_TESTS = 'test-secret-test-secret-test-secret-0123';
