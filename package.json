@@ -16,7 +16,10 @@
     "format:check": "prettier --check .",
     "dev:db": "bash scripts/pg-local.sh start",
     "dev:db:stop": "bash scripts/pg-local.sh stop",
-    "dev:db:compose": "docker compose -f infra/docker/docker-compose.yml up -d postgres"
+    "dev:db:compose": "docker compose -f infra/docker/docker-compose.yml up -d postgres",
+    "db:generate": "pnpm --filter @creatorops/api db:generate",
+    "db:migrate": "pnpm build && pnpm --filter @creatorops/api db:migrate",
+    "db:seed": "pnpm build && pnpm --filter @creatorops/api db:seed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

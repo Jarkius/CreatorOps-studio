@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
+import pg from 'pg';
 
 import { buildApp, type AppOptions } from '../app.js';
+import { createDb } from '../db/client.js';
 import { loadConfig } from '../platform/config.js';
 import { createLogger } from '../platform/logger.js';
 import { validEnv } from './db-url.js';
 
-export interface MakeAppOverrides extends Partial<Omit<AppOptions, 'config' | 'logger'>> {
+export interface MakeAppOverrides extends Partial<Omit<AppOptions, 'config' | 'logger' | 'db'>> {
   /** Environment variables layered over validEnv(). */
   readonly env?: Record<string, string | undefined>;
 }
@@ -34,8 +36,12 @@ export async function makeApp({
       }
     },
   };
+  const config = loadConfig(validEnv(env));
+  // A pool opens no connection until it is queried, and these tests never query the database.
+  const db = createDb(new pg.Pool({ connectionString: config.DATABASE_URL }));
   const app = await buildApp({
-    config: loadConfig(validEnv(env)),
+    config,
+    db,
     logger: createLogger({ level: 'info', stream }),
     ...optionOverrides,
   });

@@ -11,3 +11,19 @@ export type { ErrorBody, ErrorCode, FieldIssue } from './errors.js';
 
 export { HealthResponseSchema } from './health.js';
 export type { HealthResponse } from './health.js';
+
+export {
+  MeResponseSchema,
+  MembershipSchema,
+  MockTokenResponseSchema,
+  UserSchema,
+  WORKSPACE_ROLE_VALUES,
+  WorkspaceRoleSchema,
+} from './auth.js';
+export type {
+  MeResponse,
+  Membership,
+  MockTokenResponse,
+  User,
+  WorkspaceRoleValue,
+} from './auth.js';

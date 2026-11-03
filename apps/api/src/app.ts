@@ -11,6 +11,8 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 
+import type { Db } from './db/client.js';
+import { registerIdentityRoutes } from './modules/identity/routes.js';
 import type { ApiConfig } from './platform/config.js';
 import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
 import type { Logger } from './platform/logger.js';
@@ -20,6 +22,7 @@ import { registerHealthRoutes } from './routes/health.js';
 export interface AppOptions {
   readonly config: ApiConfig;
   readonly logger: Logger;
+  readonly db: Db;
   /** Requests per minute per client address. Defaults to 300. */
   readonly rateLimitMax?: number;
   /** Maximum JSON body size in bytes. Defaults to 1 MiB. */
@@ -137,6 +140,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     openapi: {
       openapi: '3.0.3',
       info: { title: 'CreatorOps Studio API', version: '0.1.0' },
+      components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
     },
     transform: jsonSchemaTransform,
   });
@@ -167,6 +171,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   registerHealthRoutes(app);
+  registerIdentityRoutes(app, { config, db: options.db });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

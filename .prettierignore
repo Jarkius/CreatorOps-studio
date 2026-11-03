@@ -6,3 +6,4 @@ CLAUDE.md
 README.md
 pnpm-lock.yaml
 apps/api/src/__snapshots__
+infra/migrations

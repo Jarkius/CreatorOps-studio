@@ -1,4 +1,5 @@
 import { buildApp } from './app.js';
+import { createDb } from './db/client.js';
 import { prepare } from './startup.js';
 
 const prepared = await prepare(process.env, {
@@ -10,7 +11,12 @@ if (!prepared.ok) {
   process.exitCode = prepared.exitCode;
 } else {
   const { config, logger, pool } = prepared;
-  const app = await buildApp({ config, logger, rateLimitMax: config.RATE_LIMIT_MAX });
+  const app = await buildApp({
+    config,
+    logger,
+    db: createDb(pool),
+    rateLimitMax: config.RATE_LIMIT_MAX,
+  });
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ event: 'server.stopping', signal }, 'shutting down');

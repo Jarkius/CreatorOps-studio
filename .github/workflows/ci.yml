@@ -41,6 +41,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Migrations are up to date
+        run: |
+          pnpm db:generate
+          git diff --exit-code -- infra/migrations
+          test -z "$(git status --porcelain -- infra/migrations)"
+
       - name: Lint
         run: pnpm lint
 
