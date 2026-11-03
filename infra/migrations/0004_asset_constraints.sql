@@ -1,0 +1,2 @@
+ALTER TABLE "assets" ADD CONSTRAINT "assets_storage_key_unique" UNIQUE("storage_key");--> statement-breakpoint
+ALTER TABLE "upload_intents" ADD CONSTRAINT "upload_intents_received_size_positive" CHECK ("upload_intents"."received_size" is null or "upload_intents"."received_size" > 0);

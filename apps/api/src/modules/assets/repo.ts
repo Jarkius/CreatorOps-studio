@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, lt, sql, sum } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, lt, ne, or, sql, sum } from 'drizzle-orm';
 
 import type { DbOrTx } from '../../db/client.js';
 import { assets, products, uploadIntents, workspaces } from '../../db/schema.js';
@@ -26,24 +26,33 @@ export async function workspaceUsage(
   ctx: RequestContext,
   now: Date,
 ): Promise<{ assets: number; bytes: number; openIntents: number }> {
+  // Files on disk: ready AND soft-deleted ones. A deleted file keeps its bytes until the purge
+  // removes it, so an upload-then-delete loop cannot fill the disk without limit.
   const stored = await db
-    .select({ n: count(), bytes: sum(assets.sizeBytes) })
+    .select({ bytes: sum(assets.sizeBytes) })
+    .from(assets)
+    .where(eq(assets.workspaceId, ctx.workspaceId));
+  const ready = await db
+    .select({ n: count() })
     .from(assets)
     .where(and(eq(assets.workspaceId, ctx.workspaceId), eq(assets.status, 'ready')));
-  // Uploads that are on their way count against the quota too, so a burst of intents cannot
-  // exceed it. Completed intents are already counted as assets.
+  // Uploads on their way reserve their share. A `pending` intent stops counting once it has
+  // expired (it can no longer be used), but `receiving` and `received` ones keep counting until
+  // they are completed or swept: their bytes are already on disk and can still be completed.
   const open = await db
     .select({ n: count(), bytes: sum(uploadIntents.declaredSize) })
     .from(uploadIntents)
     .where(
       and(
         eq(uploadIntents.workspaceId, ctx.workspaceId),
-        inArray(uploadIntents.status, ['pending', 'receiving', 'received']),
-        sql`${uploadIntents.expiresAt} > ${now}`,
+        or(
+          and(eq(uploadIntents.status, 'pending'), sql`${uploadIntents.expiresAt} > ${now}`),
+          inArray(uploadIntents.status, ['receiving', 'received']),
+        ),
       ),
     );
   return {
-    assets: Number(stored[0]?.n ?? 0) + Number(open[0]?.n ?? 0),
+    assets: Number(ready[0]?.n ?? 0) + Number(open[0]?.n ?? 0),
     bytes: Number(stored[0]?.bytes ?? 0) + Number(open[0]?.bytes ?? 0),
     openIntents: Number(open[0]?.n ?? 0),
   };
@@ -107,15 +116,24 @@ export async function completeIntent(
   return rows[0] ?? null;
 }
 
-export async function markIntentFailedScoped(
+/** received -> failed. Returns true only if this call made the change (nothing else completed it). */
+export async function markReceivedIntentFailed(
   db: DbOrTx,
   ctx: RequestContext,
   intentId: string,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const rows = await db
     .update(uploadIntents)
     .set({ status: 'failed', updatedAt: nowMs })
-    .where(and(eq(uploadIntents.workspaceId, ctx.workspaceId), eq(uploadIntents.id, intentId)));
+    .where(
+      and(
+        eq(uploadIntents.workspaceId, ctx.workspaceId),
+        eq(uploadIntents.id, intentId),
+        eq(uploadIntents.status, 'received'),
+      ),
+    )
+    .returning({ id: uploadIntents.id });
+  return rows.length === 1;
 }
 
 export interface NewAsset {
@@ -159,6 +177,32 @@ export async function findAsset(
     .where(and(eq(assets.workspaceId, ctx.workspaceId), eq(assets.id, assetId)))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Finds a ready image of this workspace and locks it against deletion until the transaction ends
+ * (FOR SHARE conflicts with the UPDATE that soft-deletes it). Used before pointing a product's
+ * cover at it, so a concurrent delete cannot leave a cover that points at a deleted file.
+ */
+export async function lockReadyImage(
+  db: DbOrTx,
+  ctx: RequestContext,
+  assetId: string,
+): Promise<boolean> {
+  if (!UUID.test(assetId)) return false;
+  const rows = await db
+    .select({ id: assets.id })
+    .from(assets)
+    .where(
+      and(
+        eq(assets.workspaceId, ctx.workspaceId),
+        eq(assets.id, assetId),
+        eq(assets.status, 'ready'),
+        eq(assets.type, 'image'),
+      ),
+    )
+    .for('share');
+  return rows.length === 1;
 }
 
 export interface AssetListOptions {
@@ -314,8 +358,27 @@ export async function listStaleIntents(
     .limit(limit);
 }
 
-export async function deleteIntent(db: DbOrTx, intentId: string): Promise<void> {
-  await db.delete(uploadIntents).where(eq(uploadIntents.id, intentId));
+/**
+ * Deletes a stale intent only if it is still stale and not completed, and returns it so the
+ * caller removes its files only when this call really removed the row. A completion that commits
+ * between listing and deleting makes this return null, so a finished asset's file is never swept.
+ */
+export async function deleteStaleIntent(
+  db: DbOrTx,
+  intentId: string,
+  cutoff: Date,
+): Promise<IntentRow | null> {
+  const rows = await db
+    .delete(uploadIntents)
+    .where(
+      and(
+        eq(uploadIntents.id, intentId),
+        ne(uploadIntents.status, 'completed'),
+        lt(uploadIntents.updatedAt, cutoff),
+      ),
+    )
+    .returning();
+  return rows[0] ?? null;
 }
 
 export async function listPurgeableAssets(
@@ -331,6 +394,13 @@ export async function listPurgeableAssets(
 }
 
 export async function hardDeleteAsset(db: DbOrTx, assetId: string): Promise<void> {
-  // Completed intents keep a reference by asset id only (no foreign key), so nothing else blocks this.
-  await db.delete(assets).where(and(eq(assets.id, assetId), eq(assets.status, 'deleted')));
+  await db.transaction(async (tx) => {
+    // Defensive: nothing should still use a deleted asset as a cover, but if something does, it
+    // must not block the purge (the foreign key would refuse the delete, forever).
+    await tx
+      .update(products)
+      .set({ primaryAssetId: null })
+      .where(eq(products.primaryAssetId, assetId));
+    await tx.delete(assets).where(and(eq(assets.id, assetId), eq(assets.status, 'deleted')));
+  });
 }

@@ -10,6 +10,7 @@ export function createAssetDeps(options: {
   readonly storage: Storage;
   readonly sessionSecret: string;
   readonly now?: () => Date;
+  readonly uploadIdleMs?: number;
 }): AssetDeps {
   return {
     db: options.db,
@@ -17,5 +18,6 @@ export function createAssetDeps(options: {
     uploads: createUploadSigner(options.sessionSecret),
     media: createMediaSigner(options.sessionSecret),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.uploadIdleMs === undefined ? {} : { uploadIdleMs: options.uploadIdleMs }),
   };
 }

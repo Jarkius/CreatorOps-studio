@@ -68,6 +68,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-041 | Secure-by-default routes: guard and scope enforced at startup | ACCEPTED |
 | D-042 | Product routes are nested under the workspace | ACCEPTED |
 | D-043 | Upload hardening found in testing: early error listener, configurable per-route limit | ACCEPTED |
+| D-044 | Phase 2 security review fixes: quota, purge, completion and sweep races, timeouts | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -254,7 +255,7 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 **Status:** ACCEPTED (advisor design review, 2026-11-03)
 **Decision:**
 - `products` and `assets` each carry `unique(workspace_id, id)`, and cross-table references use composite foreign keys `(workspace_id, x_id)`, so the database itself refuses an asset linked to another workspace's product or a primary image from another workspace.
-- `products.primary_asset_id` references `assets(workspace_id, id)` with `ON DELETE SET NULL (primary_asset_id)` (PostgreSQL 15+; the project uses 16). Deleting an asset is a soft delete (`status`, `deleted_at`) and clears the product's primary image in the same transaction.
+- `products.primary_asset_id` references `assets(workspace_id, id)` (migration 0003, `ON DELETE NO ACTION`: a hard delete of an asset that is still a cover is refused). Deleting an asset is a soft delete (`status`, `deleted_at`) and clears the product's cover in the same transaction; the purge clears any stale cover before removing a row. Setting a cover locks the asset (`FOR SHARE`) in the update transaction so a concurrent delete cannot slip in.
 - Products carry `version int` (optimistic concurrency), `status` (`active`/`archived`) and `archived_at`. Price is `numeric(12,2)` with a 3-letter currency, both null or both set; never a float.
 - `selling_points` and `restricted_claims` are `jsonb` arrays checked with `jsonb_typeof = 'array'`; Zod limits each to 20 strings of 1 to 300 characters.
 - Text columns have length checks; list indexes are `(workspace_id, status, created_at desc, id desc)`.
@@ -262,7 +263,8 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 
 ## D-038 — Upload design
 **Status:** ACCEPTED (advisor design review)
-**Decision:** `POST .../assets/upload-intent` creates an intent (declared type and size, 10-minute expiry, status `pending`) and returns `PUT /api/v1/uploads/:intentId?exp&sig`. The signature is HMAC-SHA256 with a key derived from `SESSION_SECRET` and the label `upload`, over `v1|upload|intentId|workspaceId|userId|declaredSize|exp`, compared with `timingSafeEqual`. The PUT carries no bearer token and is on the public route list; the signature authorises it. It is single use (`pending` to `received` by a conditional update). The body is streamed to a mode-0600 temporary file, never buffered; a counting stream aborts with 413 past the declared size or the cap; the first bytes must match the declared type (JPEG, PNG, GIF, WebP, MP4; SVG and everything else rejected). Storage keys are `ws/{workspaceId}/{assetId}/original.{ext}` from the detected type; the user's filename is display text only. `complete-upload` needs the bearer token, requires the intent to belong to the caller and workspace (else 404), and is idempotent. A sweeper removes stale intents and temporary files. Quotas per workspace: 2 GB stored, 500 assets, 20 pending intents, checked at intent and at completion under a row lock. Image cap 15 MB, video cap 200 MB.
+**Decision:** `POST .../assets/upload-intent` creates an intent (declared type and size, 10-minute expiry, status `pending`) and returns `PUT /api/v1/uploads/:intentId?exp&sig`. The signature is HMAC-SHA256 with a key derived from `SESSION_SECRET` and the label `upload`, over `v1|upload|intentId|workspaceId|userId|declaredSize|exp`, compared with `timingSafeEqual`. The PUT carries no bearer token and is on the public route list; the signature authorises it. It is single use: a conditional update moves the intent from `pending` to `receiving`, and success moves it to `received`. The body is streamed straight to its final server-chosen key (no temporary file, never buffered); a validating stream counts bytes, hashes them, holds data back until the first bytes match the declared type (JPEG, PNG, GIF, WebP, MP4; SVG and everything else rejected), and aborts with 413 past the declared size. A stalled upload (no data for 30 seconds) is cancelled, a rejected upload closes the connection, and the server has request and connection timeouts. Storage keys are `ws/{workspaceId}/{assetId}/original.{ext}` from the declared type; the user's filename is display text only. `complete-upload` needs the bearer token, requires the intent to belong to the caller and workspace (else 404), is idempotent, and only the request that moves the intent out of `received` may fail it or delete its file. Unfinished intents are swept after one hour by an atomic delete that never touches a completed one, and the file is removed only if that delete removed the row.
+**Quotas per workspace:** 2 GiB, 500 files, 20 uploads in progress. Stored bytes include soft-deleted files until the purge removes them (30 days). An intent keeps its share reserved while `pending` and unexpired, and while `receiving` or `received` until it completes or is swept, even after its link expired. The totals are checked at intent creation and again inside the workspace lock at completion. Image cap 15 MB, video cap 200 MB.
 
 ## D-039 — Media reads
 **Status:** ACCEPTED (advisor design review)
@@ -289,6 +291,14 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 - **Per-route upload limit** (30 a minute per address by default) is configurable through `uploadRateLimitMax` so test suites can exercise many uploads; a dedicated test proves the default limit answers `429 RATE_LIMITED`.
 - **Storage never deletes what it did not create.** A failed `put` onto an existing key removes nothing (found by a storage test).
 - **Hand-written migration** `0003` carries the products-to-assets composite foreign key because Drizzle cannot type the circular reference; database tests prove the constraint.
+
+## D-044 — Phase 2 security review fixes
+**Status:** ACCEPTED (advisor review, 2026-11-03)
+**Decision:** Fixed, each with a test that fails without it: expired-but-received uploads no longer escape the quota; deleted files count toward the quota until purged, and the purge is scheduled (every ten minutes, 30-day retention) and cannot be blocked by a stale cover; a request that loses a completion race can no longer fail the intent or delete the finished file; reading a stored file is treated as I/O (the intent stays usable) rather than as a decode failure; the sweeper deletes atomically and never a completed intent, and removes the thumbnail too; uploads have an idle timeout plus server request and connection timeouts and close the connection when rejected; setting a cover locks the asset in the update transaction; thumbnail decoding is limited to two at a time; migration 0004 adds a unique storage key and a positive received size.
+**Accepted risks (documented, not fixed):**
+- `LocalFsStorage` checks that a key's directory resolves inside the root, then opens the file. A local user who can already write inside `DATA_DIR` could swap a directory for a symlink between those two steps. The data directory must be writable only by the API's user. The hosted adapter will not have this property.
+- A leaked signed media URL works until its expiry (up to 20 minutes because of 5-minute bucketing) and browsers may cache the response; deleting the file stops new requests only.
+- Sweeping and a completion that read the file just before the sweep can leave an orphaned thumbnail; the retention purge does not cover orphans yet.
 
 ---
 

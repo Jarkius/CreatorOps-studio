@@ -11,7 +11,7 @@ import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
-import { findAsset } from '../assets/repo.js';
+import { lockReadyImage } from '../assets/repo.js';
 import {
   findProduct,
   insertProduct,
@@ -226,22 +226,19 @@ export async function updateProduct(
     patch.restrictedClaims = normalizeList(input.restrictedClaims, 'restrictedClaims');
   }
 
-  if (input.primaryAssetId !== undefined) {
-    if (input.primaryAssetId !== null) {
-      // The cover must be a ready image in this very workspace (the database also enforces the
-      // workspace with a composite foreign key).
-      const asset = await findAsset(db, ctx, input.primaryAssetId);
-      if (asset === null || asset.status !== 'ready' || asset.type !== 'image') {
-        throw new AppError('VALIDATION_ERROR', 'The request is not valid.', [
-          { path: 'primaryAssetId', message: 'must be an image file in this workspace' },
-        ]);
-      }
-    }
-    patch.primaryAssetId = input.primaryAssetId;
-  }
+  if (input.primaryAssetId !== undefined) patch.primaryAssetId = input.primaryAssetId;
 
   try {
     const row = await db.transaction(async (tx) => {
+      if (typeof patch.primaryAssetId === 'string') {
+        // The cover must be a ready image of this workspace, and stay so until we commit: the lock
+        // blocks a concurrent delete of that file (the database also enforces the workspace).
+        if (!(await lockReadyImage(tx, ctx, patch.primaryAssetId))) {
+          throw new AppError('VALIDATION_ERROR', 'The request is not valid.', [
+            { path: 'primaryAssetId', message: 'must be an image file in this workspace' },
+          ]);
+        }
+      }
       const updated = await updateProductVersioned(tx, ctx, productId, input.version, patch);
       if (updated === null) return null;
       await recordAuditEvent(tx, ctx, {

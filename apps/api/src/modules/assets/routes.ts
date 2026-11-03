@@ -171,14 +171,21 @@ export function registerSignedRoutes(
       },
       async (request, reply) => {
         const length = request.headers['content-length'];
-        await receiveUpload(deps, {
-          intentId: request.params.intentId,
-          exp: request.query.exp,
-          sig: request.query.sig,
-          contentType: request.headers['content-type'],
-          contentLength: length === undefined ? undefined : Number(length),
-          body: request.body as Readable,
-        });
+        try {
+          await receiveUpload(deps, {
+            intentId: request.params.intentId,
+            exp: request.query.exp,
+            sig: request.query.sig,
+            contentType: request.headers['content-type'],
+            contentLength: length === undefined ? undefined : Number(length),
+            body: request.body as Readable,
+          });
+        } catch (error) {
+          // The body may still be arriving. Closing the connection after this response stops the
+          // server from reading (and discarding) an unbounded amount of data from a rejected upload.
+          void reply.header('connection', 'close');
+          throw error;
+        }
         return reply.code(204).send();
       },
     );

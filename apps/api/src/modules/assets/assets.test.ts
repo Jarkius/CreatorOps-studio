@@ -20,10 +20,19 @@ import { createLogger } from '../../platform/logger.js';
 import { requireDatabaseUrl, validEnv } from '../../test/db-url.js';
 import { createPerson, type Person } from '../../test/people.js';
 import { testStorage } from '../../test/storage.js';
+import { Readable } from 'node:stream';
+
 import { createTestDb, type TestDb } from '../../test/test-db.js';
 import { resolveWorkspaceContext } from '../identity/service.js';
 import { createAssetDeps } from './deps.js';
-import { createUploadIntent, purgeDeletedAssets, sweepUploads, type AssetDeps } from './service.js';
+import { deleteStaleIntent, markReceivedIntentFailed } from './repo.js';
+import {
+  completeUpload,
+  createUploadIntent,
+  purgeDeletedAssets,
+  sweepUploads,
+  type AssetDeps,
+} from './service.js';
 
 const config = loadConfig(validEnv());
 const silent = createLogger({ level: 'silent' });
@@ -1114,5 +1123,228 @@ describe('upload rate limit', () => {
     }
     expect(statuses).toEqual([204, 204, 204, 429, 429]);
     await limited.close();
+  });
+});
+
+// ---- fixes from the security review ---------------------------------------------------------------------------
+
+describe('fixes from the Phase 2 security review', () => {
+  const GB2 = 2 * 1024 * 1024 * 1024;
+  // Ten near-maximum video intents (200 MiB each) are about 2000 MiB of the 2048 MiB quota.
+  const MAX_INTENT = 200 * 1024 * 1024;
+  const insertTenIntents = (person: Person, status: string, expires: string) =>
+    testDb.pool.query(
+      `insert into upload_intents (workspace_id, user_id, asset_id, declared_mime, declared_size, original_filename, status, expires_at, received_size, sha256, storage_key)
+       select $1, $2, gen_random_uuid(), 'video/mp4', $3, 'v.mp4', $4, now() + $5::interval, $6, repeat('d', 64), 'ws/x/' || gen_random_uuid()
+       from generate_series(1, 10)`,
+      [
+        person.workspaceId,
+        person.userId,
+        MAX_INTENT,
+        status,
+        expires,
+        status === 'pending' ? null : MAX_INTENT,
+      ],
+    );
+
+  it('keeps counting received and receiving uploads after their link expired (no quota bypass)', async () => {
+    for (const status of ['received', 'receiving']) {
+      const person = await createPerson(testDb.db, config.SESSION_SECRET, `quota-${status}`);
+      await insertTenIntents(person, status, '-1 hour');
+      const blocked = await intent(person, {
+        filename: 'a.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 100 * 1024 * 1024,
+      });
+      expect(blocked.statusCode, status).toBe(409);
+      expect(ErrorBodySchema.parse(blocked.json()).error.message).toContain('storage limit');
+    }
+  });
+
+  it('stops counting a pending upload once its link has expired', async () => {
+    const person = await createPerson(testDb.db, config.SESSION_SECRET, 'quota-pending');
+    await insertTenIntents(person, 'pending', '-1 hour');
+    const response = await intent(person, {
+      filename: 'a.mp4',
+      mimeType: 'video/mp4',
+      sizeBytes: 100 * 1024 * 1024,
+    });
+    expect(response.statusCode).toBe(201);
+  });
+
+  it('counts deleted files against the quota until they are purged', async () => {
+    const person = await createPerson(testDb.db, config.SESSION_SECRET, 'quota-deleted');
+    await testDb.pool.query(
+      `insert into assets (workspace_id, type, mime_type, size_bytes, original_filename, sha256, storage_key, created_by, status, deleted_at)
+       values ($1, 'video', 'video/mp4', $2, 'gone.mp4', repeat('e', 64), 'ws/x/gone-' || gen_random_uuid(), $3, 'deleted', now() - interval '1 day')`,
+      [person.workspaceId, GB2 - 5, person.userId],
+    );
+    expect(
+      (await intent(person, { filename: 'a.png', mimeType: 'image/png', sizeBytes: 10 }))
+        .statusCode,
+    ).toBe(409);
+    await purgeDeletedAssets(deps, new Date(Date.now() + 1000));
+    expect(
+      (await intent(person, { filename: 'a.png', mimeType: 'image/png', sizeBytes: 10 }))
+        .statusCode,
+    ).toBe(201);
+  });
+
+  it('does not mark an upload failed, or touch its file, when reading the file fails (I/O is not a decode error)', async () => {
+    const bytes = await png();
+    const declared = await declare(alice, 'image/png', bytes);
+    await put(declared.uploadUrl, bytes, 'image/png');
+    const row = (
+      await testDb.db
+        .select()
+        .from(schema.uploadIntents)
+        .where(eq(schema.uploadIntents.id, declared.intentId))
+    )[0];
+    const key = row?.storageKey ?? '';
+    await storage.delete(key); // simulate the file being temporarily unreadable
+
+    const failed = await complete(alice, declared.intentId);
+    expect(failed.statusCode).toBe(500);
+    const after = (
+      await testDb.db
+        .select()
+        .from(schema.uploadIntents)
+        .where(eq(schema.uploadIntents.id, declared.intentId))
+    )[0];
+    expect(after?.status).toBe('received'); // still usable, not failed
+
+    await storage.put(key, Readable.from([bytes])); // the file comes back
+    expect((await complete(alice, declared.intentId)).statusCode).toBe(200);
+  });
+
+  it('never fails an intent that another request already completed, so the finished file is kept', async () => {
+    const asset = await upload(alice, 'image/png', await png());
+    const row = (
+      await testDb.db.select().from(schema.assets).where(eq(schema.assets.id, asset.id))
+    )[0];
+    const intentRow = (
+      await testDb.db
+        .select()
+        .from(schema.uploadIntents)
+        .where(eq(schema.uploadIntents.assetId, asset.id))
+    )[0];
+    const ctx = await resolveWorkspaceContext(testDb.db, alice.userId, alice.workspaceId, 'r');
+    if (!ctx || !intentRow) throw new Error('setup');
+    expect(await markReceivedIntentFailed(testDb.db, ctx, intentRow.id)).toBe(false);
+    expect(await storage.stat(row?.storageKey ?? '')).not.toBeNull();
+    // and completing again, as the loser of a race would, just returns the asset
+    expect((await completeUpload(deps, ctx, { intentId: intentRow.id })).id).toBe(asset.id);
+  });
+
+  it('never sweeps a completed upload, even an old one, and deletes a stale one atomically', async () => {
+    const asset = await upload(alice, 'image/png', await png());
+    const row = (
+      await testDb.db.select().from(schema.assets).where(eq(schema.assets.id, asset.id))
+    )[0];
+    await testDb.pool.query(
+      "update upload_intents set updated_at = now() - interval '5 hours' where asset_id = $1",
+      [asset.id],
+    );
+    await sweepUploads(deps);
+    expect(await storage.stat(row?.storageKey ?? '')).not.toBeNull();
+    expect(await storage.stat(`ws/${alice.workspaceId}/${asset.id}/thumb.webp`)).not.toBeNull();
+    const kept = await testDb.db
+      .select()
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.assetId, asset.id));
+    expect(kept).toHaveLength(1);
+    // The delete itself also refuses a completed intent: this is the guard for the race in which a
+    // completion commits after the sweeper listed the intent but before it deletes it.
+    const guarded = await deleteStaleIntent(
+      testDb.db,
+      kept[0]?.id ?? '',
+      new Date(Date.now() + 3600 * 1000),
+    );
+    expect(guarded).toBeNull();
+
+    // An intent that is no longer stale (a completion just touched it) is not deleted.
+    const fresh = await declare(alice, 'image/png', await png());
+    expect(
+      await deleteStaleIntent(testDb.db, fresh.intentId, new Date(Date.now() - 3600 * 1000)),
+    ).toBeNull();
+    expect(
+      await testDb.db
+        .select()
+        .from(schema.uploadIntents)
+        .where(eq(schema.uploadIntents.id, fresh.intentId)),
+    ).toHaveLength(1);
+  });
+
+  it('cancels an upload that stops sending data, frees the intent, and leaves no file', async () => {
+    const quick = await buildApp({
+      config,
+      logger: silent,
+      db: testDb.db,
+      storage,
+      uploadRateLimitMax: 1000,
+      uploadIdleMs: 60,
+    });
+    const bytes = await png();
+    const declared = await declare(alice, 'image/png', bytes);
+    const stalled = new Readable({ read() {} });
+    stalled.push(bytes.subarray(0, 24)); // a valid start, then silence
+    const response = await quick.inject({
+      method: 'PUT',
+      url: declared.uploadUrl,
+      headers: { 'content-type': 'image/png' },
+      payload: stalled,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(ErrorBodySchema.parse(response.json()).error.message).toContain('stalled');
+    expect(response.headers.connection).toBe('close');
+    const row = (
+      await testDb.db
+        .select()
+        .from(schema.uploadIntents)
+        .where(eq(schema.uploadIntents.id, declared.intentId))
+    )[0];
+    expect(row?.status).toBe('failed');
+    expect(await storage.stat(`ws/${alice.workspaceId}/${row?.assetId}/original.png`)).toBeNull();
+    await quick.close();
+  });
+
+  it('closes the connection after any rejected upload', async () => {
+    const bytes = await png();
+    const declared = await declare(alice, 'image/png', bytes);
+    const response = await put(declared.uploadUrl.replace('sig=', 'sig=x'), bytes, 'image/png');
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    expect(response.headers.connection).toBe('close');
+  });
+
+  it('does not let a stale cover (a product pointing at a deleted file) block the purge', async () => {
+    const product = ProductSchema.parse(
+      (
+        await app.inject({
+          method: 'POST',
+          url: productsUrl(alice.workspaceId),
+          headers: auth(alice),
+          payload: { name: 'Stale cover' },
+        })
+      ).json(),
+    );
+    const image = await upload(alice, 'image/png', await png());
+    await testDb.pool.query(
+      "update assets set status = 'deleted', deleted_at = now() - interval '40 days' where id = $1",
+      [image.id],
+    );
+    await testDb.pool.query('update products set primary_asset_id = $1 where id = $2', [
+      image.id,
+      product.id,
+    ]);
+    expect(
+      await purgeDeletedAssets(deps, new Date(Date.now() - 30 * 24 * 3600 * 1000)),
+    ).toBeGreaterThanOrEqual(1);
+    const after = (
+      await testDb.db.select().from(schema.products).where(eq(schema.products.id, product.id))
+    )[0];
+    expect(after?.primaryAssetId).toBeNull();
+    expect(
+      await testDb.db.select().from(schema.assets).where(eq(schema.assets.id, image.id)),
+    ).toHaveLength(0);
   });
 });

@@ -2,9 +2,34 @@ import sharp from 'sharp';
 
 import { AppError } from '../../platform/errors.js';
 
-// Do not keep decoded images in memory between requests, and process one image at a time.
+// Do not keep decoded images in memory between requests. `sharp.concurrency` only limits threads
+// per image, so the number of images decoded at once is limited separately (below): each one can
+// need hundreds of megabytes at the pixel limit.
 sharp.cache(false);
 sharp.concurrency(1);
+
+/** Runs at most `max` tasks at once; the rest wait their turn. */
+export function createLimiter(max: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  const next = (): void => {
+    const start = waiting.shift();
+    if (start) start();
+  };
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (running >= max) await new Promise<void>((resolve) => waiting.push(resolve));
+    running += 1;
+    try {
+      return await task();
+    } finally {
+      running -= 1;
+      next();
+    }
+  };
+}
+
+export const MAX_CONCURRENT_DECODES = 2;
+const limitDecodes = createLimiter(MAX_CONCURRENT_DECODES);
 
 /** Refuse images that decode to more than this many pixels (decompression bombs). */
 export const MAX_INPUT_PIXELS = 40_000_000;
@@ -23,7 +48,11 @@ export interface ImageInfo {
  * - EXIF orientation is applied; all metadata (EXIF, GPS, ICC) is dropped from the output.
  * - Width and height are those the viewer will see, after orientation.
  */
-export async function readImage(bytes: Buffer): Promise<ImageInfo> {
+export function readImage(bytes: Buffer): Promise<ImageInfo> {
+  return limitDecodes(() => decodeImage(bytes));
+}
+
+async function decodeImage(bytes: Buffer): Promise<ImageInfo> {
   try {
     const image = sharp(bytes, {
       limitInputPixels: MAX_INPUT_PIXELS,

@@ -36,6 +36,8 @@ export interface AppOptions {
   readonly rateLimitMax?: number;
   /** Uploads per minute per client address (the PUT to a signed upload URL). Defaults to 30. */
   readonly uploadRateLimitMax?: number;
+  /** Milliseconds without data before an upload is cancelled. Defaults to 30 seconds. */
+  readonly uploadIdleMs?: number;
   /** Maximum JSON body size in bytes. Defaults to 1 MiB. */
   readonly bodyLimit?: number;
   /** Extra routes, used by tests. Registered before the app is ready. */
@@ -109,6 +111,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     loggerInstance: logger as FastifyBaseLogger,
     genReqId: (request) => generateRequestId(request.headers),
     requestIdHeader: false,
+    // Bound how long a request may take in total and how long a connection may sit idle, so a
+    // slow client cannot hold resources forever. Large uploads still have ten minutes.
+    requestTimeout: 10 * 60 * 1000,
+    connectionTimeout: 2 * 60 * 1000,
+    keepAliveTimeout: 5 * 1000,
     // Trust X-Forwarded-For only from the configured number of proxies; never blindly.
     trustProxy:
       config.TRUST_PROXY_HOPS > 0
@@ -206,6 +213,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     db: options.db,
     storage: options.storage,
     sessionSecret: config.SESSION_SECRET,
+    ...(options.uploadIdleMs === undefined ? {} : { uploadIdleMs: options.uploadIdleMs }),
   });
   registerAssetRoutes(app, { deps: assetDeps, guard, scope });
   registerSignedRoutes(app, assetDeps, {

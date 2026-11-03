@@ -199,6 +199,7 @@ export const assets = pgTable(
   },
   (t) => [
     unique('assets_workspace_id_id_unique').on(t.workspaceId, t.id),
+    unique('assets_storage_key_unique').on(t.storageKey),
     foreignKey({
       name: 'assets_product_fk',
       columns: [t.workspaceId, t.productId],
@@ -282,6 +283,10 @@ export const uploadIntents = pgTable(
       sql`${t.declaredMime} in ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4')`,
     ),
     check('upload_intents_size_check', sql`${t.declaredSize} between 1 and 209715200`),
+    check(
+      'upload_intents_received_size_positive',
+      sql`${t.receivedSize} is null or ${t.receivedSize} > 0`,
+    ),
     check(
       'upload_intents_filename_length',
       sql`char_length(${t.originalFilename}) between 1 and 255`,

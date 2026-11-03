@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 4;
+const MIGRATION_COUNT = 5;
 
 let testDb: TestDb;
 
@@ -208,5 +208,18 @@ describe('assets and cross-workspace integrity (D-037)', () => {
         a,
       ]),
     ).resolves.toBeTruthy();
+  });
+
+  it('refuses two assets that share a storage key, and a received size of zero', async () => {
+    const { alice, asset } = await setup();
+    await asset(alice);
+    await expect(asset(alice)).rejects.toThrow(/assets_storage_key_unique/);
+    await expect(
+      testDb.pool.query(
+        `insert into upload_intents (workspace_id, user_id, asset_id, declared_mime, declared_size, original_filename, expires_at, received_size)
+         values ($1, $2, gen_random_uuid(), 'image/png', 10, 'a.png', now(), 0)`,
+        [alice.workspaceId, alice.userId],
+      ),
+    ).rejects.toThrow(/upload_intents_received_size_positive/);
   });
 });

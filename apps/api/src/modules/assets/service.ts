@@ -27,13 +27,18 @@ import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
 import { findProduct } from '../products/repo.js';
-import { STALE_INTENT_SECONDS, UPLOAD_TTL_SECONDS, WORKSPACE_QUOTA } from './limits.js';
+import {
+  STALE_INTENT_SECONDS,
+  UPLOAD_IDLE_MS,
+  UPLOAD_TTL_SECONDS,
+  WORKSPACE_QUOTA,
+} from './limits.js';
 import type { MediaSigner, MediaVariant } from './media-urls.js';
 import {
   claimIntentForReceiving,
   clearPrimaryAsset,
   completeIntent,
-  deleteIntent,
+  deleteStaleIntent,
   findAsset,
   findAssetForSignedRead,
   findIntent,
@@ -46,8 +51,8 @@ import {
   listStaleIntents,
   lockWorkspace,
   markIntentFailed,
-  markIntentFailedScoped,
   markIntentReceived,
+  markReceivedIntentFailed,
   softDeleteAsset,
   workspaceUsage,
   type AssetRow,
@@ -62,6 +67,8 @@ export interface AssetDeps {
   readonly media: MediaSigner;
   /** Injectable clock for tests. */
   readonly now?: () => Date;
+  /** Milliseconds without data before an upload is cancelled. Defaults to 30 seconds. */
+  readonly uploadIdleMs?: number;
 }
 
 const clock = (deps: AssetDeps): Date => (deps.now ? deps.now() : new Date());
@@ -316,7 +323,27 @@ export async function receiveUpload(deps: AssetDeps, input: ReceiveInput): Promi
     // with one wrong file. The failure itself still reaches us through the pipeline in put().
     validator.on('error', () => undefined);
     input.body.on('error', (error) => validator.destroy(error));
-    const stored = await deps.storage.put(key, input.body.pipe(validator));
+
+    // Cancel an upload that stops sending data, so a trickle cannot hold a socket, a file handle
+    // and a `receiving` intent forever.
+    const idleMs = deps.uploadIdleMs ?? UPLOAD_IDLE_MS;
+    let idle: NodeJS.Timeout | undefined;
+    const rearm = (): void => {
+      clearTimeout(idle);
+      idle = setTimeout(
+        () =>
+          validator.destroy(new AppError('BAD_REQUEST', 'The upload stalled and was cancelled.')),
+        idleMs,
+      );
+    };
+    rearm();
+    input.body.on('data', rearm);
+    let stored;
+    try {
+      stored = await deps.storage.put(key, input.body.pipe(validator));
+    } finally {
+      clearTimeout(idle);
+    }
     await markIntentReceived(deps.db, claimed.id, {
       detectedMime: mime,
       receivedSize: stored.size,
@@ -376,26 +403,40 @@ export async function completeUpload(
   let thumbKey: string | null = null;
 
   if (isImage) {
+    // Reading the stored file is I/O: if it fails, the upload is not necessarily bad, so the
+    // intent is left alone and the caller can simply try again.
+    const bytes = await readAll(await deps.storage.read(intent.storageKey));
+
+    let info;
     try {
-      const info = await readImage(await readAll(await deps.storage.read(intent.storageKey)));
-      width = info.width;
-      height = info.height;
-      thumbKey = thumbnailKey(ctx.workspaceId, intent.assetId);
-      await deps.storage
-        .put(thumbKey, Readable.from([info.thumbnail]))
-        .catch((error: NodeJS.ErrnoException) => {
-          if (error.code !== 'EEXIST') throw error; // a concurrent completion already wrote it
-        });
+      info = await readImage(bytes);
     } catch (error) {
-      // A file that cannot be decoded is unusable: reject it and remove it.
-      await markIntentFailedScoped(deps.db, ctx, intent.id).catch(() => undefined);
-      await deps.storage.delete(intent.storageKey).catch(() => undefined);
+      // The file really is not a usable image. Fail the intent and remove the file, but only if
+      // this call is the one that moved it from `received`: a request that lost a race with a
+      // completing one must never delete the file that the finished asset uses.
+      if (await markReceivedIntentFailed(deps.db, ctx, intent.id)) {
+        await deps.storage.delete(intent.storageKey).catch(() => undefined);
+      }
       throw error;
     }
+    width = info.width;
+    height = info.height;
+    thumbKey = thumbnailKey(ctx.workspaceId, intent.assetId);
+    await deps.storage
+      .put(thumbKey, Readable.from([info.thumbnail]))
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'EEXIST') throw error; // a concurrent completion already wrote it
+      });
   }
 
   const row = await deps.db.transaction(async (tx) => {
     await lockWorkspace(tx, ctx);
+    // The intent's share is already part of the usage (received intents keep counting), so the
+    // totals must still be within the limits. This guards the invariant, whatever happened before.
+    const usage = await workspaceUsage(tx, ctx, clock(deps));
+    if (usage.bytes > WORKSPACE_QUOTA.maxBytes || usage.assets > WORKSPACE_QUOTA.maxAssets) {
+      throw new AppError('CONFLICT', 'This workspace has reached its storage limit.');
+    }
     const completed = await completeIntent(tx, ctx, intent.id);
     if (completed === null) return null; // another request completed it first
     const created = await insertAsset(tx, ctx, {
@@ -615,18 +656,26 @@ export async function readMedia(deps: AssetDeps, input: MediaRequest): Promise<M
 // Maintenance.
 // ---------------------------------------------------------------------------------------------
 
-/** Removes uploads that never finished, with their files. Returns how many were removed. */
+/**
+ * Removes uploads that never finished, with their files. The row is deleted first and only if it
+ * is still stale and not completed; files are removed only when this call removed the row, so a
+ * completion that commits at the same moment keeps its file. Returns how many were removed.
+ */
 export async function sweepUploads(deps: AssetDeps): Promise<number> {
   const cutoff = new Date(clock(deps).getTime() - STALE_INTENT_SECONDS * 1000);
   const stale = await listStaleIntents(deps.db, cutoff, 200);
-  for (const intent of stale) {
+  let removed = 0;
+  for (const candidate of stale) {
+    const intent = await deleteStaleIntent(deps.db, candidate.id, cutoff);
+    if (intent === null) continue;
     const key =
       intent.storageKey ??
       originalKey(intent.workspaceId, intent.assetId, intent.declaredMime as AllowedMediaType);
     await deps.storage.delete(key);
-    await deleteIntent(deps.db, intent.id);
+    await deps.storage.delete(thumbnailKey(intent.workspaceId, intent.assetId));
+    removed += 1;
   }
-  return stale.length;
+  return removed;
 }
 
 /** Permanently removes assets that were soft-deleted before `deletedBefore`, with their files. */
