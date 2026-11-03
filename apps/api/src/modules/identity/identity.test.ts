@@ -289,7 +289,7 @@ describe('auth guard on its own', () => {
       registerRoutes: (instance) => {
         instance.get(
           '/test/guarded',
-          { preHandler: createAuthGuard({ db: testDb.db, sessionSecret: config.SESSION_SECRET }) },
+          { onRequest: createAuthGuard({ db: testDb.db, sessionSecret: config.SESSION_SECRET }) },
           () => ({ ok: true }),
         );
       },

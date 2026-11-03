@@ -61,6 +61,11 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-034 | The workspace-id brand can be minted only by the identity service (lint-enforced) | ACCEPTED |
 | D-035 | Local database: authenticated sockets, private socket directory, root-owned parent | ACCEPTED |
 | D-036 | Extension development key: public half committed; store builds omit it | ACCEPTED |
+| D-037 | Phase 2 data model: composite foreign keys, versions, numeric prices | ACCEPTED |
+| D-038 | Uploads: signed single-use intents, streamed PUT, magic-byte allowlist, quotas | ACCEPTED |
+| D-039 | Media reads: HMAC-signed URLs, content type from the database | ACCEPTED |
+| D-040 | API refinements: strict bodies, archive as POST, versioned PATCH, cursor pagination | ACCEPTED |
+| D-041 | Secure-by-default routes: guard and scope enforced at startup | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -242,6 +247,32 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 ## D-036 — Extension development key
 **Status:** ACCEPTED
 **Decision:** `apps/extension/dev-extension-key.json` holds only the public key and the id it yields (`emahncamejoabipafmjjfbnkdllmhcnm`). Development and test builds include it so `EXTENSION_ORIGIN` is stable. `pnpm --filter @creatorops/extension build:store` builds without it. `*.pem` is git-ignored. The production extension id is Q-006.
+
+## D-037 — Phase 2 data model
+**Status:** ACCEPTED (advisor design review, 2026-11-03)
+**Decision:**
+- `products` and `assets` each carry `unique(workspace_id, id)`, and cross-table references use composite foreign keys `(workspace_id, x_id)`, so the database itself refuses an asset linked to another workspace's product or a primary image from another workspace.
+- `products.primary_asset_id` references `assets(workspace_id, id)` with `ON DELETE SET NULL (primary_asset_id)` (PostgreSQL 15+; the project uses 16). Deleting an asset is a soft delete (`status`, `deleted_at`) and clears the product's primary image in the same transaction.
+- Products carry `version int` (optimistic concurrency), `status` (`active`/`archived`) and `archived_at`. Price is `numeric(12,2)` with a 3-letter currency, both null or both set; never a float.
+- `selling_points` and `restricted_claims` are `jsonb` arrays checked with `jsonb_typeof = 'array'`; Zod limits each to 20 strings of 1 to 300 characters.
+- Text columns have length checks; list indexes are `(workspace_id, status, created_at desc, id desc)`.
+- A new `upload_intents` table backs uploads (D-038). `docs/04` is amended accordingly (section 10).
+
+## D-038 — Upload design
+**Status:** ACCEPTED (advisor design review)
+**Decision:** `POST .../assets/upload-intent` creates an intent (declared type and size, 10-minute expiry, status `pending`) and returns `PUT /api/v1/uploads/:intentId?exp&sig`. The signature is HMAC-SHA256 with a key derived from `SESSION_SECRET` and the label `upload`, over `v1|upload|intentId|workspaceId|userId|declaredSize|exp`, compared with `timingSafeEqual`. The PUT carries no bearer token and is on the public route list; the signature authorises it. It is single use (`pending` to `received` by a conditional update). The body is streamed to a mode-0600 temporary file, never buffered; a counting stream aborts with 413 past the declared size or the cap; the first bytes must match the declared type (JPEG, PNG, GIF, WebP, MP4; SVG and everything else rejected). Storage keys are `ws/{workspaceId}/{assetId}/original.{ext}` from the detected type; the user's filename is display text only. `complete-upload` needs the bearer token, requires the intent to belong to the caller and workspace (else 404), and is idempotent. A sweeper removes stale intents and temporary files. Quotas per workspace: 2 GB stored, 500 assets, 20 pending intents, checked at intent and at completion under a row lock. Image cap 15 MB, video cap 200 MB.
+
+## D-039 — Media reads
+**Status:** ACCEPTED (advisor design review)
+**Decision:** `GET /api/v1/media/:assetId/:variant?exp&sig` (variants `original`, `thumb`). The signature uses a separate derived key (label `media`) over `v1|media|assetId|workspaceId|variant|exp`; URLs live 15 minutes with `exp` rounded to 5-minute buckets. Each request re-checks that the asset is not deleted. Content type comes from the database row, with `nosniff`, `Content-Disposition: inline`, `Cache-Control: private, max-age=<remaining>` (overriding the global `no-store` for this route only) and a single `Range` request for video. Thumbnails use sharp with `limitInputPixels` 40 million, `failOn: 'error'`, first frame only, EXIF orientation applied and metadata stripped, WebP output at 512 px. Videos get no thumbnail in Phase 2. The extension manifest CSP gains `img-src 'self' <api origin>; media-src <api origin>` when the gallery reaches the panel.
+
+## D-040 — API refinements
+**Status:** ACCEPTED (advisor design review)
+**Decision:** Every request body schema is `.strict()` (unknown fields, including `workspaceId` and `ownerUserId`, are rejected). Products are archived with `POST /products/:id/archive` and `.../unarchive` instead of `DELETE`. `PATCH` takes a partial body plus the current `version`; a stale version returns `409 CONFLICT` with the current version. Lists use an opaque cursor (`base64url({createdAt,id})`, ordered `(created_at desc, id desc)`), `limit` 1 to 100 (default 25), and return `{ items, nextCursor }`. List filters naming a foreign id return an empty list, never counts. Text is NFC-normalised and trimmed, control characters other than newline are removed, and length is counted after NFC. `sourceUrl` must be http or https without credentials.
+
+## D-041 — Secure-by-default routes
+**Status:** ACCEPTED
+**Decision:** Authentication runs in `onRequest`, before body validation, so a stranger gets 401 and learns nothing about a route's schema. Workspace membership for `/workspaces/:workspaceId/...` routes is resolved in `preValidation`, so a non-member gets 404 whatever they send. At startup, every `/api/v1` route must be in `PUBLIC_ROUTES` or use the auth guard (and the workspace scope when it has `:workspaceId`), otherwise the app refuses to start. A test harness walks every registered route with a stranger's token and fails for any route without a fixture.
 
 ---
 

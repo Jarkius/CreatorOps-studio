@@ -12,11 +12,15 @@ import {
 } from 'fastify-type-provider-zod';
 
 import type { Db } from './db/client.js';
+import { createAuthGuard } from './modules/identity/guard.js';
 import { registerIdentityRoutes } from './modules/identity/routes.js';
+import { createWorkspaceScope } from './modules/identity/scope.js';
+import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
 import type { ApiConfig } from './platform/config.js';
 import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
 import type { Logger } from './platform/logger.js';
 import { generateRequestId } from './platform/request-id.js';
+import { installRoutePolicy } from './platform/route-policy.js';
 import { registerHealthRoutes } from './routes/health.js';
 
 export interface AppOptions {
@@ -103,6 +107,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     bodyLimit: options.bodyLimit ?? 1_048_576,
   });
 
+  // Secure by default: install before any route so every /api/v1 route is checked (and recorded).
+  installRoutePolicy(app);
+  app.decorateRequest('auth', null);
+  app.decorateRequest('workspace', null);
+
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
@@ -177,7 +186,10 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   registerHealthRoutes(app);
-  registerIdentityRoutes(app, { config, db: options.db });
+  const guard = createAuthGuard({ db: options.db, sessionSecret: config.SESSION_SECRET });
+  const scope = createWorkspaceScope({ db: options.db });
+  registerIdentityRoutes(app, { config, db: options.db, guard });
+  registerWorkspaceRoutes(app, { db: options.db, guard, scope });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

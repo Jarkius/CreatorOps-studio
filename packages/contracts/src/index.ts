@@ -30,3 +30,18 @@ export type {
 
 export { ApiError, createApiClient } from './client.js';
 export type { ApiClient, ApiClientOptions, ClientErrorCode } from './client.js';
+
+export {
+  CreateWorkspaceRequestSchema,
+  LANGUAGE_VALUES,
+  LanguageSchema,
+  WorkspaceListResponseSchema,
+  WorkspaceParamsSchema,
+  WorkspaceSchema,
+} from './workspace.js';
+export type {
+  CreateWorkspaceRequest,
+  Language,
+  Workspace,
+  WorkspaceListResponse,
+} from './workspace.js';

@@ -218,3 +218,14 @@ This is a logical MVP contract. Final field types and naming should be aligned w
 - Signed media URLs are short-lived.
 - Deleting a product must not silently orphan assets; use archive or explicit cascade policy.
 - Extension and dashboard use the same API authorization rules.
+
+## 10. Phase 2 refinements (these supersede earlier text where they differ)
+
+Decided after a design review; see `DECISIONS.md` D-037 to D-041.
+
+- **Product** also has `version` (integer, starts at 1), `archivedAt`, `priceAmount` as a fixed-point decimal with a 3-letter `currency` (both set or both null), and `primaryAssetId` (nullable). `DELETE /products/:productId` is replaced by `POST /products/:productId/archive` and `POST /products/:productId/unarchive`. `PATCH` requires the current `version`; a stale version returns `409 CONFLICT`.
+- **Asset** also has `status` (`pending`, `ready`, `deleted`), `deletedAt`, `updatedAt`, `originalFilename` (display only), and `sha256`. Assets are linked to products only within the same workspace (composite foreign key).
+- **UploadIntent** (new): `id`, `workspaceId`, `userId`, `declaredMime`, `declaredSize`, `expiresAt`, `status` (`pending`, `received`, `completed`), `tempKey`, `assetId`. Endpoints: `POST /workspaces/:workspaceId/assets/upload-intent`, `PUT /uploads/:intentId` (signed, no bearer token), `POST /workspaces/:workspaceId/assets/complete-upload`.
+- **Media**: `GET /media/:assetId/:variant` with a signed, expiring query string. Asset responses include `url` and `thumbUrl`.
+- **All request bodies are strict**: unknown fields are rejected.
+- **Lists** return `{ items, nextCursor }` with an opaque cursor.

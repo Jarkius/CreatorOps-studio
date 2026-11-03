@@ -71,3 +71,36 @@ export async function resolveWorkspaceContext(
     requestId,
   };
 }
+
+export interface NewWorkspaceValues {
+  readonly name: string;
+  readonly defaultLanguage: string;
+  readonly brandVoice: string | null;
+}
+
+/**
+ * Creates a workspace owned by the caller and returns the caller's context for it. This is the
+ * one place besides membership resolution where a WorkspaceId is minted: the id comes from the
+ * row just inserted, for the user who is creating it. Run it inside the caller's transaction so
+ * the audit event commits with it.
+ */
+export async function createWorkspaceWithOwner(
+  db: DbOrTx,
+  userId: string,
+  values: NewWorkspaceValues,
+  requestId: string,
+): Promise<RequestContext> {
+  const created = await db
+    .insert(workspaces)
+    .values({
+      name: values.name,
+      defaultLanguage: values.defaultLanguage,
+      brandVoice: values.brandVoice,
+      ownerUserId: userId,
+    })
+    .returning({ id: workspaces.id });
+  const id = created[0]?.id;
+  if (id === undefined) throw new Error('Failed to create the workspace');
+  await db.insert(workspaceMembers).values({ workspaceId: id, userId, role: 'owner' });
+  return { userId, workspaceId: brandWorkspaceId(id), role: 'owner', requestId };
+}

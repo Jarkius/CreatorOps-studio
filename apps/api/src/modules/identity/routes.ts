@@ -1,12 +1,11 @@
 import { MeResponseSchema, MockTokenResponseSchema } from '@creatorops/contracts';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, onRequestAsyncHookHandler } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import type { Db } from '../../db/client.js';
 import { DEV_USER_EMAIL } from '../../db/seed.js';
 import type { ApiConfig } from '../../platform/config.js';
 import { AppError } from '../../platform/errors.js';
-import { createAuthGuard } from './guard.js';
 import { allowedMockHosts } from './mock-host.js';
 import { findAuthContextByEmail, listMemberships } from './service.js';
 import { signToken, TOKEN_TTL_SECONDS } from './token.js';
@@ -14,15 +13,13 @@ import { signToken, TOKEN_TTL_SECONDS } from './token.js';
 export interface IdentityRouteOptions {
   readonly config: ApiConfig;
   readonly db: Db;
+  readonly guard: onRequestAsyncHookHandler;
 }
 
 export function registerIdentityRoutes(app: FastifyInstance, options: IdentityRouteOptions): void {
-  const { config, db } = options;
+  const { config, db, guard } = options;
   const typed = app.withTypeProvider<ZodTypeProvider>();
-  const guard = createAuthGuard({ db, sessionSecret: config.SESSION_SECRET });
   const mockHosts = allowedMockHosts(config.API_BASE_URL);
-
-  app.decorateRequest('auth', null);
 
   // Development only (D-027). The route does not exist in any other auth mode, and the API
   // refuses to start with mock auth in production. It only ever issues a token for the seeded
@@ -63,7 +60,7 @@ export function registerIdentityRoutes(app: FastifyInstance, options: IdentityRo
   typed.get(
     '/api/v1/me',
     {
-      preHandler: guard,
+      onRequest: guard,
       schema: {
         tags: ['auth'],
         summary: 'The signed-in user and their workspaces',
