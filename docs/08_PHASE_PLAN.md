@@ -54,9 +54,9 @@ Failing tests are never skipped. Blockers and assumptions are reported in `IMPLE
 
 ### S0.2 — Config, logging, and local database
 
-**Delivers:** `infra/docker/docker-compose.yml` with PostgreSQL; env schema helper in `packages/config` and fail-fast config in the API; structured logger with redaction.
+**Delivers:** `infra/docker/docker-compose.yml` with PostgreSQL; `scripts/pg-local.sh` to run PostgreSQL as a non-root user without Docker (D-026); env schema helper in `packages/config` and fail-fast config in the API (including `WEB_ORIGIN`); structured logger with redaction.
 **Acceptance tests:**
-- `pnpm dev:db` starts PostgreSQL; the API connects.
+- `pnpm dev:db` starts PostgreSQL (script or Compose); the API connects using only `DATABASE_URL`.
 - Starting the API with a missing or malformed variable exits with a readable error naming the variable.
 - A unit test proves a log line containing `authorization`, `apiKey`, or a token field is redacted.
 
@@ -70,8 +70,11 @@ Failing tests are never skipped. Blockers and assumptions are reported in `IMPLE
 
 ### S1.1 — Contracts, health endpoint, error shape
 
-**Delivers:** `packages/contracts` with the error schema and health response; `GET /api/v1/health`; request id generation; central error mapping.
+**Delivers:** `packages/contracts` with the error schema and health response; `GET /api/v1/health`; request id generation; central error mapping; CORS with an explicit `WEB_ORIGIN` and `EXTENSION_ORIGIN` allow-list; OpenAPI generated from the Zod contracts (`fastify-type-provider-zod`, `@fastify/swagger`); baseline global rate limit (D-030).
 **Acceptance tests:**
+- A request with an allowed `Origin` gets CORS headers; an unlisted origin does not; no wildcard is ever returned.
+- The generated OpenAPI document matches a committed snapshot.
+- Exceeding the rate limit returns the standard error shape with a stable code.
 - `GET /api/v1/health` returns `200` with a typed body.
 - Any thrown error returns `{ error: { code, message, requestId } }` and no stack trace.
 - An invalid request returns a validation error with field paths in `details`.
@@ -85,7 +88,10 @@ Failing tests are never skipped. Blockers and assumptions are reported in `IMPLE
 - `GET /api/v1/me` without a token returns `401`; with the mock token returns the seeded user and workspace.
 - The API refuses to start with `AUTH_MODE=mock` and `NODE_ENV=production`.
 - A repository function called without `workspaceId` fails to compile (type test).
-- Audit event is written in the same transaction as a state change (test with a forced rollback).
+- Mock token endpoint exists only when `AUTH_MODE=mock`; tokens are HMAC-signed with `SESSION_SECRET` and a tampered token is rejected (D-027).
+- Database tests use the template-database helper from D-026.
+
+The audit-in-transaction test moves to S2.1, where the first real state change exists.
 
 ### S1.3 — Dashboard shell
 
@@ -120,13 +126,15 @@ Failing tests are never skipped. Blockers and assumptions are reported in `IMPLE
 
 | Slice | Delivers | Key acceptance tests |
 |---|---|---|
-| S2.1 Workspace endpoints | `GET/POST /workspaces`, `GET /workspaces/:id` with settings fields from `04` | workspace created; second workspace's data invisible; foreign id returns `404` |
+| S2.1 Workspace endpoints and authorization harness | `GET/POST /workspaces`, `GET /workspaces/:id` with settings fields from `04`; reusable harness that walks every registered route with a foreign workspace id (D-025) | workspace created; second workspace's data invisible; foreign id returns `404`; audit event commits in the same transaction as the change (forced-rollback test) |
 | S2.2 Product API | product table and migration; create, list (cursor), get, patch, archive | required-field validation messages; archived products hidden by default; `authorization` suite covers every product route; audit event on each change |
 | S2.3 Product UI (dashboard) | list, create, edit, archive with loading/empty/error states | create then see in list; validation shown inline; Playwright create-and-edit flow |
 | S2.4 Product view (extension) | selected product summary and list in the side panel | product created in the dashboard appears in the side panel after refresh |
 | S2.5 Storage adapter | `StorageAdapter`, `LocalFsStorage`, key generation, signed short-lived read URLs | keys never contain user filenames; expired URL is rejected; foreign workspace cannot read another's file |
-| S2.6 Upload API | upload-intent and complete-upload per `04`; size limit; MIME **and** signature check; thumbnail | spoofed MIME type rejected; oversize rejected; thumbnail created; asset row records source and sizes |
-| S2.7 Asset UI | multi-file upload with progress, gallery, preview, primary image, delete with confirmation | failure and progress visible; primary image selection persists; delete requires confirmation |
+| S2.6a Upload intent and transfer | assets migration (including `products.primary_asset_id`); `upload-intent`, then a signed `PUT` that streams to disk with a byte cap and a magic-byte check | spoofed MIME type rejected; oversize rejected mid-stream; expired or tampered upload URL rejected |
+| S2.6b Complete upload | `complete-upload`; thumbnail (`sharp`); asset row with source and sizes; audit event | thumbnail created; asset row correct; foreign workspace cannot complete another's upload |
+| S2.7a Upload UI | multi-file upload with progress in the dashboard | progress and failure visible; retry works |
+| S2.7b Gallery UI | gallery, preview, primary image selection, delete with confirmation | primary selection persists; delete requires confirmation |
 | S2.8 Phase 2 exit check | run `07` Product, Media, and the product-related Extension items | all listed items pass |
 
 Page import from the current tab (`activeTab`) is not in Phase 2. It gets its own slice and decision entry first (`DECISIONS.md` D-019).
@@ -169,11 +177,24 @@ Planned in detail when each begins. Entry conditions:
 | Playwright cannot drive extension side panels in a headless context | Try a persistent Chromium context with the extension loaded (headed or new headless mode); verify in S1.4 whether it works in CI. Fall back to loading the side-panel page as an ordinary tab and testing the manifest separately. |
 | Extension origin changes between unpacked loads | Pin the extension id with a manifest `key` for development; real id is Q-006. |
 | Mock auth leaks into production | Startup refusal plus a test (S1.2). |
+| Extension id changes between loads, breaking CORS | Committed development key (public part only) in S1.4; real id is Q-006 (D-029). |
+| Signed media URLs leak through logs | Redact the full query string of media URLs (D-028). |
+| Phases 3 and 5 have no slice breakdown yet | Break them down with an advisor review before starting Phase 3. |
 | Scope creep into Phase 3 features during Phase 2 | One slice at a time; Definition of Ready requires written acceptance tests. |
 | Thai text clipped in UI | Thai strings rendered at two sizes in component tests. |
 | Provider cost surprises | Mock by default; Gate A before any paid call (D-009, D-016). |
 
-## 8. What needs the owner
+## 8. Delegation model (D-031)
+
+| Who | Does |
+|---|---|
+| Orchestrator (this session) | Verifies every slice by running lint, typecheck, and tests; writes or tightly reviews security-sensitive code: redaction, error mapping, auth guard and request context, workspace scoping, CORS, extension manifest and build, authorization harness, storage and signed URLs, upload validation, database test helper |
+| Haiku workers | Mechanical slices from tightly written specs: scaffold and CI, contracts schemas, dashboard shell, repeat-pattern CRUD and UI (S2.2 after the pattern exists, S2.3, S2.4, S2.7) |
+| Opus advisor | Read-only reviews at checkpoints: before each phase and on design questions. Does not implement |
+
+Workers run one slice at a time on disjoint files and never commit. A slice is accepted only after the orchestrator's own run of the checks passes.
+
+## 9. What needs the owner
 
 Nothing blocks Phases 0–3. The owner is needed for:
 

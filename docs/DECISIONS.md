@@ -29,7 +29,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-002 | pnpm workspaces; layout from the build pack; no Turborepo at first | ACCEPTED |
 | D-003 | Fastify for the API | ACCEPTED |
 | D-004 | Drizzle ORM; migrations in `infra/migrations` | ACCEPTED |
-| D-005 | PostgreSQL via Docker Compose from Phase 1 | ACCEPTED |
+| D-005 | PostgreSQL from Phase 1; access only through `DATABASE_URL` (see D-026) | ACCEPTED |
 | D-006 | Redis + BullMQ introduced in Phase 3; DB is source of truth | ACCEPTED |
 | D-007 | React + Vite + Tailwind + TanStack Query + React Hook Form + Zod | ACCEPTED |
 | D-008 | Local filesystem storage behind a StorageAdapter | ACCEPTED |
@@ -49,6 +49,13 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-022 | Hybrid methodology: Agile vertical slices with documentation and approval gates | ACCEPTED |
 | D-023 | Project skill `app-dev-methodology` installed at `.claude/skills/` | ACCEPTED |
 | D-024 | Local-first through Phase 5; hosted deployment decided later | ACCEPTED |
+| D-025 | Workspace resolved from the URL plus a membership check | ACCEPTED |
+| D-026 | Database tests: `DATABASE_URL` contract, template databases, no Docker needed | ACCEPTED |
+| D-027 | Bearer-only auth (no cookies); mock token endpoint exists only in mock mode | ACCEPTED |
+| D-028 | All media read URLs are HMAC-signed, locally and hosted | ACCEPTED |
+| D-029 | Extension built with a small custom Vite build, not CRXJS | ACCEPTED |
+| D-030 | CORS allow-list, OpenAPI generation, and baseline rate limit in S1.1 | ACCEPTED |
+| D-031 | Delegation model: Haiku workers, Opus advisor at checkpoints | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -84,7 +91,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 ## D-005 — PostgreSQL from Phase 1
 **Status:** ACCEPTED
 **Context:** `06` Phase 1 includes Docker Compose for PostgreSQL.
-**Decision:** PostgreSQL for development, tests, and production. No SQLite path.
+**Decision:** PostgreSQL for development, tests, and production. No SQLite path. The application and tests reach it only through `DATABASE_URL`; the Compose file is a convenience, not a requirement (D-026).
 
 ## D-006 — Redis and BullMQ in Phase 3
 **Status:** ACCEPTED (accepted by delegation; changes the earlier "Phase 1" timing)
@@ -174,6 +181,39 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 ## D-024 — Local-first
 **Status:** ACCEPTED
 **Decision:** Phases 1–5 target local development and a single-user alpha. Hosted deployment choices (Q-003, Q-004, Q-007) are made before any hosted release.
+
+---
+
+## D-025 — Workspace resolution
+**Status:** ACCEPTED (advisor review, 2026-11-03)
+**Context:** `04` §4 mixes workspace-nested routes (`/workspaces/:workspaceId/products`) with id-only routes (`/products/:productId`). A single `RequestContext.workspaceId` does not say where it comes from.
+**Decision:** For nested routes the workspace comes from the URL and the caller's membership is checked. For id-only routes the service looks the resource up among the caller's member workspaces and sets `workspaceId` from the found row. A resource outside the caller's workspaces returns `404`. The client never supplies a workspace id that is trusted without a membership check.
+
+## D-026 — Database test and local setup
+**Status:** ACCEPTED (advisor review)
+**Context:** The Docker daemon may be unavailable (it is in the current build sandbox). `initdb` refuses to run as root.
+**Decision:** `DATABASE_URL` is the only contract. `scripts/pg-local.sh` starts a local PostgreSQL as a non-root user for development without Docker. Test `globalSetup` applies the committed migrations to a template database; each test file creates `CREATE DATABASE t_<pid>_<n> TEMPLATE creatorops_tpl` and drops it afterwards. CI uses a `postgres:16` service container and runs `drizzle-kit check` to prove the schema comes only from committed migrations.
+
+## D-027 — Bearer-only auth and mock token endpoint
+**Status:** ACCEPTED (advisor review)
+**Decision:** Authentication uses bearer tokens only and no cookies, so CSRF protection (`05` §2) does not apply; this is recorded so it is not re-litigated. In `AUTH_MODE=mock` the API exposes a token-issuing endpoint that does not exist in any other mode. Tokens are HMAC-signed with `SESSION_SECRET`.
+
+## D-028 — Signed media URLs everywhere
+**Status:** ACCEPTED (advisor review)
+**Context:** `<img>` tags cannot send a bearer header, and `07` requires expiring private URLs.
+**Decision:** The local storage adapter issues HMAC-signed, expiring read URLs, the same as hosted storage. Logging redacts the whole query string of media URLs.
+
+## D-029 — Extension build
+**Status:** ACCEPTED (advisor review)
+**Decision:** A small custom Vite build: `sidepanel.html` as an HTML entry, the service worker as an ES-module entry, and a short plugin that writes `manifest.json` from a TypeScript object. CRXJS is not used (version coupling and HMR quirks are a debugging risk). A development manifest `key` is generated in S1.4 and only its public part is committed so the extension id, and therefore `EXTENSION_ORIGIN`, stays stable.
+
+## D-030 — CORS, OpenAPI, rate limit
+**Status:** ACCEPTED (advisor review)
+**Decision:** In S1.1: CORS with an explicit allow-list of `WEB_ORIGIN` and `EXTENSION_ORIGIN` (no wildcard); OpenAPI generated from the Zod contracts with a snapshot test; a baseline global rate limit. Per-generation limits come in Phase 3.
+
+## D-031 — Delegation model
+**Status:** ACCEPTED (owner request, 2026-11-03)
+**Decision:** The orchestrating model verifies every slice by running lint, typecheck, and tests itself. Cheap Haiku workers implement mechanical slices from tightly written specs. The orchestrator writes or tightly reviews security-sensitive code: redaction, error mapping, auth guard and request context, workspace scoping, CORS, the extension manifest and build, the authorization test harness, storage and signed URLs, upload validation, and the database test helper. An Opus advisor is consulted read-only at checkpoints (before each phase and when a design question arises), not for routine implementation.
 
 ---
 

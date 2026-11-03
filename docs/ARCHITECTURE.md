@@ -108,6 +108,8 @@ type RequestContext = {
 
 Services receive the context explicitly. Repository functions require `workspaceId` as a parameter, so an unscoped query does not compile. Foreign-workspace ids return `404`, not `403`, so existence is not revealed.
 
+**Where `workspaceId` comes from (D-025):** nested routes take it from the URL and check the caller's membership. Id-only routes look the resource up among the caller's member workspaces and take `workspaceId` from the found row. The client's claim is never trusted on its own.
+
 ---
 
 ## 4. Backend modules
@@ -147,7 +149,7 @@ Cross-cutting rules:
 ## 5. Authentication
 
 - **Phases 1–5:** development-only mock auth, isolated in `identity/mock`. It is enabled only when `AUTH_MODE=mock` and the process **refuses to start** if that flag is set while `NODE_ENV=production`. It issues a bearer token for one seeded user and workspace.
-- **Extension auth in dev:** the side panel obtains the same mock bearer token from the API and keeps it in `chrome.storage.session`, never `localStorage`.
+- **Extension auth in dev:** the side panel obtains the same mock bearer token from a token endpoint that exists only when `AUTH_MODE=mock` (D-027) and keeps it in `chrome.storage.session`, never `localStorage`. Tokens are HMAC-signed with `SESSION_SECRET`. Authentication is bearer-only with no cookies, so CSRF protection does not apply.
 - **Production:** an external identity provider (OIDC) with short-lived sessions. The provider is an open question (`DECISIONS.md` Q-003) that must be closed before any hosted deployment. The extension would use `chrome.identity.launchWebAuthFlow`.
 - Roles (`owner`, `admin`, `editor`, `reviewer`, `viewer`) exist in the schema from the first migration. Only `owner` is exercised until Phase 8.
 
@@ -203,7 +205,7 @@ Each adapter also declares `capabilities()` (supported features, limits, whether
 ```ts
 interface StorageAdapter {
   put(key, bytes | stream, meta: { mimeType }): Promise<void>;
-  getReadUrl(key, ttlSeconds): Promise<string>;   // short-lived, signed in hosted mode
+  getReadUrl(key, ttlSeconds): Promise<string>;   // short-lived, HMAC-signed (local and hosted, D-028)
   delete(key): Promise<void>;
   exists(key): Promise<boolean>;
 }
@@ -253,6 +255,8 @@ A test reads the built manifest and fails if it requests anything outside this l
 **Behaviour:**
 
 - Side panel is a React app that calls the same `/api/v1` endpoints as the dashboard.
+- Build (D-029): custom Vite build with `sidepanel.html` and the service worker as entries and a small plugin generating `manifest.json` from a TypeScript object. A committed development key keeps the extension id stable.
+- Testing: Playwright `launchPersistentContext` with `--load-extension`; read the extension id from the service worker; open `chrome-extension://<id>/sidepanel.html` as a tab (`sidePanel.open` needs a user gesture). Stop the service worker over CDP to test restarts. Extensions may not load in plain headless mode: fall back to headed mode under `xvfb-run`, then to loading the page as an ordinary tab with the manifest tested separately. Extension pages with host permissions bypass CORS, so CORS is proven with API tests that send an `Origin` header, not with E2E.
 - The service worker only routes lightweight events (opening the panel). It holds no state; it can be killed at any time. Anything important lives on the backend.
 - The API allows the extension's origin explicitly in CORS configuration. Wildcard origins are not used.
 - No provider secrets, no long-running orchestration, no page reading in the background, no injection into TikTok, Meta, or commerce sites.
@@ -264,7 +268,7 @@ A test reads the built manifest and fails if it requests anything outside this l
 
 - Environment variables are parsed with a Zod schema (helper in `packages/config`). The API refuses to start on missing or malformed values.
 - `.env.example` lists every variable with a comment. Real env files are git-ignored.
-- Phase 1 variables: `DATABASE_URL`, `AUTH_MODE`, `API_BASE_URL`, `EXTENSION_ORIGIN`, `SESSION_SECRET`. Phase 2 adds `DATA_DIR`. Phase 3 adds `REDIS_URL`.
+- Phase 1 variables: `DATABASE_URL`, `AUTH_MODE`, `API_BASE_URL`, `WEB_ORIGIN`, `EXTENSION_ORIGIN`, `SESSION_SECRET`. Phase 2 adds `DATA_DIR`. Phase 3 adds `REDIS_URL`.
 - Provider keys are read only by the API/worker process, stored encrypted server-side when user-supplied, and never returned by any endpoint (endpoints return booleans such as "configured").
 - Logs are structured JSON with `requestId`, `workspaceId`, and `jobId` where relevant. A redaction list covers `authorization`, `*apiKey*`, `*token*`, `*secret*`, `password`, and signed media URLs.
 
@@ -285,6 +289,8 @@ A test reads the built manifest and fails if it requests anything outside this l
 
 CI runs lint, typecheck, unit and integration tests, and build on every push. E2E runs in CI once the dashboard exists.
 
+**Database tests (D-026):** `DATABASE_URL` is the only contract. Vitest `globalSetup` applies the committed migrations to a template database; each test file clones it (`CREATE DATABASE … TEMPLATE …`) and drops the clone afterwards. Locally, `scripts/pg-local.sh` starts PostgreSQL as a non-root user; CI uses a `postgres:16` service container and a `drizzle-kit check` step.
+
 ---
 
 ## 14. Local development (planned in Phase 0)
@@ -293,7 +299,7 @@ These commands do not exist yet; they are the targets for slice S0.1–S0.2 in `
 
 ```
 pnpm install
-pnpm dev:db        # docker compose up postgres
+pnpm dev:db        # start PostgreSQL: scripts/pg-local.sh, or docker compose
 pnpm db:migrate
 pnpm dev           # api + web (+ extension build watch)
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
