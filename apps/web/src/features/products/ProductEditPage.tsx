@@ -5,6 +5,9 @@ import { ApiError } from '@creatorops/contracts';
 import type { CreateProductRequest, Product, UpdateProductRequest } from '@creatorops/contracts';
 import { Button, ConfirmDialog, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
 
+import { CoverThumb } from '../assets/CoverThumb.js';
+import { AssetGallery } from '../assets/AssetGallery.js';
+import { UploadPanel } from '../assets/UploadPanel.js';
 import { describeError, isNotFound } from '../errors.js';
 import { formatDate } from './format.js';
 import { ProductForm } from './ProductForm.js';
@@ -108,9 +111,14 @@ export function ProductEditPage() {
         >
           Back to products
         </Link>
-        <h1 className="text-2xl font-semibold leading-relaxed [overflow-wrap:anywhere]">
-          {product.name}
-        </h1>
+        <div className="flex items-center gap-4">
+          {product.primaryAssetId === null ? null : (
+            <CoverThumb workspaceId={workspaceId} assetId={product.primaryAssetId} />
+          )}
+          <h1 className="min-w-0 text-2xl font-semibold leading-relaxed [overflow-wrap:anywhere]">
+            {product.name}
+          </h1>
+        </div>
         <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--co-text-muted)]">
           <StatusPill status={product.status} />
           <span>Version {product.version}</span>
@@ -174,6 +182,14 @@ export function ProductEditPage() {
         submitLabel="Save product"
         onSave={save}
       />
+
+      <section id="product-images" aria-labelledby="product-images-heading" className="space-y-4">
+        <h2 id="product-images-heading" className="text-base font-semibold">
+          Images and videos
+        </h2>
+        <UploadPanel workspaceId={workspaceId} productId={product.id} />
+        <AssetGallery workspaceId={workspaceId} productId={product.id} product={product} />
+      </section>
 
       <ConfirmDialog
         open={confirmOpen}

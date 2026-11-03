@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2: S2.1 to S2.4 and the S2.5/S2.6 backend are done and verified. Remaining: S2.7a/b (asset UI in the dashboard) and S2.8 (exit check).
+Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2 complete (S2.1 to S2.8; see the exit check below). Next: Phase 3 (content generation with a mock provider). Consult the advisor on the Phase 3 slice breakdown first (docs/08 section 7).
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -17,7 +17,7 @@ Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified 
 - [x] Dashboard shell (S1.3)
 - [x] Extension shell (S1.4)
 - [x] Workspace/products (S2.1–S2.4)
-- [ ] Media upload/library (S2.5, S2.6 backend done; S2.7 dashboard UI next)
+- [x] Media upload/library (S2.5 to S2.7)
 - [ ] Mock generation provider (Phase 3)
 - [ ] Durable jobs (Phase 3)
 - [ ] Real text provider (Phase 4)
@@ -56,6 +56,32 @@ Verified by the orchestrator (lint, typecheck, test, build, format:check all exi
 - S2.4 (Haiku worker, verified by the orchestrator): `apps/extension` 48 tests and 5 new Playwright tests run for the first time by the orchestrator (product list, empty workspace, error and retry, 320px width, links in a new tab); extension E2E total 14.
 - S2.5/S2.6 backend: `apps/api` 226 tests (asset suite of 43: image/video upload end to end, EXIF orientation, animated GIF, decompression bomb, corrupt image, type spoofing, SVG/HTML/script, size lies, wrong Content-Type, tampered/expired/replayed signed URLs, single use under concurrency, cross-user completion, quotas, cover-image rules, ranges, sweeping, purging, per-route rate limit). Mutation-checked: validator error listener, media signature without workspace, single-use claim, intent ownership, magic-byte check. Testing found a process-crashing bug (D-043).
 - E2E total 26 (14 extension, 12 dashboard). Unit and integration total: api 226, extension 48, web 35, ui 43, contracts 27, config 12, provider-core 1.
+- S2.7 (Haiku worker, verified by the orchestrator): `apps/web` 102 tests (62 new for uploads and the gallery, with a fake XHR), `packages/ui` 43, and 11 new Playwright tests (PNG and MP4 upload, Thai filename, preview, cover set and cleared on delete, server refusal of a fake PNG with retry/remove, client-side refusal of an oversized image and an SVG, axe, keyboard).
+- End-to-end suites now run on their own database: `scripts/e2e-db.mjs` drops and recreates `creatorops_e2e`, migrates and seeds it before each suite, so runs never fill or depend on the development database (found when repeated runs hit the 20-workspace cap). Three consecutive full runs: 14 extension + 23 dashboard E2E tests pass each time.
+- Totals: unit and integration 471 (api 238, web 102, extension 48, ui 43, contracts 27, config 12, provider-core 1); end-to-end 37.
+
+## Phase 2 exit check (docs/07 and docs/06 Phase 2)
+Exit criteria from docs/06: create a product in the dashboard and see it in the extension; upload and preview an image; unauthorized workspace access is rejected. All three are covered by passing automated tests (E2E: product created through the API appears in the panel; dashboard upload shows a loaded thumbnail and preview; IDOR tests and the authorization harness).
+
+| docs/07 item | Evidence | Status |
+|---|---|---|
+| Create a workspace | `POST /workspaces` API tests (limit under concurrency, audit) | Done in the API. **No UI yet**: the dashboard only switches between existing workspaces |
+| Create, edit, archive, view a product | API tests; dashboard E2E | Done |
+| Required fields validated with clear messages | contracts, API and E2E tests | Done |
+| Cannot reach another workspace's products by changing an id | IDOR tests (both URL shapes, cursors, bodies), harness over every route | Done |
+| Product changes appear in dashboard and extension | both use the same API; extension E2E reads a product created through the API | Done |
+| Upload accepts allowed formats and rejects unsupported or oversized files | 51 asset API tests; dashboard E2E (client-side and server-side refusal) | Done |
+| MIME type and file signature validated | magic-byte tests, spoofing tests | Done |
+| Upload progress and failure visible | failure: E2E; progress: unit tests with a fake XHR only | Done, progress not seen in a real browser |
+| Preview, select primary image, delete | dashboard E2E | Done |
+| Private asset URLs expire and are not guessable | signed URL tests (tampered, expired, swapped, replayed, deleted) | Done |
+| Side panel opens through the extension action | `setPanelBehavior` checked via `getPanelBehavior()`; panel page loaded as a tab | **Not verified with a real toolbar click** |
+| Extension has loading, empty, error states; survives service-worker suspension | extension E2E | Done |
+| Current-page import is user-triggered and narrow | not implemented (a later slice, own decision, D-019) | Deferred |
+| Extension shows product images | not implemented: needs `img-src` in the manifest CSP (D-039) | Deferred |
+| Provider secrets server-side; all routes enforce workspace authorization; no prohibited features; publishing disabled | bundle scan; route policy and harness; no such code exists | Done |
+
+Known gaps carried forward: a workspace-creation screen; visual and screen-reader checks beyond axe; real toolbar-click check in Chrome; progress bars in a real browser.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes
@@ -67,7 +93,7 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - `apps/api/src/startup.ts` `prepare()` validates config and the database; `server.ts` then starts Fastify.
 - Migrations are generated with `pnpm db:generate` into `infra/migrations` and committed; CI fails if generating produces any change. Schema comes only from these files.
 - Mock auth: `POST /api/v1/auth/mock-token` (exists only when `AUTH_MODE=mock`, loopback only, Host-checked) issues an HMAC-signed 12-hour token for the seeded development user only. `GET /api/v1/me` needs it.
-- Run both E2E suites with `pnpm e2e` (needs `DATABASE_URL`, a migrated database, and Chromium; locally `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). They run one after the other because both use port 3000.
+- Run both E2E suites with `pnpm e2e` (needs `DATABASE_URL` for the server and login, and Chromium; locally `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). Each suite creates its own fresh `creatorops_e2e` database first, so no prior migration is needed. They run one after the other because both use port 3000.
 - Not verified: clicking the real toolbar icon to open the side panel (Playwright cannot drive the side panel UI; the panel behaviour is checked through `chrome.sidePanel.getPanelBehavior()` and the panel page is loaded as a tab). The owner should load `apps/extension/dist` unpacked in Chrome once to confirm.
 - Follow-ups: pin GitHub Actions to commit SHAs before the first release; the web E2E script uses POSIX env prefixes (not Windows-safe).
 
@@ -84,4 +110,4 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S2.7a/b — upload (with progress, using XHR) and gallery UI in the dashboard (preview, set cover image, delete), wired to the typed client's `assets.*` and `resolveUrl`; then S2.8, the Phase 2 exit check against docs/07. Consult the advisor on the Phase 3 slice breakdown before starting Phase 3.
+Phase 3, slice 1. Before starting, have the advisor break Phase 3 down (content templates, the mock text provider, the job table and worker, Redis and BullMQ per D-006, idempotency, regenerate-one-section) and record the decisions.

@@ -23,6 +23,26 @@ describe('Layout', () => {
     expect(products).toHaveAttribute('aria-current', 'page');
   });
 
+  it('links Asset library to the workspace library', async () => {
+    renderWeb(`/w/${WORKSPACE.id}/products`, createFakeApi());
+
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const library = await within(nav).findByRole('link', { name: 'Asset library' });
+    expect(library).toHaveAttribute('href', `/w/${WORKSPACE.id}/assets`);
+    expect(library).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('keeps the library open when switching workspace from the library', async () => {
+    const api = createFakeApi({ workspaces: [WORKSPACE, SECOND_WORKSPACE] });
+    const { router } = renderWeb(`/w/${WORKSPACE.id}/assets`, api);
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Workspace' }), {
+      target: { value: SECOND_WORKSPACE.id },
+    });
+
+    expect(router.state.location.pathname).toBe(`/w/${SECOND_WORKSPACE.id}/assets`);
+  });
+
   it('shows no workspace switcher for a single workspace', async () => {
     renderWeb(`/w/${WORKSPACE.id}/products`, createFakeApi());
     await screen.findByRole('link', { name: 'Products' });

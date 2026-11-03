@@ -78,6 +78,7 @@ pnpm format:check          # Prettier check
 pnpm dev:db                # start PostgreSQL 16 locally without Docker (scripts/pg-local.sh)
 pnpm dev:db:compose        # or start it with Docker Compose
 pnpm dev:db:stop           # stop the local PostgreSQL
+pnpm e2e                   # end-to-end tests (dashboard and extension) on a fresh creatorops_e2e database
 ```
 
 Copy `.env.example` to `.env` for local values. Real `.env` files are git-ignored.

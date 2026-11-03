@@ -6,13 +6,19 @@ import { defineConfig } from '@playwright/test';
 import devKey from './dev-extension-key.json' with { type: 'json' };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DATABASE_URL = process.env.DATABASE_URL;
+const DEV_DATABASE_URL = process.env.DATABASE_URL;
 
-if (!DATABASE_URL) {
+if (!DEV_DATABASE_URL) {
   throw new Error(
     'DATABASE_URL is not set. Run: export DATABASE_URL="$(bash scripts/pg-local.sh url)" from the repo root.',
   );
 }
+
+// The suites run against their own database, created fresh by scripts/e2e-db.mjs (never the dev one).
+const databaseUrl = new URL(DEV_DATABASE_URL);
+databaseUrl.pathname = '/creatorops_e2e';
+const DATABASE_URL = databaseUrl.toString();
+process.env.DATABASE_URL = DATABASE_URL;
 
 export const API_URL = 'http://localhost:3000';
 

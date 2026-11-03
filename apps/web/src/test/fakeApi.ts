@@ -1,4 +1,4 @@
-import type { Product, Workspace } from '@creatorops/contracts';
+import type { Asset, Product, Workspace } from '@creatorops/contracts';
 
 export const WORKSPACE: Workspace = {
   id: 'ws_1',
@@ -13,6 +13,29 @@ export const WORKSPACE: Workspace = {
 export const SECOND_WORKSPACE: Workspace = { ...WORKSPACE, id: 'ws_2', name: 'Studio Two' };
 
 export const THAI_NAME = 'พัดลมตั้งโต๊ะ';
+
+export function makeAsset(
+  overrides: Partial<Asset> & { id: string; originalFilename: string },
+): Asset {
+  const isVideo = overrides.type === 'video' || overrides.mimeType === 'video/mp4';
+  return {
+    workspaceId: WORKSPACE.id,
+    productId: null,
+    type: isVideo ? 'video' : 'image',
+    status: 'ready',
+    mimeType: isVideo ? 'video/mp4' : 'image/png',
+    sizeBytes: 1024,
+    width: isVideo ? null : 1,
+    height: isVideo ? null : 1,
+    durationMs: null,
+    sha256: 'a'.repeat(64),
+    url: `/api/v1/media/${overrides.id}/original?exp=1&sig=test`,
+    thumbUrl: isVideo ? null : `/api/v1/media/${overrides.id}/thumb?exp=1&sig=test`,
+    createdAt: '2026-11-02T00:00:00.000Z',
+    updatedAt: '2026-11-02T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 export function makeProduct(overrides: Partial<Product> & { id: string; name: string }): Product {
   return {
@@ -44,6 +67,7 @@ export interface RecordedCall {
 export interface FakeApiOptions {
   workspaces?: Workspace[];
   products?: Product[];
+  assets?: Asset[];
   /** Rows per page. Defaults to 25, the same as the app. */
   pageSize?: number;
   /** Return a response to answer a request yourself, or undefined to use the fake's behaviour. */
@@ -54,6 +78,7 @@ export interface FakeApi {
   fetch: typeof fetch;
   calls: RecordedCall[];
   products: Product[];
+  assets: Asset[];
   /** Simulates another person saving the product: bumps its version and changes fields. */
   saveElsewhere(id: string, patch: Partial<Product>): void;
 }
@@ -79,6 +104,9 @@ function apiError(code: string, message: string, status: number, fields?: unknow
   );
 }
 
+const ASSET_ROUTE =
+  /^\/api\/v1\/workspaces\/([^/]+)\/assets(?:\/(upload-intent|complete-upload|[^/]+))?$/;
+
 const PRODUCT_ROUTE =
   /^\/api\/v1\/workspaces\/([^/]+)\/products(?:\/([^/]+)(?:\/(archive|unarchive))?)?$/;
 
@@ -87,12 +115,101 @@ export function createFakeApi(options: FakeApiOptions = {}): FakeApi {
   const workspaces = options.workspaces ?? [WORKSPACE];
   const products = [...(options.products ?? [])];
   const pageSize = options.pageSize ?? 25;
+  const assets = [...(options.assets ?? [])];
+  const intents = new Map<string, { input: Record<string, unknown>; asset: Asset | null }>();
   const calls: RecordedCall[] = [];
   let nextId = 1;
+
+  const handleAssets = (
+    method: string,
+    url: URL,
+    body: unknown,
+    workspaceId: string,
+    part: string | undefined,
+  ): Response => {
+    const inWorkspace = assets.filter((asset) => asset.workspaceId === workspaceId);
+    if (part === undefined && method === 'GET') {
+      const productId = url.searchParams.get('productId');
+      const type = url.searchParams.get('type');
+      const matching = inWorkspace.filter(
+        (asset) =>
+          (productId === null || asset.productId === productId) &&
+          (type === null || asset.type === type),
+      );
+      const limit = Number(url.searchParams.get('limit') ?? '25');
+      const offset = Number(url.searchParams.get('cursor') ?? '0');
+      const page = matching.slice(offset, offset + limit);
+      const more = offset + limit < matching.length;
+      return json({ items: page, nextCursor: more ? String(offset + limit) : null });
+    }
+    if (part === 'upload-intent' && method === 'POST') {
+      const input = body as Record<string, unknown>;
+      const intentId = `intent_${nextId++}`;
+      intents.set(intentId, { input, asset: null });
+      return json(
+        {
+          intentId,
+          uploadUrl: `/api/v1/uploads/${intentId}?exp=1&sig=test`,
+          method: 'PUT',
+          contentType: input.mimeType,
+          expiresAt: '2026-11-03T01:00:00.000Z',
+        },
+        201,
+      );
+    }
+    if (part === 'complete-upload' && method === 'POST') {
+      const { intentId } = body as { intentId: string };
+      const intent = intents.get(intentId);
+      if (intent === undefined) return apiError('NOT_FOUND', 'Upload not found.', 404);
+      if (intent.asset !== null) return json(intent.asset);
+      const input = intent.input;
+      const id = `asset_${nextId++}`;
+      const mimeType = String(input.mimeType);
+      const created = makeAsset({
+        id,
+        workspaceId,
+        productId: typeof input.productId === 'string' ? input.productId : null,
+        originalFilename: String(input.filename),
+        mimeType: mimeType as Asset['mimeType'],
+        type: mimeType.startsWith('video/') ? 'video' : 'image',
+        sizeBytes: Number(input.sizeBytes),
+      });
+      assets.push(created);
+      intent.asset = created;
+      return json(created);
+    }
+    if (part !== undefined && method === 'GET') {
+      const asset = inWorkspace.find((item) => item.id === part);
+      return asset === undefined ? apiError('NOT_FOUND', 'File not found.', 404) : json(asset);
+    }
+    if (part !== undefined && method === 'DELETE') {
+      const index = assets.findIndex(
+        (item) => item.id === part && item.workspaceId === workspaceId,
+      );
+      if (index === -1) return apiError('NOT_FOUND', 'File not found.', 404);
+      const [removed] = assets.splice(index, 1);
+      for (const product of products) {
+        if (product.primaryAssetId === removed?.id) {
+          product.primaryAssetId = null;
+          product.version += 1;
+        }
+      }
+      return json({ id: part, deleted: true });
+    }
+    return apiError('NOT_FOUND', 'Not found.', 404);
+  };
 
   const handle = async (method: string, url: URL, body: unknown): Promise<Response> => {
     if (method === 'GET' && url.pathname === '/api/v1/workspaces') {
       return json({ items: workspaces });
+    }
+    const assetMatch = ASSET_ROUTE.exec(url.pathname);
+    if (assetMatch !== null) {
+      const [, assetWorkspace = '', part] = assetMatch;
+      if (!workspaces.some((workspace) => workspace.id === assetWorkspace)) {
+        return apiError('NOT_FOUND', 'Workspace not found.', 404);
+      }
+      return handleAssets(method, url, body, assetWorkspace, part);
     }
     const match = PRODUCT_ROUTE.exec(url.pathname);
     if (match === null) return apiError('NOT_FOUND', 'Not found.', 404);
@@ -165,6 +282,7 @@ export function createFakeApi(options: FakeApiOptions = {}): FakeApi {
     fetch: fakeFetch as typeof fetch,
     calls,
     products,
+    assets,
     saveElsewhere(id, patch) {
       const product = products.find((item) => item.id === id);
       if (product === undefined) throw new Error(`no product ${id}`);

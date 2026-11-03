@@ -125,13 +125,17 @@ describe('Overview page', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     await within(nav).findByRole('link', { name: 'Products' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Overview', 'Products']);
+    expect(links.map((link) => link.textContent)).toEqual([
+      'Overview',
+      'Products',
+      'Asset library',
+    ]);
     expect(links[1]).toHaveAttribute('href', '/w/ws_1/products');
+    expect(links[2]).toHaveAttribute('href', '/w/ws_1/assets');
 
     for (const label of [
       'Campaigns',
       'Content drafts',
-      'Asset library',
       'Calendar',
       'Publishing',
       'Usage',

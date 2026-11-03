@@ -2,17 +2,20 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createFakeApi, makeProduct, THAI_NAME, WORKSPACE } from '../../test/fakeApi.js';
+import type { Product } from '@creatorops/contracts';
+
+import { createFakeApi, makeAsset, makeProduct, THAI_NAME, WORKSPACE } from '../../test/fakeApi.js';
 import { renderWeb } from '../../test/renderWeb.js';
 
 const LIST_PATH = `/w/${WORKSPACE.id}/products`;
 const PRODUCT_ID = 'prod_fan';
 const EDIT_PATH = `${LIST_PATH}/${PRODUCT_ID}`;
 
-const fan = () =>
+const fan = (overrides: Partial<Product> = {}) =>
   makeProduct({
     id: PRODUCT_ID,
     name: THAI_NAME,
+    ...overrides,
     description: 'Quiet motor',
     priceAmount: '990',
     currency: 'THB',
@@ -164,5 +167,49 @@ describe('ProductEditPage', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('Product saved');
     expect(api.products[0]?.name).toBe(`${THAI_NAME} 2`);
+  });
+
+  it('shows an Images and videos section with an upload area and only this product files', async () => {
+    const api = createFakeApi({
+      products: [fan()],
+      assets: [
+        makeAsset({ id: 'asset_1', originalFilename: 'fan-front.png', productId: PRODUCT_ID }),
+        makeAsset({ id: 'asset_2', originalFilename: 'elsewhere.png', productId: 'prod_other' }),
+      ],
+    });
+    renderWeb(EDIT_PATH, api);
+
+    const section = await screen.findByRole('region', { name: 'Images and videos' });
+    expect(within(section).getByRole('button', { name: 'Choose files' })).toBeInTheDocument();
+    expect(
+      await within(section).findByRole('button', { name: /fan-front\.png/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).queryByRole('button', { name: /elsewhere\.png/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the cover thumbnail next to the title when the product has a cover', async () => {
+    renderWeb(
+      EDIT_PATH,
+      createFakeApi({
+        products: [fan({ primaryAssetId: 'asset_1' })],
+        assets: [
+          makeAsset({ id: 'asset_1', originalFilename: 'fan-front.png', productId: PRODUCT_ID }),
+        ],
+      }),
+    );
+
+    expect(await screen.findByRole('img', { name: 'Cover: fan-front.png' })).toHaveAttribute(
+      'src',
+      'http://api.test/api/v1/media/asset_1/thumb?exp=1&sig=test',
+    );
+    expect(screen.getByRole('heading', { name: THAI_NAME })).toBeInTheDocument();
+  });
+
+  it('shows no cover thumbnail when the product has no cover', async () => {
+    renderWeb(EDIT_PATH, createFakeApi({ products: [fan()] }));
+    await screen.findByRole('heading', { name: THAI_NAME });
+    expect(screen.queryByRole('img', { name: /Cover:/ })).not.toBeInTheDocument();
   });
 });

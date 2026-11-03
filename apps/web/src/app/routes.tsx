@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router';
 
+import { AssetLibraryPage } from '../features/assets/AssetLibraryPage.js';
 import { OverviewPage } from '../features/overview/OverviewPage.js';
 import { NewProductPage } from '../features/products/NewProductPage.js';
 import { ProductEditPage } from '../features/products/ProductEditPage.js';
@@ -14,6 +15,14 @@ export const routes: RouteObject[] = [
     element: <Layout />,
     children: [
       { index: true, element: <OverviewPage /> },
+      {
+        path: 'w/:workspaceId/assets',
+        element: (
+          <SessionGate>
+            <AssetLibraryPage />
+          </SessionGate>
+        ),
+      },
       {
         path: 'w/:workspaceId/products',
         element: (

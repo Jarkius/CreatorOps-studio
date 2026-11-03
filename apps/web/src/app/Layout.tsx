@@ -1,12 +1,12 @@
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router';
 
+import { assetsPath } from '../features/assets/paths.js';
 import { productsPath } from '../features/products/paths.js';
 import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
 
 const DISABLED_ITEMS = [
   'Campaigns',
   'Content drafts',
-  'Asset library',
   'Calendar',
   'Publishing',
   'Usage',
@@ -27,8 +27,15 @@ export function Layout() {
   const routeWorkspaceId = routeMatch?.params.workspaceId;
   const current = items.find((workspace) => workspace.id === routeWorkspaceId) ?? items[0];
 
-  const onProductsList = routeMatch?.params['*'] === 'products';
+  const section = routeMatch?.params['*'];
+  const onProductsList = section === 'products';
+  const onAssetLibrary = section === 'assets';
   const switchWorkspace = (workspaceId: string) => {
+    // Stay on the asset library when already there.
+    if (onAssetLibrary) {
+      navigate(assetsPath(workspaceId));
+      return;
+    }
     // Stay on the product list (keeping the status tab) when already there; otherwise open it.
     navigate(`${productsPath(workspaceId)}${onProductsList ? location.search : ''}`);
   };
@@ -78,6 +85,20 @@ export function Layout() {
               ) : (
                 <NavLink to={productsPath(current.id)} className={linkClass}>
                   Products
+                </NavLink>
+              )}
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
+                  Asset library
+                </span>
+              ) : (
+                <NavLink to={assetsPath(current.id)} className={linkClass}>
+                  Asset library
                 </NavLink>
               )}
             </li>

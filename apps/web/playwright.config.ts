@@ -1,16 +1,23 @@
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig, devices } from '@playwright/test';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DATABASE_URL = process.env.DATABASE_URL;
+const DEV_DATABASE_URL = process.env.DATABASE_URL;
 
-if (!DATABASE_URL) {
+if (!DEV_DATABASE_URL) {
   throw new Error(
     'DATABASE_URL is not set. Run: export DATABASE_URL="$(bash scripts/pg-local.sh url)" from the repo root.',
   );
 }
+
+// The suites run against their own database, created fresh by scripts/e2e-db.mjs (never the dev one).
+const databaseUrl = new URL(DEV_DATABASE_URL);
+databaseUrl.pathname = '/creatorops_e2e';
+const DATABASE_URL = databaseUrl.toString();
+process.env.DATABASE_URL = DATABASE_URL;
 
 const API_URL = 'http://localhost:3000';
 const WEB_URL = 'http://localhost:5173';
@@ -42,6 +49,8 @@ export default defineConfig({
         SESSION_SECRET: 'a-long-e2e-only-secret-0123456789abcdef',
         PORT: '3000',
         LOG_LEVEL: 'warn',
+        // Uploaded files go to a temp directory, never into the repository.
+        DATA_DIR: path.join(os.tmpdir(), 'creatorops-web-e2e-media'),
       },
     },
     {
