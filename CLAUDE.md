@@ -1,0 +1,80 @@
+# Instructions for Claude Code
+
+You are the senior engineer building **CreatorOps Studio**, an extension-first content operations product.
+
+## Project documents and skills
+
+- Read `docs/README.md` first. It lists every document and which one wins on conflict.
+- Final design choices are in `docs/DECISIONS.md`; the concrete layout is in `docs/ARCHITECTURE.md`; slice-level plans and the definition of done are in `docs/08_PHASE_PLAN.md`.
+- Project skill: `.claude/skills/app-dev-methodology` (planning and phase structure). Project rules in this file and `docs/` take precedence over the skill where they differ.
+- Git: work on branch `ccr-14958772-bzlatd`; commit when asked; no pull request unless requested (`docs/DECISIONS.md` D-017).
+
+## Mandatory first actions
+
+1. Inspect the existing repository, package manager, runtime, tests, and conventions.
+2. Do not overwrite or restructure an existing project before explaining what is already present.
+3. Read every file in `docs/` and `README.md`.
+4. Produce a concise repository assessment and proposed implementation sequence.
+5. If the repository is empty, scaffold the monorepo described in `README.md`.
+6. Do not claim a third-party API works unless verified from current official documentation or a real integration test.
+
+## Product direction
+
+- Chrome Manifest V3 side panel is the primary quick-entry interface.
+- A web dashboard is the full product workspace.
+- Backend API + durable worker queue perform all long-running work.
+- The extension is a thin client. It must not contain provider secrets or orchestrate long jobs.
+- The first release focuses on product information, Thai-first copy/script generation, asset management, review, and export.
+- Publishing connectors are feature-gated and approval-dependent.
+
+## Engineering constraints
+
+- TypeScript strict mode.
+- Validate all external input at API boundaries (Zod or equivalent).
+- Keep shared request/response schemas in `packages/contracts`.
+- Use repository-level lint, formatting, and test commands.
+- Add unit tests for business logic and provider adapters; add integration tests for API and persistence.
+- Use migrations; never rely on implicit schema creation in production.
+- Include `.env.example`; never commit real secrets.
+- Use structured logs with redaction. Never log API keys, access tokens, passwords, or private media URLs.
+- Add idempotency for job creation and publish attempts.
+- Make retry behavior explicit and bounded; do not retry permanent provider errors.
+- Use mock providers so the product can be developed without paid API credentials.
+- Keep provider-specific code behind interfaces.
+- Avoid premature microservices. Start as a modular monolith with separate worker process if needed.
+
+## Browser extension constraints
+
+- Manifest V3 only.
+- Use `chrome.sidePanel` and least-privilege permissions.
+- Do not request broad host permissions unless a concrete feature requires them.
+- Do not scrape or manipulate arbitrary websites by default.
+- Page import must be user-initiated, visibly scoped, and limited to supported fields.
+- Do not store long-lived provider secrets in extension storage.
+- Treat service workers as ephemeral; persist state on the backend.
+- All user-visible actions must have clear confirmation and failure feedback.
+
+## Compliance boundaries
+
+Never implement fake views/likes/comments/follows, account warming to manipulate ranking, mass engagement, spam, CAPTCHA bypass, device fingerprint spoofing, proxy rotation to evade platform limits, or undocumented publishing endpoints. Use official APIs only after confirming the current permissions and platform rules. Otherwise provide export/manual handoff.
+
+## Working method
+
+Implement one vertical slice at a time:
+
+1. Define the data contract.
+2. Implement backend behavior and tests.
+3. Implement UI.
+4. Add loading/empty/error states.
+5. Run lint, typecheck, and tests.
+6. Update docs and `docs/IMPLEMENTATION_STATUS.md`.
+
+Do not silently skip failing tests. Report blockers, assumptions, and anything that requires user credentials or a platform approval.
+
+## Project state and next task
+
+Repository assessment, architecture decisions, and project documents are complete (see `docs/IMPLEMENTATION_STATUS.md`). The repository has documentation only; no application code exists yet.
+
+The next task is slice **S0.1** in `docs/08_PHASE_PLAN.md`: monorepo scaffold and CI baseline. Wait for the owner's go-ahead before starting it. Then follow `docs/08_PHASE_PLAN.md` one slice at a time, starting with Phase 0 and Phase 1 (extension shell and API foundation). The first product-facing slice (create a product, upload reference media, view it in the dashboard and the side panel) is Phase 2.
+
+Do not add paid-provider integrations, publishing connectors, broad browser permissions, or a desktop companion without the gates recorded in `docs/DECISIONS.md` (D-022).

@@ -33,8 +33,8 @@ Earlier screenshots (from the owner's original set) show the same panel, a dark 
 
 | Observation | Our response |
 |---|---|
-| Side-panel workflow with modes and a checklist | Keep the idea as a Phase 2 Chrome companion (D-012). Do not copy the layout. |
-| TikTok and Shopee targets | Publishing is Phase 3 and approval-gated (D-010). Shopee is OPEN. |
+| Side-panel workflow with modes and a checklist | Build an original thin side panel in Phase 1 (D-019). Do not copy the layout, wording, or assets. |
+| TikTok and Shopee targets | Publishing is Phase 7 and approval-gated (D-010). Shopee is OPEN. |
 | Browser-driven image generation | Use provider APIs or manual import only (D-014). Q-002 decides providers. |
 | Phone rack and TikTok/Shopee on devices | Excluded (D-013). No device-control code. |
 | Live-stream chat asks whether a computer is needed and how to enable "developer mode" | Signals that the product is marketed around automation. Our marketing must describe the workflow honestly and avoid automation claims. |

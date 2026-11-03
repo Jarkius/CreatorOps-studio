@@ -1,390 +1,315 @@
-# CreatorOps Studio — Architecture
+# CreatorOps Studio — Implementation Architecture
 
-**Status:** Proposed (pending owner approval — see `DECISIONS.md`)
-**Date:** 2026-11-03
-**Source of product scope:** `PRODUCT_SPEC.md` (§6 architecture, §7 domain model, §8 provider contracts)
-
-This document turns the spec into a concrete layout for the repository. It records how the pieces fit together and the rules each module must follow. Decision rationale lives in `DECISIONS.md`.
+**Status:** Accepted (owner delegation, 2026-11-03)
+**Relationship to other docs:** This document refines `02_SYSTEM_ARCHITECTURE.md`. It adds the concrete repository layout, module pattern, and conventions needed to build. Requirements live in `01`, UX in `03`, data and API contracts in `04`, security in `05`, phases in `06`, acceptance tests in `07`. Choices and their reasons live in `DECISIONS.md`. If this file conflicts with `01`–`07`, the numbered doc wins and this file is corrected.
 
 ---
 
 ## 1. Shape of the system
 
-A **modular monolith** with one API process, one worker process, one web app, and shared packages. Splitting into services is not planned.
+Extension-first UX, backend-first execution, one modular monolith.
 
 ```
-┌──────────────────────────┐        ┌──────────────────────────┐
-│ apps/web (React + Vite)  │ HTTP   │ apps/api (Fastify)       │
-│ feature folders, TanStack│ ─────▶ │ routes → services → repo │
-│ Query, RHF + Zod          │  JSON  │ Zod validation at edge   │
-└──────────────────────────┘        └──────┬───────────┬───────┘
-                                           │           │ enqueue
-                                  Drizzle  │           ▼
-                                           │   ┌──────────────────┐
-                                           │   │ Redis + BullMQ    │
-                                           │   └────────┬─────────┘
-                                           ▼            ▼
-                                 ┌──────────────┐  ┌──────────────────┐
-                                 │ PostgreSQL   │◀─│ apps/worker       │
-                                 │ source of    │  │ runs generation,  │
-                                 │ truth        │  │ export jobs       │
-                                 └──────────────┘  └────────┬─────────┘
-                                                            │ adapters
-                                                 ┌──────────▼─────────┐
-                                                 │ packages/providers  │
-                                                 │ text / image / video│
-                                                 │ mock + real (later) │
-                                                 └─────────────────────┘
-                                 Local disk (media) behind StorageAdapter
+┌────────────────────────┐      ┌────────────────────────┐
+│ apps/extension         │      │ apps/web               │
+│ Chrome MV3 side panel  │      │ Dashboard (React/Vite) │
+│ thin client            │      │ full workspace         │
+└───────────┬────────────┘      └───────────┬────────────┘
+            └─────────────┬─────────────────┘
+                          │ HTTPS, /api/v1, same contract
+                 ┌────────▼─────────────────────────────┐
+                 │ apps/api (Fastify, TypeScript)        │
+                 │  ├─ http entry   (src/server.ts)      │
+                 │  └─ worker entry (src/worker.ts)      │  ← Phase 3
+                 └───┬─────────────┬───────────┬─────────┘
+                     │             │           │
+              ┌──────▼────┐ ┌──────▼─────┐ ┌───▼──────────────┐
+              │PostgreSQL │ │Redis+BullMQ│ │ Object storage   │
+              │ truth     │ │ Phase 3+   │ │ local disk first │
+              └───────────┘ └────────────┘ └──────────────────┘
+                     providers via packages/provider-core
+                     (mock by default; real adapters from Phase 4)
 ```
 
-Rules:
+Rules that hold across every phase:
 
-- The **database is the source of truth** for every job, draft, and asset state. Redis holds only queue messages; losing Redis must not lose user work.
-- The **API never calls a provider directly** for long-running work. It writes a `GenerationJob` row and enqueues an id. The worker performs the call.
-- The **web app never imports provider code** or receives provider keys. It sees capabilities from the API (for example, "image generation available: yes/no").
+1. The **database is the source of truth** for products, drafts, assets, jobs, and audit events. Redis holds queue messages only.
+2. The **API owns all provider calls, secrets, storage access, and retries.** Neither client holds a provider key.
+3. A **long-running job never depends on a client staying open.** The extension and dashboard only create jobs and read their status.
+4. Both clients use the **same endpoints and the same authorization rules** (04 §7).
+5. Every user-owned query is **scoped by workspace**.
 
 ---
 
 ## 2. Repository layout
 
 ```
-CreatorOps-studio/
+creatorops-studio/
+├── CLAUDE.md                  # instructions for Claude Code
+├── README.md
+├── .claude/skills/            # project skills (app-dev-methodology)
 ├── apps/
-│   ├── web/                 # React SPA (Vite)
-│   ├── api/                 # Fastify HTTP API
-│   └── worker/              # BullMQ consumer process
+│   ├── extension/             # Chrome MV3 side panel (React + Vite)
+│   ├── web/                   # dashboard (React + Vite)
+│   └── api/                   # HTTP API + worker entry point
+│       └── src/
+│           ├── server.ts
+│           ├── worker.ts                 # Phase 3
+│           ├── modules/<name>/           # see §4
+│           ├── storage/                  # StorageAdapter + local implementation
+│           └── platform/                 # config, logging, errors, auth, db client
 ├── packages/
-│   ├── domain/              # Zod schemas, enums, state machines, pure logic
-│   ├── db/                  # Drizzle schema, migrations, repositories
-│   ├── providers/           # Provider interfaces (spec §8), adapters, mocks
-│   ├── prompts/             # Versioned prompt templates + output schemas
-│   ├── storage/             # StorageAdapter interface + local implementation
-│   └── config/              # Env parsing with Zod, shared tsconfig/eslint
-├── docs/                    # PRODUCT_SPEC, ARCHITECTURE, DECISIONS, notes
-├── docker-compose.yml       # PostgreSQL + Redis for local development
-├── .env.example
-└── README.md
+│   ├── contracts/             # Zod schemas, enums, API types, shared by all apps
+│   ├── provider-core/         # provider interfaces, adapters, mock providers
+│   ├── ui/                    # shared React primitives (state components, status pill)
+│   └── config/                # tsconfig, eslint, prettier, env-schema helpers
+├── infra/
+│   ├── docker/                # docker-compose (PostgreSQL now, Redis in Phase 3)
+│   └── migrations/            # SQL migrations (Drizzle output directory)
+├── docs/
+└── prompts/
 ```
 
-Dependency direction (enforced by lint rule or review):
+Dependency rules, checked in lint:
 
-```
-apps/* ──▶ packages/*
-packages/domain ◀── everything else
-packages/providers, packages/storage, packages/db depend on packages/domain only
-apps/web depends on packages/domain (types/schemas only), never on db/providers/storage
-```
+| Package | May import |
+|---|---|
+| `apps/extension`, `apps/web` | `packages/contracts`, `packages/ui`, `packages/config` |
+| `apps/api` | `packages/contracts`, `packages/provider-core`, `packages/config` |
+| `packages/provider-core` | `packages/contracts` |
+| `packages/ui` | `packages/contracts` (types only) |
+| `packages/contracts` | nothing in this repo |
+
+Neither client may import `apps/api` or `provider-core`. This keeps provider code and secrets out of browser bundles by construction.
 
 ---
 
-## 3. Backend module design
+## 3. API conventions
 
-Each domain module lives under `apps/api/src/modules/<name>/` with the same four files:
+Full contract in `04_DATA_MODEL_AND_API.md`. The rules that shape code:
 
-```
-routes.ts      HTTP mapping only: parse input, call service, shape response
-service.ts     business rules, state transitions, audit writes
-repo.ts        Drizzle queries; every query takes workspaceId
-schemas.ts     Zod input/output (re-exported from packages/domain)
-```
+- Prefix `/api/v1`. JSON only. Cursor pagination on list endpoints.
+- Error shape: `{ "error": { "code", "message", "requestId", "details?" } }`. Codes are stable strings (`PRODUCT_NOT_FOUND`, `JOB_NOT_CANCELLABLE`). Messages never include stack traces, provider response bodies, or secrets.
+- Every create-job and create-export endpoint accepts `Idempotency-Key`. A unique constraint on `(workspace_id, idempotency_key)` returns the original resource for a repeat key.
+- Enum values are lowercase snake case exactly as written in `04` (`in_review`, `generate_brief`).
+- Every request has a `requestId` (generated or taken from `X-Request-Id`). It appears in logs and error bodies.
+- Request and response schemas are defined once in `packages/contracts` and imported by API, web, and extension.
 
-Modules:
-
-| Module | Responsibility | Phase |
-|---|---|---|
-| `auth` | Session for local single user; request context carries `workspaceId` | 1 |
-| `products` | Product CRUD, primary image, restricted claims | 1 |
-| `assets` | Upload, library listing, rename, tag, delete, lineage | 1 |
-| `campaigns` | Campaign wizard state, content mode, options | 1 |
-| `drafts` | ContentDraft and DraftAsset, versioning, approval status | 1 |
-| `jobs` | GenerationJob lifecycle, retry, cancel, progress | 1 |
-| `exports` | Build export package (zip + caption + checklist) | 1 |
-| `generation` | Orchestrates text/image/video calls via providers | 1 (text), 2 (image/video) |
-| `claims` | Restricted-claim and format checks | 2 |
-| `publishing` | PublishingProvider interface, manual-only adapter | 2 (manual), 3 (APIs) |
-| `audit` | Append AuditEvent; read for timeline view | 1 |
-
-### 3.1 Request context
-
-Every authenticated request resolves to:
+### Request context
 
 ```ts
 type RequestContext = {
   userId: string;
   workspaceId: string;
-  role: "OWNER" | "ADMIN" | "EDITOR" | "APPROVER" | "VIEWER";
+  role: "owner" | "admin" | "editor" | "reviewer" | "viewer";
+  requestId: string;
 };
 ```
 
-Services receive the context explicitly. Repositories require `workspaceId` as a parameter, so an unscoped query does not compile. This is the main defence for spec §7.2 and §17 criterion 8.
-
-Phase 1 seeds one user and one workspace with role `OWNER`. The role checks are present but only the `OWNER` path is exercised. Adding real users later changes the auth provider, not the data model.
-
-### 3.2 Errors and responses
-
-- Typed errors: `AppError { code, message, status, details? }`. Codes are stable strings such as `PRODUCT_NOT_FOUND`, `JOB_NOT_CANCELLABLE`, `CLAIM_BLOCKED`.
-- Responses use one envelope for errors (RFC 9457 problem-details shape) and plain JSON for success.
-- Validation errors list field paths from Zod.
-- No stack traces or provider error bodies reach the client. Those go to structured logs with secrets redacted.
-
-### 3.3 Transactions and audit
-
-- A state change and its `AuditEvent` row are written in **one transaction**.
-- Job enqueue happens **after** the commit. If enqueue fails, a reconciler re-enqueues jobs in `QUEUED` state older than a threshold. This avoids the classic "job in queue, row rolled back" problem.
-
-### 3.4 Idempotency
-
-- Creating a job, draft, or export accepts an optional `Idempotency-Key` header.
-- Unique constraint: `(workspace_id, idempotency_key)` on the target table.
-- A repeated key returns the original resource, not a duplicate.
-- Publishing (Phase 3) follows the same rule and additionally requires `userConfirmedAt` (spec §8.4).
+Services receive the context explicitly. Repository functions require `workspaceId` as a parameter, so an unscoped query does not compile. Foreign-workspace ids return `404`, not `403`, so existence is not revealed.
 
 ---
 
-## 4. Job pipeline
+## 4. Backend modules
 
-### 4.1 Job states
+Module names follow `02` §4. Each lives in `apps/api/src/modules/<name>/` with the same files:
 
 ```
-QUEUED ──▶ RUNNING ──▶ SUCCEEDED
-   │          │
-   │          ├──▶ FAILED ──(retry, attempts < max)──▶ QUEUED
-   │          │
-   └──────────┴──▶ CANCELLED
+routes.ts     HTTP mapping only
+service.ts    business rules, state transitions, audit writes
+repo.ts       Drizzle queries (workspace-scoped)
+index.ts      the module's public surface; other modules import only this
 ```
 
-- `attempts` increments on each start. `max` default is 3 with exponential backoff (2s, 8s, 30s).
-- Cancel is allowed in `QUEUED` and `RUNNING`. A running job checks a cancel flag between provider calls and stops; provider work already billed is recorded.
-- Only the worker transitions `QUEUED → RUNNING → SUCCEEDED/FAILED`. The API can only request `CANCELLED` or re-queue a `FAILED` job.
+| Module | Responsibility | Phase |
+|---|---|---|
+| `platform` (not a module) | config, logging with redaction, error mapping, db client, request context | 1 |
+| `identity` | users, sessions, mock auth (dev only) | 1 |
+| `workspace` | workspace settings and brand defaults | 2 |
+| `products` | product facts, archive, primary image | 2 |
+| `assets` | upload, metadata, thumbnails, signed read URLs | 2 |
+| `content` | templates, campaigns, drafts, section regeneration, claim warnings | 3 |
+| `jobs` | enqueue, status, cancel, bounded retry, idempotency | 3 |
+| `providers` | registry and selection; calls adapters in `provider-core` | 3 |
+| `usage` | usage events, budget caps | 4 |
+| `exports` | ZIP package of media, caption, hashtags, checklist | 5 |
+| `publishing` | capability flags, connectors | 7 (feature-gated) |
+| `audit` | append-only events; written in the same transaction as the change | 2 |
 
-### 4.2 Progress and polling
+Cross-cutting rules:
 
-- The worker writes `progress` (0–100) and `updated_at` to the job row at meaningful steps.
-- The web app polls `GET /jobs?campaignId=…` every 2 seconds while any job is active, then backs off. No WebSockets in Phase 1.
-- Page refresh restores state from the database. Nothing depends on in-memory client state.
-
-### 4.3 Worker
-
-- One entry point per queue. Concurrency per provider is configured in `packages/config`, so a slow provider does not starve text generation.
-- Worker writes provider usage (tokens or units, estimated cost) to `input_json`/a usage field for the unit-economics worksheet (spec §14.3).
+- A state change and its audit event commit in **one transaction**. Job enqueue happens after commit. A reconciler re-enqueues `queued` jobs older than a threshold.
+- Modules call each other through `index.ts` only.
+- No provider-specific code outside `provider-core` and the `providers` module.
 
 ---
 
-## 5. Provider layer
+## 5. Authentication
 
-### 5.1 Interfaces
+- **Phases 1–5:** development-only mock auth, isolated in `identity/mock`. It is enabled only when `AUTH_MODE=mock` and the process **refuses to start** if that flag is set while `NODE_ENV=production`. It issues a bearer token for one seeded user and workspace.
+- **Extension auth in dev:** the side panel obtains the same mock bearer token from the API and keeps it in `chrome.storage.session`, never `localStorage`.
+- **Production:** an external identity provider (OIDC) with short-lived sessions. The provider is an open question (`DECISIONS.md` Q-003) that must be closed before any hosted deployment. The extension would use `chrome.identity.launchWebAuthFlow`.
+- Roles (`owner`, `admin`, `editor`, `reviewer`, `viewer`) exist in the schema from the first migration. Only `owner` is exercised until Phase 8.
 
-Use the interfaces from spec §8 unchanged for `TextGenerationProvider`, `ImageGenerationProvider`, `VideoGenerationProvider`, and `PublishingProvider`. Add two rules:
+---
 
-1. **Every adapter returns a typed result.** Failures map to a closed set of codes: `RATE_LIMITED`, `AUTH_FAILED`, `CONTENT_BLOCKED`, `INVALID_INPUT`, `PROVIDER_UNAVAILABLE`, `UNKNOWN`. The job retry policy depends on these codes.
-2. **Capabilities are declared, not guessed.** Each adapter exposes `capabilities()` with supported aspect ratios, max duration, and whether reference images are accepted.
+## 6. Job pipeline (Phase 3)
 
-### 5.2 Registry
+States: `queued → running → succeeded | failed | cancelled` (04 `Job.status`).
+
+- API validates the request, writes the `Job` row in the same transaction as the idempotency key, then enqueues the job id. The queue payload holds identifiers only.
+- The worker loads authorized data, resolves provider configuration server-side, calls the adapter, stores the output, and updates the row.
+- Progress is written to the job row. Clients poll `GET /jobs/:jobId`. Never display progress the provider has not reported (03 §3).
+- Retries are bounded (default 3, exponential backoff) and apply only to transient error classes.
+- Provider error classes are distinct: `timeout`, `rate_limited`, `quota_exceeded`, `invalid_input`, `policy_rejected`, `auth_failed`, `unavailable`, `unknown`. Only `timeout`, `rate_limited`, `unavailable` retry.
+- Cancel is allowed in `queued` and `running`. A running job checks a cancel flag between provider calls.
+
+Redis and BullMQ arrive with this phase. Before it there are no jobs.
+
+---
+
+## 7. Provider layer (`packages/provider-core`)
+
+Interfaces follow `02` §6:
 
 ```ts
-// packages/providers/src/registry.ts
-registerText("mock-text", mockText);
-registerText("<real-text-id>", realText);   // added after Phase 0 decision
+TextGenerationProvider.generateBrief(input)
+ImageGenerationProvider.generateImage(input)
+VideoGenerationProvider.generateVideo(input)
+SpeechProvider.synthesize(input)            // later
 ```
 
-Business code asks the registry by id. The id is stored on each `GenerationJob` (`provider` column), so an old draft can always be traced to the exact adapter that produced it.
+Each adapter also declares `capabilities()` (supported features, limits, whether cost can be estimated) and maps its errors to the closed set in §6.
 
-### 5.3 Mock providers
-
-- `mock-text`: deterministic output from fixtures keyed by template version. Used in all Phase 1 tests.
-- `mock-image`, `mock-video`: return local placeholder files after a short delay. Used to test queue progress and asset lineage.
-- Mocks run the same contract tests as real adapters.
-
-### 5.4 What adapters must not do
-
-- No DOM scraping, browser automation, or session hijacking of consumer AI websites (spec §4.1C, §4.4).
-- No provider keys in logs, error messages, or responses.
+- **Mocks first.** `mock-text` returns deterministic Thai output from fixtures keyed by template version. `mock-image` and `mock-video` return placeholder files after a short delay. Mocks pass the same contract test suite as real adapters.
+- A real adapter is added only after the gate in `06` Phase 4 (terms verified, key stored server-side, usage capture in place).
+- No DOM scraping, browser automation of consumer AI sites, or undocumented endpoints.
+- Each generation job records `provider`, `model`, template id and version, and the rendered prompt so results are reproducible.
 
 ---
 
-## 6. Prompt and output contracts
+## 8. Prompts and output contracts
 
-- Prompts live in `packages/prompts/<template-id>/v<N>/` as files: `system.md`, `user.md.hbs`, `output.schema.ts`.
-- Every generated record stores `template_id`, `template_version`, and the rendered prompt hash. The full prompt text is stored with the job for reproducibility (spec §7.2).
-- Model output must parse against the template's Zod schema. On failure: one repair attempt with the validation error, then `FAILED` with code `OUTPUT_INVALID`. Never save unvalidated text into a draft.
-- Thai is the default output language. Language is a per-campaign setting and is stored on every draft.
-
-Initial templates for Phase 1:
-
-| Template | Output |
-|---|---|
-| `angles.v1` | 3 content angles: title, hook, rationale |
-| `script.v1` | Hook, scene list, voiceover, CTA for one angle |
-| `caption.v1` | Caption and hashtags, length-limited |
-| `shotlist.v1` | Scene-by-scene shots with image/video prompt text |
+- Templates are files under `apps/api/src/modules/content/prompts/<template>/v<N>/`: system prompt, user prompt, output schema.
+- Product facts and imported text are passed as clearly delimited data, never as instructions (05 §3).
+- Output must parse against the template's Zod schema. On failure: one repair attempt that includes the validation error, then the job fails with `output_invalid`. Unvalidated text is never saved into a draft.
+- Claims in output must trace to supplied product facts or be added to `claimWarnings`.
+- Thai is the default language. Language is stored on each campaign and draft.
 
 ---
 
-## 7. Storage
-
-### 7.1 StorageAdapter
+## 9. Storage
 
 ```ts
 interface StorageAdapter {
-  put(key: string, bytes: Uint8Array | Readable, meta: { mimeType: string }): Promise<void>;
-  getReadUrl(key: string, ttlSeconds: number): Promise<string>;   // signed in hosted mode
-  delete(key: string): Promise<void>;
-  exists(key: string): Promise<boolean>;
+  put(key, bytes | stream, meta: { mimeType }): Promise<void>;
+  getReadUrl(key, ttlSeconds): Promise<string>;   // short-lived, signed in hosted mode
+  delete(key): Promise<void>;
+  exists(key): Promise<boolean>;
 }
 ```
 
-- Phase 1: `LocalFsStorage` writes under `${DATA_DIR}/workspaces/<workspaceId>/...`. Keys never contain user-supplied filenames.
-- Phase 4: `S3Storage` (R2 or S3) with the same interface.
-- Original uploads are never overwritten. Generated and edited variants get new keys and a `parent_asset_id` for lineage.
-
-### 7.2 Upload rules
-
-- Maximum size per type set in config (for example, image 15 MB, video 200 MB in Phase 2).
-- MIME type is checked by sniffing the first bytes, not the client header.
-- Images are re-encoded to a thumbnail and read for width/height. EXIF is stripped from the derived copy.
-- Filename is stored as display text only.
-
-### 7.3 Deletion
-
-- Deleting an asset marks it `ARCHIVED` and removes the files after the retention window (config, default 30 days). Hard delete is available immediately through an explicit action with confirmation.
-- Deleting a product cascades to its assets in the same way.
+- Phase 2: `LocalFsStorage` under `${DATA_DIR}/workspaces/<workspaceId>/`. Storage keys are generated server-side and never contain user filenames.
+- Hosted: an S3-compatible adapter behind the same interface (open question Q-004).
+- Uploads: size limits from config; MIME **and** file signature checked; thumbnails generated; original files never overwritten. Derived assets keep a lineage reference.
+- Deleting a product archives it by default. Any cascade is explicit and confirmed (04 §7).
 
 ---
 
-## 8. Frontend architecture
-
-### 8.1 Structure
+## 10. Web dashboard and shared UI
 
 ```
 apps/web/src/
-├── app/            routing, providers, layout shell
-├── features/
-│   ├── products/   list, detail, form
-│   ├── assets/     library grid, inspector
-│   ├── campaigns/  wizard steps
-│   ├── drafts/     review cards, editor
-│   ├── jobs/       progress list, retry/cancel
-│   └── exports/    export dialog
-├── shared/         UI primitives, status pill, empty/error states, i18n
-└── api/            generated client from OpenAPI, TanStack Query hooks
+├── app/         routes, providers, layout shell
+├── features/    products, assets, campaigns, drafts, jobs, exports, usage, settings
+└── api/         typed client built from packages/contracts, TanStack Query hooks
 ```
 
-Rules:
-
-- Server state only in TanStack Query. Zustand is not needed in Phase 1; keep it for later if a real client-state need appears.
-- Forms use React Hook Form with Zod resolvers from `packages/domain`, so the same rules run in browser and server.
-- No provider names, model ids, or keys in components. Components receive capability flags and display labels.
-
-### 8.2 Layout (from spec §5.1)
-
-- Left nav: Products, Campaigns, Assets, Exports, Settings (Dashboard added in Phase 2; Calendar and Publishing in Phase 2–3).
-- Main canvas: current list or editor.
-- Right inspector: selected asset or draft details. Collapses to a drawer below tablet width.
-- Phone width: single column, nav becomes a bottom bar. Review is usable on a phone; editing is fine on desktop.
-
-### 8.3 Core screens (Phase 1)
-
-1. **Products list:** cards with primary image, name, status. Empty state links to "New product."
-2. **Product editor:** facts, selling points, restricted claims, brand voice, reference images with one marked primary.
-3. **Campaign wizard:** Product → Mode → Options (language, tone, audience, aspect ratio, variant count) → Generate. Progress steps show which are done.
-4. **Campaign review:** three angle cards. Each expands into script, captions, and shot list. Each section has edit, regenerate, and approve controls.
-5. **Asset library:** grid with multi-select, filter by product, type, status. Inspector shows prompt, provider, lineage.
-6. **Export:** choose drafts and assets, download zip containing media, `caption.txt`, `hashtags.txt`, and `checklist.md`.
-
-### 8.4 Interaction rules
-
-- Every list, grid, and job view has loading, empty, error, and retry states. These are shared components, not per-screen copies.
-- Regenerating one section changes only that section. The previous version is kept, and the user can revert.
-- Status vocabulary is shared across features: `DRAFT`, `IN_REVIEW`, `APPROVED`, `REJECTED`, plus job states. Colour and label come from one map.
-- Destructive actions use an explicit confirm dialog naming the object.
-- Thai text uses a font with Thai glyphs and system fallback. Layout must not clip Thai (tone marks above lines), so tests render Thai strings at two font sizes.
-
-### 8.5 Design principles
-
-- **Review before anything leaves the app.** Export and (later) publishing require a visible preview and a confirmation step.
-- **Show provenance.** Every asset shows where it came from: upload, generated by which provider, from which prompt version.
-- **Show uncertainty.** Claims that the checker cannot verify are flagged in place, not hidden in a log.
-- **Plain language.** Labels describe the action ("Create 3 angles"), not the mechanism ("Invoke text pipeline").
+- Server state in TanStack Query. Forms use React Hook Form with Zod schemas from `contracts`.
+- `packages/ui` provides the shared state components every async view uses: loading, empty, error with retry, and the status pill. This enforces the interaction states in `03` §5 without per-screen copies.
+- Navigation per `03` §1. Visual direction is an original dark navy/charcoal theme with a warm accent. Do not copy the reference product's layout, assets, or wording.
+- Accessibility: keyboard navigation, visible focus, labels, and status never shown by colour alone.
+- Thai text: use a font with Thai glyphs and a system fallback. UI tests render Thai strings at two sizes to catch clipped tone marks.
 
 ---
 
-## 9. Chrome extension (deferred)
+## 11. Chrome extension (`apps/extension`)
 
-Not built in Phase 1–2. When it is scheduled, design it as a thin client:
+Thin client, per `03` §4 and `05` §4.
 
-- Side panel shows: current campaign, job progress, recent assets, "Open in workspace."
-- Import only after an explicit click, with a preview of what will be sent.
-- Permissions: `sidePanel`, `storage`, and `activeTab` only if needed. No `<all_urls>`, no background page reading.
-- Auth via the same API tokens as the web app. Tokens are not stored in `localStorage`; use `chrome.storage.session` where possible.
+**Manifest (Phase 1):**
+
+| Item | Value |
+|---|---|
+| `manifest_version` | 3 |
+| `permissions` | `sidePanel`, `storage` |
+| `host_permissions` | only the configured API origin |
+| `activeTab` | added only with the page-import slice, with its own decision entry |
+| content scripts | none until a documented feature needs one |
+| `<all_urls>` | never |
+
+A test reads the built manifest and fails if it requests anything outside this list.
+
+**Behaviour:**
+
+- Side panel is a React app that calls the same `/api/v1` endpoints as the dashboard.
+- The service worker only routes lightweight events (opening the panel). It holds no state; it can be killed at any time. Anything important lives on the backend.
+- The API allows the extension's origin explicitly in CORS configuration. Wildcard origins are not used.
+- No provider secrets, no long-running orchestration, no page reading in the background, no injection into TikTok, Meta, or commerce sites.
+- Page import (Phase 2 or later) is user-initiated, shows what will be sent, and covers a narrow list of fields.
 
 ---
 
-## 10. Configuration and secrets
+## 12. Configuration, secrets, logging
 
-- All env vars are declared in `packages/config` with a Zod schema. The API and worker refuse to start if required values are missing or malformed.
-- `.env.example` lists every variable with a comment. Real `.env` files are git-ignored.
-- Provider keys are read only by the worker (and by the API only for capability checks, returning booleans).
-- Phase 1 secrets: `DATABASE_URL`, `REDIS_URL`, `DATA_DIR`, `SESSION_SECRET`. No provider keys required because Phase 1 uses mocks.
-- Logging: `pino` with a redaction list covering `authorization`, `*apiKey*`, `*token*`, `*secret*`, `password`.
+- Environment variables are parsed with a Zod schema (helper in `packages/config`). The API refuses to start on missing or malformed values.
+- `.env.example` lists every variable with a comment. Real env files are git-ignored.
+- Phase 1 variables: `DATABASE_URL`, `AUTH_MODE`, `API_BASE_URL`, `EXTENSION_ORIGIN`, `SESSION_SECRET`. Phase 2 adds `DATA_DIR`. Phase 3 adds `REDIS_URL`.
+- Provider keys are read only by the API/worker process, stored encrypted server-side when user-supplied, and never returned by any endpoint (endpoints return booleans such as "configured").
+- Logs are structured JSON with `requestId`, `workspaceId`, and `jobId` where relevant. A redaction list covers `authorization`, `*apiKey*`, `*token*`, `*secret*`, `password`, and signed media URLs.
 
 ---
 
-## 11. Testing strategy
+## 13. Testing strategy
 
-| Layer | Tool | What it covers |
+| Layer | Tool | Covers |
 |---|---|---|
-| Domain unit | Vitest | state machines, validators, prompt rendering, claim rules |
-| Contract | Vitest | every provider adapter (mock and real) against the same suite |
-| DB integration | Vitest + Postgres in Docker | migrations, repository scoping, idempotency constraints |
-| Queue integration | Vitest + Redis in Docker | retry, cancel, re-enqueue after crash |
-| API | Vitest + Fastify inject | auth, scoping, validation errors |
-| UI component | Vitest + Testing Library | loading, empty, error, retry states |
-| End-to-end | Playwright | product → campaign → review → export |
-| Security | Vitest | cross-workspace access denied on every route; publish blocked without confirmation |
+| Unit | Vitest | contracts, state machines, prompt rendering, claim rules, provider adapters |
+| Contract | Vitest | every provider adapter (mock and real) against one shared suite |
+| API integration | Vitest + Fastify inject + PostgreSQL | auth, workspace scoping, validation, idempotency, error shape |
+| Queue integration (Phase 3) | Vitest + Redis | retry limits, cancel, re-enqueue after restart |
+| Component | Vitest + Testing Library | loading, empty, error, retry states |
+| End-to-end | Playwright (dashboard, and extension via a persistent Chromium context) | the flows in `07` |
+| Extension manifest | Vitest | permission allow-list |
+| Security | Vitest | an `authorization` suite iterates every route with a foreign workspace id and expects `404` |
 
-A test suite named `authorization` iterates over every registered route and asserts a foreign-workspace id returns 404, not 403 (to avoid confirming existence).
-
----
-
-## 12. Observability
-
-- Structured JSON logs with `requestId`, `workspaceId`, `jobId` where relevant.
-- Metrics (Phase 2): job durations, failure codes, queue depth, provider latency.
-- Error reporting: Sentry or equivalent, opt-in, with the same redaction list. Off by default in local mode.
-- Usage ledger: every provider call writes a row (provider, operation, units, estimated cost, job id) so cost per accepted asset can be computed (spec §14.3).
+CI runs lint, typecheck, unit and integration tests, and build on every push. E2E runs in CI once the dashboard exists.
 
 ---
 
-## 13. Local development
+## 14. Local development (planned in Phase 0)
 
-- `docker compose up -d` starts PostgreSQL and Redis.
-- `pnpm install`, `pnpm db:migrate`, `pnpm dev` starts web, API, and worker.
-- `pnpm test`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint` are the four required checks; CI runs all four.
-- Seed command creates one workspace, one user, and one sample product with three placeholder images.
+These commands do not exist yet; they are the targets for slice S0.1–S0.2 in `08_PHASE_PLAN.md`:
+
+```
+pnpm install
+pnpm dev:db        # docker compose up postgres
+pnpm db:migrate
+pnpm dev           # api + web (+ extension build watch)
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
 
 ---
 
-## 14. Explicitly out of architecture
+## 15. Out of architecture
 
-These are excluded by spec §4.4 and §12. They have no module, route, or adapter:
+By `05` §6 and `CLAUDE.md`, these have no module, route, or adapter:
 
-- Engagement automation (views, likes, follows, comments)
-- Device farm or phone controller
-- Browser automation of consumer AI sites
+- fake engagement, account warming, mass comments or messages
+- device-farm or phone-rack control
+- browser automation or scraping of consumer AI sites
 - CAPTCHA, fingerprint, or proxy evasion
-- Scraping private platform content
+- undocumented platform endpoints
+- scraping private content
 
-If a future request touches any of these, it goes back to the spec, not into a branch.
-
----
-
-## 15. Open architecture questions
-
-Tracked in `DECISIONS.md` with status `OPEN`:
-
-1. Real text provider and its terms (Phase 0)
-2. Real image and video providers, if any, and their cost model (Phase 0/2)
-3. Hosted auth provider (Phase 4)
-4. Object storage vendor: Cloudflare R2 or AWS S3 (Phase 4)
-5. Whether to add a Thai-specific copy evaluation set before Phase 2 (spec §16)
+A future request touching any of these goes back to the spec, not onto a branch.

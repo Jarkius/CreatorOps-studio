@@ -4,13 +4,20 @@
 
 Status values:
 
-- `PROPOSED`: recommended, waiting for owner approval. Work does not start on the item until it is `ACCEPTED`.
 - `ACCEPTED`: approved; implement as written.
-- `OPEN`: question that needs an answer before the related work begins.
+- `OPEN`: question that must be answered before the related work begins.
 - `DEFERRED`: intentionally postponed; revisit at the listed phase.
-- `REJECTED`: considered and declined; do not reintroduce without a new decision.
+- `SUPERSEDED`: replaced by a later decision; kept for history.
 
-Each decision has a short rationale and the reference it depends on. Change a decision by adding a new entry that supersedes it, not by editing history.
+On 2026-11-03 the owner delegated final design decisions ("review and make decisions for final design"). Entries marked *accepted by delegation* were chosen from the recommendations made in that session and can be reopened by the owner at any time. Change a decision by adding a new entry that supersedes the old one.
+
+## Document precedence
+
+1. `CLAUDE.md` compliance boundaries and `05_SECURITY_AND_COMPLIANCE.md` never yield to anything else.
+2. `01`–`04`, `06`, `07` are the requirements and contracts.
+3. `ARCHITECTURE.md` refines `02` and is corrected if it conflicts.
+4. This log records choices where the documents allowed options.
+5. `00_REFERENCE_PRODUCT_ANALYSIS.md` is background research only. Where it differs from `01`–`07` (enum casing, phase numbering, role names, extension timing), `01`–`07` win.
 
 ---
 
@@ -18,197 +25,203 @@ Each decision has a short rationale and the reference it depends on. Change a de
 
 | ID | Decision | Status |
 |---|---|---|
-| D-001 | Modular monolith with a separate worker process | PROPOSED |
-| D-002 | pnpm workspaces monorepo | PROPOSED |
-| D-003 | Fastify for the API (not NestJS) | PROPOSED |
-| D-004 | Drizzle ORM (not Prisma) | PROPOSED |
-| D-005 | PostgreSQL from day one, including local development | PROPOSED |
-| D-006 | Redis + BullMQ, with the database row as source of truth | PROPOSED |
-| D-007 | React + Vite + Tailwind + TanStack Query + React Hook Form + Zod | PROPOSED |
-| D-008 | Local filesystem storage behind a StorageAdapter; S3/R2 later | PROPOSED |
-| D-009 | Provider adapters behind interfaces; mock providers in Phase 1 | PROPOSED |
-| D-010 | No publishing connector in Phase 1; manual export only | PROPOSED |
-| D-011 | Single-user local auth with workspace scoping from day one | PROPOSED |
-| D-012 | Chrome extension deferred until after Phase 2 | PROPOSED |
-| D-013 | Phone-farm and device-control features excluded | ACCEPTED (spec §4.4, §12) |
-| D-014 | No browser automation of consumer AI websites | ACCEPTED (spec §4.1C, §4.4) |
-| D-015 | Thai is the default content language; English optional | PROPOSED |
-| D-016 | No billing or pricing implementation before product validation | ACCEPTED (spec §14.2, §6.4) |
-| D-017 | Work on branch `ccr-14958772-bzlatd`; no pull request unless requested | ACCEPTED |
-| D-018 | Greenfield repository: scaffold from scratch, no imported code | PROPOSED |
-| Q-001 | Real text generation provider | OPEN |
-| Q-002 | Real image and video providers and cost model | OPEN |
-| Q-003 | Hosted auth provider | OPEN (Phase 4) |
-| Q-004 | Object storage vendor (R2 or S3) | OPEN (Phase 4) |
-| Q-005 | Thai copy evaluation set before Phase 2 | OPEN |
+| D-001 | Modular monolith; API app also hosts the worker entry point | ACCEPTED |
+| D-002 | pnpm workspaces; layout from the build pack; no Turborepo at first | ACCEPTED |
+| D-003 | Fastify for the API | ACCEPTED |
+| D-004 | Drizzle ORM; migrations in `infra/migrations` | ACCEPTED |
+| D-005 | PostgreSQL via Docker Compose from Phase 1 | ACCEPTED |
+| D-006 | Redis + BullMQ introduced in Phase 3; DB is source of truth | ACCEPTED |
+| D-007 | React + Vite + Tailwind + TanStack Query + React Hook Form + Zod | ACCEPTED |
+| D-008 | Local filesystem storage behind a StorageAdapter | ACCEPTED |
+| D-009 | Provider adapters with mocks; no real provider before the Phase 4 gate | ACCEPTED |
+| D-010 | Manual export only until Phase 7; publishing feature-gated | ACCEPTED |
+| D-011 | Dev-only mock auth through Phase 5; production auth provider open | ACCEPTED |
+| D-012 | Chrome extension deferred until after Phase 2 | SUPERSEDED by D-019 |
+| D-013 | Phone-farm and device-control features excluded | ACCEPTED |
+| D-014 | No browser automation of consumer AI websites | ACCEPTED |
+| D-015 | Thai is the default content language | ACCEPTED |
+| D-016 | No billing; usage events and budget caps from Phase 4 | ACCEPTED |
+| D-017 | Git: branch `ccr-14958772-bzlatd`; commits when asked; no pull request unless requested | ACCEPTED |
+| D-018 | Greenfield repository; scaffolding starts at Phase 0 on owner go-ahead | ACCEPTED |
+| D-019 | Extension-first UX with a thin extension shell in Phase 1 | ACCEPTED |
+| D-020 | Phase numbering follows `06` (Phases 0–8) | ACCEPTED |
+| D-021 | API conventions from `04` (prefix, error shape, pagination, enums, idempotency) | ACCEPTED |
+| D-022 | Hybrid methodology: Agile vertical slices with documentation and approval gates | ACCEPTED |
+| D-023 | Project skill `app-dev-methodology` installed at `.claude/skills/` | ACCEPTED |
+| D-024 | Local-first through Phase 5; hosted deployment decided later | ACCEPTED |
+| Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
+| Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
+| Q-003 | Production auth provider | OPEN (before any hosted deployment) |
+| Q-004 | Object storage vendor | OPEN (before any hosted deployment) |
+| Q-005 | Thai copy evaluation set and reviewers | OPEN (before Phase 4) |
+| Q-006 | Extension distribution (Chrome Web Store) and extension id | OPEN (before beta) |
+| Q-007 | Production hosting target | OPEN (before any hosted deployment) |
 
 ---
 
-## D-001 — Modular monolith with a separate worker process
+## D-001 — Modular monolith with a worker entry point
+**Status:** ACCEPTED (accepted by delegation; refines the earlier "separate worker app" idea)
+**Context:** `02` §1 and `CLAUDE.md` require a modular monolith and avoid premature microservices. The pack's layout lists workers inside `apps/api`.
+**Decision:** One `apps/api` package with two entry points, `server.ts` (HTTP) and `worker.ts` (Phase 3), sharing modules. They run as separate processes.
+**Consequences:** One codebase and one image. Workers scale separately in production. A split into separate packages stays possible if module boundaries hold.
 
-**Status:** PROPOSED
-**Context:** Spec §6.1 recommends a modular monolith with background workers. The team is one developer.
-**Decision:** One API process, one worker process, one web app, shared packages. No microservices.
-**Consequences:** Simple deployment and debugging. Module boundaries are enforced by package layout and lint rules so a later split stays possible.
+## D-002 — pnpm workspaces and the pack's layout
+**Status:** ACCEPTED (accepted by delegation)
+**Context:** The earlier proposal used `apps/{web,api,worker}` and `packages/{domain,db,providers,prompts,storage,config}`. The pack specifies `apps/{extension,web,api}`, `packages/{contracts,provider-core,ui,config}`, and `infra/`.
+**Decision:** Use the pack's layout (`ARCHITECTURE.md` §2). Database code, storage adapter, and prompt templates live inside `apps/api`. Turborepo is not added until build times justify it.
+**Consequences:** Fewer packages to maintain. Dependency rules in `ARCHITECTURE.md` §2 keep browser bundles free of provider code.
 
-## D-002 — pnpm workspaces monorepo
-
-**Status:** PROPOSED
-**Context:** The app has web, API, worker, and shared code. Spec §6.3 does not choose a package manager.
-**Decision:** pnpm workspaces. Packages: `apps/web`, `apps/api`, `apps/worker`, `packages/{domain,db,providers,prompts,storage,config}`.
-**Consequences:** Shared types and Zod schemas without publishing packages. Dependency direction is documented in `ARCHITECTURE.md` §2.
-
-## D-003 — Fastify for the API
-
-**Status:** PROPOSED
-**Context:** Spec §6.3 says Fastify for a lean MVP, NestJS if the repo already uses it. This repo is empty, so there is no existing choice.
-**Decision:** Fastify with Zod-based validation and OpenAPI generated from route schemas.
-**Consequences:** Less framework ceremony than NestJS. Team must keep the module pattern in `ARCHITECTURE.md` §3 by convention.
+## D-003 — Fastify
+**Status:** ACCEPTED (accepted by delegation)
+**Context:** `02` §3 says Fastify, or NestJS if the repo already uses it. The repo is empty.
+**Decision:** Fastify with Zod validation at the boundary and OpenAPI generated from the contracts.
 
 ## D-004 — Drizzle ORM
+**Status:** ACCEPTED (accepted by delegation)
+**Context:** `02` §3 requires one of Drizzle or Prisma, not both.
+**Decision:** Drizzle with `drizzle-kit`. Migration SQL is written to `infra/migrations` and committed. No implicit schema creation in any environment (`CLAUDE.md`).
 
-**Status:** PROPOSED
-**Context:** Spec §6.3 requires one of Prisma or Drizzle. Drizzle is closer to SQL, has light runtime, and keeps migrations as plain SQL files.
-**Decision:** Drizzle ORM with `drizzle-kit` for migrations. Raw SQL only where reviewed (spec §18 Step 4).
-**Consequences:** Schema is TypeScript. Migrations are committed SQL. Do not mix in Prisma.
+## D-005 — PostgreSQL from Phase 1
+**Status:** ACCEPTED
+**Context:** `06` Phase 1 includes Docker Compose for PostgreSQL.
+**Decision:** PostgreSQL for development, tests, and production. No SQLite path.
 
-## D-005 — PostgreSQL from day one
-
-**Status:** PROPOSED
-**Context:** Spec §6.4 allows SQLite for a throwaway prototype only and prefers PostgreSQL when jobs or teams are expected. Jobs and idempotency constraints are required in Phase 1.
-**Decision:** PostgreSQL in Docker Compose for local development and tests. No SQLite path.
-**Consequences:** Developers need Docker. Dialect differences are avoided entirely.
-
-## D-006 — Redis + BullMQ with database as source of truth
-
-**Status:** PROPOSED
-**Context:** Spec §6.3 names Redis + BullMQ. Spec §17 criterion 5 requires jobs to survive refresh. Redis adds one more local service.
-**Decision:** BullMQ holds queue messages only. `GenerationJob` rows hold state, progress, attempts, and errors. A reconciler re-enqueues stale `QUEUED` rows.
-**Consequences:** Losing Redis delays work but loses nothing. Phase 1 needs Redis in Compose; keeping it avoids a rewrite in Phase 2.
+## D-006 — Redis and BullMQ in Phase 3
+**Status:** ACCEPTED (accepted by delegation; changes the earlier "Phase 1" timing)
+**Context:** `README.md` says Redis and BullMQ arrive when asynchronous workers are introduced. `06` introduces the job table and worker in Phase 3.
+**Decision:** No Redis before Phase 3. BullMQ carries job ids only. `Job` rows hold state, and a reconciler re-enqueues stale `queued` rows.
+**Consequences:** Phases 1–2 need only PostgreSQL. Losing Redis later delays work but loses none.
 
 ## D-007 — Frontend stack
-
-**Status:** PROPOSED
-**Context:** Spec §6.3 lists React, Vite, Tailwind, TanStack Query, React Hook Form, Zod, and optional Zustand.
-**Decision:** Use all listed tools except Zustand, which is deferred until a real client-state need appears.
-**Consequences:** Forms and API share one Zod schema source in `packages/domain`.
-
-## D-008 — Local storage behind StorageAdapter
-
-**Status:** PROPOSED
-**Context:** Spec §6.3 and §6.4: local filesystem for development and single-user mode, S3-compatible storage for hosted mode.
-**Decision:** `StorageAdapter` interface with `LocalFsStorage` in Phase 1. Keys are generated server-side. Original uploads are immutable.
-**Consequences:** Hosted storage is an adapter swap. Lineage uses `parent_asset_id` rather than overwriting.
-
-## D-009 — Provider adapters with mocks in Phase 1
-
-**Status:** PROPOSED
-**Context:** Spec §8 defines interfaces. Spec §18 Step 3 (item 5) requires a text adapter with mocked provider tests. Phase 0 provider validation is not complete.
-**Decision:** Implement interfaces from spec §8, add a typed error taxonomy, and ship only mock adapters in Phase 1. Real adapters follow Q-001 and Q-002.
-**Consequences:** Phase 1 has no provider dependency or cost. Every adapter must pass the same contract suite.
-
-## D-010 — Manual export only in Phase 1
-
-**Status:** PROPOSED
-**Context:** Spec §4.1E and §10.5. No platform connector is approved. Spec §14 requires official APIs only.
-**Decision:** Phase 1 exports a zip package and a checklist. The `PublishingProvider` interface and a manual-only adapter arrive in Phase 2. No platform API code exists before Phase 3.
-**Consequences:** No platform account or secret handling in Phase 1–2.
-
-## D-011 — Single-user auth, workspace scoping from day one
-
-**Status:** PROPOSED
-**Context:** Spec §4.1F and §17 criterion 8. Spec §18 Phase 1 lists "basic auth / local single-user mode."
-**Decision:** Seeded local user with `OWNER` role. Every service and repository takes `workspaceId`. Authorization tests run against all routes from the first route.
-**Consequences:** Adding real auth later changes the login layer only.
-
-## D-012 — Chrome extension deferred
-
-**Status:** PROPOSED
-**Context:** Spec §4.1 does not require the extension in the MVP. Spec §11 designs it as a companion. The reference screenshots show a side panel, but the web app covers the same workflow.
-**Decision:** Build the web app first. Revisit the extension after Phase 2 with a written design.
-**Consequences:** Phase 1 has one client. Extension messaging contract is designed later.
-
-## D-013 — Phone-farm and device-control features excluded
-
 **Status:** ACCEPTED
-**Context:** Spec §4.4 and §12 exclude engagement automation, warm-up, and multi-device bot control. The owner's stream screenshots show a rack of phones with TikTok and Shopee open.
-**Decision:** No device-control code, ADB integration, or multi-device orchestration. An optional single-device file-transfer companion may be reconsidered only after a validated user need and a written policy review.
-**Consequences:** The Android companion is not in any phase before Phase 5.
+**Decision:** React, Vite, Tailwind, TanStack Query, React Hook Form, and Zod for the dashboard and the extension side panel. Zustand only if a real client-state need appears.
+
+## D-008 — Storage behind an adapter
+**Status:** ACCEPTED
+**Decision:** `StorageAdapter` interface with `LocalFsStorage` in Phase 2. Keys are generated server-side. Originals are immutable. Read URLs are short-lived (`07` Media).
+
+## D-009 — Provider adapters and mocks
+**Status:** ACCEPTED
+**Context:** `CLAUDE.md`: mock providers so development needs no paid credentials. `06` Phase 4 gates the first real provider.
+**Decision:** Interfaces and mocks first. A real adapter needs verified terms, server-side key storage, and usage capture. All adapters pass one contract suite.
+
+## D-010 — Manual export; publishing gated
+**Status:** ACCEPTED
+**Decision:** Export ZIP in Phase 5. Publishing connectors, if any, arrive in Phase 7 behind feature flags, one platform at a time, only after official API access is confirmed. No platform is shown as connected without a recorded sandbox test.
+
+## D-011 — Mock auth for development only
+**Status:** ACCEPTED (accepted by delegation)
+**Context:** `06` Phase 1 calls for mock auth isolated from production. `02` §3 says use a secure session/OIDC provider rather than custom password auth.
+**Decision:** `AUTH_MODE=mock` for Phases 1–5. The API refuses to start with mock auth in production. The production provider is Q-003. Workspace scoping applies to every route from its first version.
+
+## D-012 — Extension deferred (superseded)
+**Status:** SUPERSEDED by D-019
+**Note:** Recorded 2026-11-03 earlier in the session. The build pack makes the side panel a Phase 1 deliverable.
+
+## D-013 — Device-control features excluded
+**Status:** ACCEPTED
+**Context:** `05` §6 and `CLAUDE.md` prohibit warm-up, engagement automation, and evasion. The reference stream shows a phone rack; its purpose is unverified (`REFERENCE_OBSERVATIONS.md`).
+**Decision:** No ADB, device orchestration, or multi-device code. A desktop companion appears only in Phase 8 and only with a validated user need and a written policy review.
 
 ## D-014 — No browser automation of consumer AI sites
-
 **Status:** ACCEPTED
-**Context:** Spec §4.1C and §8.4 forbid DOM scraping or automation of consumer AI websites. The reference screenshots appear to show a panel driving an image-generation page in the browser. That is an unverified observation.
-**Decision:** Generation uses provider APIs, mocks, or user-led manual import. No browser automation, DOM scraping, or session reuse.
-**Consequences:** If a provider has no API, the product offers manual import instead.
+**Decision:** Generation uses provider APIs, mocks, or user-led manual import. No DOM scraping, session reuse, or undocumented endpoints.
 
-## D-015 — Thai as default content language
-
-**Status:** PROPOSED
-**Context:** Spec §3.4, §4.1B, §16 (Thai copy quality). Target market is Thai sellers.
-**Decision:** Campaign language defaults to Thai. English is optional. Language is stored per campaign and per draft. Templates have Thai and English variants where needed.
-**Consequences:** Thai font handling and copy evaluation (Q-005) are part of UI and template work.
+## D-015 — Thai-first
+**Status:** ACCEPTED
+**Decision:** Campaign language defaults to Thai. English optional. Language is stored per campaign and draft. UI tests render Thai at two font sizes.
 
 ## D-016 — No billing before validation
-
 **Status:** ACCEPTED
-**Context:** Spec §14.2 and §6.4: do not build billing before product value is validated. Spec §14.4 requires a paid pilot first.
-**Decision:** No billing, credits, or plan enforcement in Phases 1–3. The usage ledger from `ARCHITECTURE.md` §12 is recorded so pricing can be decided from real data.
-**Consequences:** `Workspace.plan` exists as a field but has no behaviour.
+**Decision:** No billing, credits, or plans before a paid pilot. Usage events and per-workspace budget caps arrive in Phase 4 so pricing can be decided from real data. No "unlimited generation" promises (`06` cost discipline).
 
-## D-017 — Git branch and pull request policy
-
+## D-017 — Git policy
 **Status:** ACCEPTED
-**Context:** Session instructions specify branch `ccr-14958772-bzlatd`. The repository has no commits yet.
-**Decision:** All work goes on `ccr-14958772-bzlatd`. Commits happen only when the owner asks. No pull request unless explicitly requested.
-**Consequences:** Documentation changes are staged in the working tree until the owner asks for a commit.
+**Decision:** Work on branch `ccr-14958772-bzlatd`. Commit and push when the owner asks (a stop-hook request counts). No pull request unless explicitly requested.
 
-## D-018 — Greenfield scaffold
+## D-018 — Greenfield
+**Status:** ACCEPTED
+**Context:** The repository was empty locally and on the remote at the start of the session.
+**Decision:** Scaffold from scratch in Phase 0 slice S0.1 once the owner says go. Documents come first; no application code exists yet.
 
-**Status:** PROPOSED
-**Context:** The repository is empty locally and on the remote. Spec §18 Step 1 asks for inspection before scaffolding.
-**Decision:** Scaffold from scratch following `ARCHITECTURE.md` §2 after the owner approves D-001 to D-012. No code imported from elsewhere.
-**Consequences:** The first Phase 1 commit is the tooling scaffold (roadmap step 1).
+## D-019 — Extension-first with a thin shell in Phase 1
+**Status:** ACCEPTED (accepted by delegation; supersedes D-012)
+**Context:** `02` and `03` make the side panel the quick-entry surface; `06` Phase 1 requires an MV3 side panel and a dashboard calling the same API.
+**Decision:** Phase 1 delivers the extension shell: side panel opens, calls the API, survives service-worker restarts. Permissions are limited to `sidePanel`, `storage`, and the API origin. Page import (`activeTab`) is a later slice with its own decision. The extension holds no state and no secrets.
+**Consequences:** The extension is tested from Phase 1 (manifest allow-list test, restart test). Product screens reach the extension in Phase 2.
+
+## D-020 — Phase numbering
+**Status:** ACCEPTED
+**Decision:** Phases 0–8 as in `06`. The earlier four-phase numbering is retired.
+
+## D-021 — API conventions
+**Status:** ACCEPTED (accepted by delegation; replaces the earlier RFC 9457 idea)
+**Decision:** `/api/v1`; cursor pagination; `{ error: { code, message, requestId, details? } }`; lowercase enum values from `04`; `Idempotency-Key` on job and export creation; reviewer role is `reviewer` (not `APPROVER`).
+
+## D-022 — Methodology
+**Status:** ACCEPTED (accepted by delegation)
+**Context:** The `app-dev-methodology` skill contrasts Agile (uncertain requirements, rapid iteration) with Waterfall (regulated, fixed scope, sequential documentation). This project has an uncertain product direction and a compliance-sensitive publishing area.
+**Decision:** Agile vertical slices (Kanban-style, one slice at a time) with Waterfall-style gates at three points:
+1. Before a paid provider: terms, cost, and budget cap approved.
+2. Before any publishing connector: official API access and compliance review recorded.
+3. Before release: the checklists in `05` §7 and `07` pass.
+Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, states, lint/typecheck/tests, docs and status update.
+
+## D-023 — Project skill
+**Status:** ACCEPTED
+**Decision:** The owner's `app-dev-methodology` skill is installed unchanged at `.claude/skills/app-dev-methodology/SKILL.md`. It is a generic planning guide. Project-specific rules stay in `CLAUDE.md` and these docs, which take precedence where they differ.
+
+## D-024 — Local-first
+**Status:** ACCEPTED
+**Decision:** Phases 1–5 target local development and a single-user alpha. Hosted deployment choices (Q-003, Q-004, Q-007) are made before any hosted release.
 
 ---
 
 ## Open questions
 
+Each question lists what is needed and the default that applies if no answer arrives.
+
 ### Q-001 — Real text generation provider
-**Status:** OPEN (Phase 0)
-**Needed for:** Real Thai copy generation, replacing the mock.
-**Information needed:** Which providers the owner can access. For each: current terms on commercial use of outputs, data retention, Thai output quality on a test set, cost per 1,000 output tokens.
-**Default if no answer:** Phase 1 continues with `mock-text`. Phase 2 starts only after this is decided.
+**Gate:** Phase 4.
+**Needed:** Provider choice; current terms on commercial use of outputs and data retention; Thai quality on a test set; cost per unit; whether the owner supplies the key.
+**Default:** Stay on `mock-text`; Phase 4 does not start.
 
 ### Q-002 — Real image and video providers
-**Status:** OPEN (Phase 0 / Phase 2)
-**Needed for:** Image and video generation in Phase 2.
-**Information needed:** API availability (not browser access), terms, cost per image and per video second, reference-image support, output rights.
-**Default if no answer:** Phase 2 image/video uses user-supplied manual import only.
+**Gate:** Phase 6.
+**Needed:** An official API (not browser access), terms, cost per image and per video second, reference-image support, output rights, and a spending cap.
+**Default:** Image and video are manual import only.
 
-### Q-003 — Hosted auth provider
-**Status:** OPEN (Phase 4)
-**Default if no answer:** Decide when Phase 4 starts. Local single-user mode is unaffected.
+### Q-003 — Production auth provider
+**Gate:** before any hosted deployment.
+**Default:** Mock auth only, local use.
 
 ### Q-004 — Object storage vendor
-**Status:** OPEN (Phase 4)
-**Default if no answer:** Cloudflare R2, because of egress cost, unless the owner has an existing AWS account.
+**Gate:** before any hosted deployment.
+**Default:** Cloudflare R2 unless the owner already uses AWS.
 
-### Q-005 — Thai copy evaluation set
-**Status:** OPEN (before Phase 2)
-**Needed for:** Measuring output quality beyond "it parses."
-**Information needed:** Two or three native-speaker reviewers and 20 product briefs.
-**Default if no answer:** Phase 1 uses schema validation and manual review only.
+### Q-005 — Thai copy evaluation
+**Gate:** Phase 4.
+**Needed:** Two or three native-speaker reviewers and about 20 product briefs.
+**Default:** Schema validation and manual review by the owner.
+
+### Q-006 — Extension distribution
+**Gate:** before beta.
+**Needed:** Whether to publish on the Chrome Web Store and who owns the developer account; a stable extension id for CORS and OAuth redirect.
+**Default:** Load unpacked for development and the alpha.
+
+### Q-007 — Production hosting
+**Gate:** before any hosted deployment.
+**Default:** Undecided; local-first.
 
 ---
 
-## Platform decisions (carried from spec §10, not yet started)
+## Platform status (from `00` §10 and `06` Phase 7)
 
 | Platform | Status | Gate |
 |---|---|---|
-| TikTok Content Posting API | DEFERRED to Phase 3 | App registration, `video.publish` scope, audit |
-| Facebook Pages API | DEFERRED to Phase 3 | Meta app review, Page test account |
-| Instagram Platform API | DEFERRED to Phase 5 | Professional-account eligibility, permissions |
-| Shopee Open Platform | OPEN, not started | Confirm Thailand seller eligibility and media-publish API before any design |
+| TikTok Content Posting API | DEFERRED to Phase 7 | App registration, `video.publish` scope, audit; private visibility until audited |
+| Facebook Pages API | DEFERRED to Phase 7 | Meta app review and a Page test account |
+| Instagram Platform API | DEFERRED beyond Phase 7 | Professional-account eligibility and permissions |
+| Shopee Open Platform | OPEN, not started | Confirm Thailand seller eligibility and a media-publish API before any design |
 
-No platform is shown as connected in the UI until a successful sandbox test is recorded here.
+No platform is shown as connected until a successful sandbox test is recorded here.
