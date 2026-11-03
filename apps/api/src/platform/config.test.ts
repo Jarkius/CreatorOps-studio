@@ -1,0 +1,92 @@
+import { ConfigError } from '@creatorops/config';
+import { describe, expect, it } from 'vitest';
+
+import { validEnv } from '../test/db-url.js';
+import { loadConfig } from './config.js';
+
+function failure(env: Record<string, string | undefined>): ConfigError {
+  try {
+    loadConfig(env);
+  } catch (error) {
+    if (error instanceof ConfigError) return error;
+    throw error;
+  }
+  throw new Error('expected loadConfig to throw');
+}
+
+describe('loadConfig', () => {
+  it('parses a valid environment and applies defaults', () => {
+    const config = loadConfig(validEnv());
+    expect(config.PORT).toBe(3000);
+    expect(config.LOG_LEVEL).toBe('info');
+    expect(config.AUTH_MODE).toBe('mock');
+    expect(config.EXTENSION_ORIGIN).toBeUndefined();
+  });
+
+  it('returns a frozen object', () => {
+    expect(Object.isFrozen(loadConfig(validEnv()))).toBe(true);
+  });
+
+  it('names each missing required variable', () => {
+    const error = failure({});
+    const names = error.issues.map((issue) => issue.variable);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'DATABASE_URL',
+        'AUTH_MODE',
+        'API_BASE_URL',
+        'WEB_ORIGIN',
+        'SESSION_SECRET',
+      ]),
+    );
+  });
+
+  it('rejects a DATABASE_URL that is not a postgres URL, without echoing it', () => {
+    const error = failure(validEnv({ DATABASE_URL: 'mysql://root:topsecret@localhost/db' }));
+    expect(error.message).toContain('DATABASE_URL');
+    expect(error.message).not.toContain('topsecret');
+  });
+
+  it('rejects a WEB_ORIGIN with a path or trailing slash', () => {
+    expect(failure(validEnv({ WEB_ORIGIN: 'http://localhost:5173/' })).message).toContain(
+      'WEB_ORIGIN',
+    );
+    expect(failure(validEnv({ WEB_ORIGIN: 'http://localhost:5173/app' })).message).toContain(
+      'WEB_ORIGIN',
+    );
+  });
+
+  it('rejects a short SESSION_SECRET without echoing it', () => {
+    const error = failure(validEnv({ SESSION_SECRET: 'tooshort-1234' }));
+    expect(error.message).toContain('SESSION_SECRET');
+    expect(error.message).not.toContain('tooshort-1234');
+  });
+
+  it('accepts a well-formed EXTENSION_ORIGIN and rejects a malformed one', () => {
+    const id = 'abcdefghijklmnopabcdefghijklmnop';
+    expect(
+      loadConfig(validEnv({ EXTENSION_ORIGIN: `chrome-extension://${id}` })).EXTENSION_ORIGIN,
+    ).toBe(`chrome-extension://${id}`);
+    expect(
+      failure(validEnv({ EXTENSION_ORIGIN: 'chrome-extension://change-me' })).message,
+    ).toContain('EXTENSION_ORIGIN');
+    expect(failure(validEnv({ EXTENSION_ORIGIN: '*' })).message).toContain('EXTENSION_ORIGIN');
+  });
+
+  it('refuses mock authentication when NODE_ENV is production', () => {
+    const error = failure(validEnv({ NODE_ENV: 'production', AUTH_MODE: 'mock' }));
+    expect(error.issues).toContainEqual({
+      variable: 'AUTH_MODE',
+      problem: expect.stringContaining('cannot run with NODE_ENV=production') as string,
+    });
+  });
+
+  it('rejects an unknown AUTH_MODE', () => {
+    expect(failure(validEnv({ AUTH_MODE: 'none' })).message).toContain('AUTH_MODE');
+  });
+
+  it('rejects an out-of-range PORT', () => {
+    expect(failure(validEnv({ PORT: '70000' })).message).toContain('PORT');
+    expect(failure(validEnv({ PORT: 'abc' })).message).toContain('PORT');
+  });
+});

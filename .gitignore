@@ -9,3 +9,5 @@ data/
 .turbo
 playwright-report
 test-results
+.data/
+*.pid

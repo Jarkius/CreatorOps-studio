@@ -9,11 +9,14 @@
   },
   "scripts": {
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "typecheck": "pnpm build && pnpm -r typecheck",
+    "test": "pnpm build && pnpm -r test",
     "build": "pnpm -r build",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "dev:db": "bash scripts/pg-local.sh start",
+    "dev:db:stop": "bash scripts/pg-local.sh stop",
+    "dev:db:compose": "docker compose -f infra/docker/docker-compose.yml up -d postgres"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

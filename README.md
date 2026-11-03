@@ -71,10 +71,15 @@ Requires Node 22 or newer and pnpm 10.28.0 (set in `packageManager`; enable with
 pnpm install               # install the workspace (uses pnpm-lock.yaml)
 pnpm lint                  # ESLint in every workspace package, including dependency rules
 pnpm typecheck             # tsc --noEmit in every package
-pnpm test                  # Vitest in every package
+pnpm test                  # builds, then Vitest in every package
 pnpm build                 # tsc emit to dist/ in every package
 pnpm format                # Prettier write
 pnpm format:check          # Prettier check
+pnpm dev:db                # start PostgreSQL 16 locally without Docker (scripts/pg-local.sh)
+pnpm dev:db:compose        # or start it with Docker Compose
+pnpm dev:db:stop           # stop the local PostgreSQL
 ```
 
 Copy `.env.example` to `.env` for local values. Real `.env` files are git-ignored.
+
+Database tests read `DATABASE_URL`. After `pnpm dev:db`, run `export DATABASE_URL="$(bash scripts/pg-local.sh url)"`. Without it they fail with instructions; set `SKIP_DB_TESTS=1` to skip them on purpose.

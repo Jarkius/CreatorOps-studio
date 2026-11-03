@@ -11,6 +11,22 @@ jobs:
   verify:
     name: Install, lint, typecheck, test, build
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://creatorops:change-me@localhost:5432/creatorops
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: creatorops
+          POSTGRES_PASSWORD: change-me
+          POSTGRES_DB: creatorops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U creatorops -d creatorops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
