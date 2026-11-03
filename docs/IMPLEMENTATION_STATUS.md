@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 complete. Phase 1: S1.1 and S1.2 done and verified. Next: S1.3 (dashboard shell) and S1.4 (extension shell).
+Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Next: Phase 2, slice S2.1 (workspace endpoints and the authorization harness).
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -14,8 +14,8 @@ Phase 0 complete. Phase 1: S1.1 and S1.2 done and verified. Next: S1.3 (dashboar
 - [x] Config, logging with redaction, local database (S0.2)
 - [x] API foundation, part 1: contracts, error shape, CORS, OpenAPI, rate limit (S1.1)
 - [x] API foundation, part 2: database schema, mock auth, workspace scope (S1.2)
-- [ ] Dashboard shell (S1.3)
-- [ ] Extension shell (S1.4)
+- [x] Dashboard shell (S1.3)
+- [x] Extension shell (S1.4)
 - [ ] Workspace/products (S2.1–S2.4)
 - [ ] Media upload/library (S2.5–S2.7)
 - [ ] Mock generation provider (Phase 3)
@@ -46,6 +46,10 @@ Verified by the orchestrator (lint, typecheck, test, build, format:check all exi
 - S0.2: `packages/config` 12 tests, `apps/api` 34 tests (redaction, logger, config, startup with a live PostgreSQL 16). Built `node apps/api/dist/server.js` checked in four scenarios: missing config exits 1 and names every variable; a short `SESSION_SECRET` exits 1 and the value is not printed; `AUTH_MODE=mock` with `NODE_ENV=production` is refused; a healthy database logs `db.connected` and exits 0.
 - S1.1: `apps/api` 61 tests (27 for the app: health, request ids, error shape, validation, 413/415, rate limit, CORS, security headers, OpenAPI snapshot). Mutation-checked by the orchestrator: reflecting any CORS origin, leaking unexpected error messages, and trusting any caller request id each make tests fail.
 - S1.2: `apps/api` 90 tests in 10 files (migrations, seed, signed tokens, auth guard on its own and through `/me`, workspace resolution, audit events in transactions, compile-time proof that an unchecked workspace id cannot reach a repository). Mutation-checked by the orchestrator: skipping the signature check, expiry, the guard's user lookup, a missing header, and the membership user condition each make tests fail. One mutation initially survived (the guard's user lookup was masked by `/me` re-checking); a guard-only test route now covers it.
+- S1.3 (Haiku worker, verified by the orchestrator): `packages/ui` 18 tests, `apps/web` 7 tests, 4 Playwright tests (Overview, API-down error and retry, axe WCAG 2 A/AA with zero violations, skip link first).
+- S1.4 (orchestrator): `apps/extension` 36 unit tests (manifest builder, built manifest and bundle secret scan, service worker, token store, session, panel) and 9 Playwright tests against the real built extension in headless Chromium: pinned id, runtime permissions, token only in `chrome.storage.session`, token reuse and one-time replacement, service-worker stop, API-down retry, narrow width. Mutation-checked: removing `setPanelBehavior` and writing the token to localStorage each fail E2E tests.
+- S1.5 exit check against docs/06 Phase 1: dashboard loads (E2E); side panel loads and calls the same API (E2E, as a tab); service-worker restart (E2E); manifest permissions limited to `sidePanel`, `storage`, API origin (unit and E2E).
+- Security review (Opus advisor, 10 findings) fixed: script privilege chain (D-035), request log fields (`req`/`res` serializers) and child-logger redaction, redaction gaps (paths after keys, error causes, Date/URL/Map/Set), mock-token host check and loopback refusal (D-032), proxy trust and 404 rate limiting (D-033), workspace-id brand lint rule and canonical id (D-034), token signature canonical encoding, client timeout through body read, template-database lock, CI permissions. Total tests now: api 114, extension 36, ui 18, contracts 13, config 12, web 7, provider-core 1, plus 13 E2E.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes
@@ -56,7 +60,10 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Redaction (`apps/api/src/platform/redact.ts`) keeps numeric and boolean values under token-like keys so usage counters such as `inputTokens` stay readable.
 - `apps/api/src/startup.ts` `prepare()` validates config and the database; `server.ts` then starts Fastify.
 - Migrations are generated with `pnpm db:generate` into `infra/migrations` and committed; CI fails if generating produces any change. Schema comes only from these files.
-- Mock auth: `POST /api/v1/auth/mock-token` (exists only when `AUTH_MODE=mock`) issues an HMAC-signed 12-hour token for the seeded development user only. `GET /api/v1/me` needs it.
+- Mock auth: `POST /api/v1/auth/mock-token` (exists only when `AUTH_MODE=mock`, loopback only, Host-checked) issues an HMAC-signed 12-hour token for the seeded development user only. `GET /api/v1/me` needs it.
+- Run both E2E suites with `pnpm e2e` (needs `DATABASE_URL`, a migrated database, and Chromium; locally `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). They run one after the other because both use port 3000.
+- Not verified: clicking the real toolbar icon to open the side panel (Playwright cannot drive the side panel UI; the panel behaviour is checked through `chrome.sidePanel.getPanelBehavior()` and the panel page is loaded as a tab). The owner should load `apps/extension/dist` unpacked in Chrome once to confirm.
+- Follow-ups: pin GitHub Actions to commit SHAs before the first release; the web E2E script uses POSIX env prefixes (not Windows-safe).
 
 ## Decisions made
 - 2026-11-03: Final design accepted by owner delegation. See `docs/DECISIONS.md` (D-001 to D-031).
@@ -71,4 +78,4 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S1.3 — dashboard shell and S1.4 — extension shell (`docs/08_PHASE_PLAN.md` §3). Both need a typed API client in `packages/contracts`.
+S2.1 — workspace endpoints and the authorization harness (`docs/08_PHASE_PLAN.md` §4). Before Phase 2 starts, consult the advisor on the S2 slice breakdown.

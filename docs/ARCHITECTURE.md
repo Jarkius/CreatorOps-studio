@@ -255,6 +255,7 @@ A test reads the built manifest and fails if it requests anything outside this l
 **Behaviour:**
 
 - Side panel is a React app that calls the same `/api/v1` endpoints as the dashboard.
+- Development: MV3 pages cannot use the Vite dev server, so `pnpm --filter @creatorops/extension dev` runs `vite build --watch`; reload the unpacked extension after a change. `build:store` omits the development key (D-036).
 - Build (D-029): custom Vite build with `sidepanel.html` and the service worker as entries and a small plugin generating `manifest.json` from a TypeScript object. A committed development key keeps the extension id stable.
 - Testing: Playwright `launchPersistentContext` with `--load-extension`; read the extension id from the service worker; open `chrome-extension://<id>/sidepanel.html` as a tab (`sidePanel.open` needs a user gesture). Stop the service worker over CDP to test restarts. Extensions may not load in plain headless mode: fall back to headed mode under `xvfb-run`, then to loading the page as an ordinary tab with the manifest tested separately. Extension pages with host permissions bypass CORS, so CORS is proven with API tests that send an `Origin` header, not with E2E.
 - The service worker only routes lightweight events (opening the panel). It holds no state; it can be killed at any time. Anything important lives on the backend.

@@ -27,3 +27,6 @@ export type {
   User,
   WorkspaceRoleValue,
 } from './auth.js';
+
+export { ApiError, createApiClient } from './client.js';
+export type { ApiClient, ApiClientOptions, ClientErrorCode } from './client.js';

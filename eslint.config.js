@@ -85,7 +85,50 @@ function forbidAllExcept(owner, allowedNames, message) {
   return forbid(modules, message);
 }
 
+// Adds the restriction on minting WorkspaceId brands to a set of dependency rules.
+function withBrandRestriction(rules) {
+  const [level, options] = rules['no-restricted-imports'];
+  return {
+    ...rules,
+    'no-restricted-imports': [
+      level,
+      {
+        ...options,
+        patterns: [
+          ...options.patterns,
+          {
+            group: ['**/identity/context.js', './context.js'],
+            importNames: ['brandWorkspaceId'],
+            message:
+              'Only the identity service may brand a workspace id, after checking membership (D-025). Use resolveWorkspaceContext.',
+          },
+        ],
+      },
+    ],
+  };
+}
+
 const SOURCE_FILES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
+
+// Browser globals for the web app and the shared UI package (no `globals` dependency installed).
+const BROWSER_GLOBALS = {
+  AbortController: 'readonly',
+  Headers: 'readonly',
+  HTMLElement: 'readonly',
+  URL: 'readonly',
+  URLSearchParams: 'readonly',
+  Request: 'readonly',
+  Response: 'readonly',
+  clearTimeout: 'readonly',
+  console: 'readonly',
+  document: 'readonly',
+  fetch: 'readonly',
+  localStorage: 'readonly',
+  navigator: 'readonly',
+  sessionStorage: 'readonly',
+  setTimeout: 'readonly',
+  window: 'readonly',
+};
 
 export default tseslint.config(
   {
@@ -116,6 +159,21 @@ export default tseslint.config(
   },
   {
     files: [`apps/api/${SOURCE_FILES}`],
+    rules: withBrandRestriction(
+      forbid(
+        [find('apps', 'web'), find('apps', 'extension'), find('packages', 'ui')],
+        'apps/api may not import the web or extension clients or packages/ui.',
+      ),
+    ),
+  },
+  // The workspace-id brand may be minted only after a membership check (D-025): by the identity
+  // service itself, and by tests that build contexts on purpose.
+  {
+    files: [
+      'apps/api/src/modules/identity/service.ts',
+      `apps/api/${'**/*.test.{ts,tsx}'}`,
+      'apps/api/src/test/**',
+    ],
     rules: forbid(
       [find('apps', 'web'), find('apps', 'extension'), find('packages', 'ui')],
       'apps/api may not import the web or extension clients or packages/ui.',
@@ -144,6 +202,36 @@ export default tseslint.config(
       [],
       'packages/contracts may not import any other workspace module.',
     ),
+  },
+
+  // Browser front ends: .tsx components need JSX parsing, and their code runs in a browser.
+  {
+    files: [`apps/web/${SOURCE_FILES}`, `packages/ui/${SOURCE_FILES}`],
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: BROWSER_GLOBALS,
+    },
+  },
+  // The extension is a browser app too, and also has the `chrome` extension API.
+  {
+    files: [`apps/extension/${SOURCE_FILES}`],
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...BROWSER_GLOBALS, chrome: 'readonly' },
+    },
+  },
+
+  // Build, test and tooling configuration files run in Node.
+  {
+    files: [
+      '**/vite.config.ts',
+      '**/vitest.config.ts',
+      '**/playwright.config.ts',
+      '**/drizzle.config.ts',
+      '**/e2e/**/*.ts',
+      '**/scripts/**/*.mjs',
+    ],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
   },
 
   // Keep last: turns off formatting rules that Prettier owns.

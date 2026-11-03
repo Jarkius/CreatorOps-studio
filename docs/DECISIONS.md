@@ -56,6 +56,11 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-029 | Extension built with a small custom Vite build, not CRXJS | ACCEPTED |
 | D-030 | CORS allow-list, OpenAPI generation, and baseline rate limit in S1.1 | ACCEPTED |
 | D-031 | Delegation model: Haiku workers, Opus advisor at checkpoints | ACCEPTED |
+| D-032 | Mock auth is loopback-only and checks the Host header | ACCEPTED |
+| D-033 | Proxy trust is explicit; unknown routes are rate-limited | ACCEPTED |
+| D-034 | The workspace-id brand can be minted only by the identity service (lint-enforced) | ACCEPTED |
+| D-035 | Local database: authenticated sockets, private socket directory, root-owned parent | ACCEPTED |
+| D-036 | Extension development key: public half committed; store builds omit it | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -214,6 +219,29 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 ## D-031 — Delegation model
 **Status:** ACCEPTED (owner request, 2026-11-03)
 **Decision:** The orchestrating model verifies every slice by running lint, typecheck, and tests itself. Cheap Haiku workers implement mechanical slices from tightly written specs. The orchestrator writes or tightly reviews security-sensitive code: redaction, error mapping, auth guard and request context, workspace scoping, CORS, the extension manifest and build, the authorization test harness, storage and signed URLs, upload validation, and the database test helper. An Opus advisor is consulted read-only at checkpoints (before each phase and when a design question arises), not for routine implementation.
+
+## D-032 — Mock auth is loopback-only and Host-checked
+**Status:** ACCEPTED (security review, 2026-11-03)
+**Context:** The mock-token endpoint issues a token without credentials. With `HOST=0.0.0.0`, or through DNS rebinding (a page whose name resolves to 127.0.0.1 is treated as same-origin, so CORS does not apply), another party could obtain one.
+**Decision:** The API refuses to start with mock auth on a non-loopback `HOST` unless `ALLOW_MOCK_AUTH_ON_NETWORK=true` is set deliberately. The mock-token endpoint also rejects any request whose `Host` header is not the host of `API_BASE_URL` (loopback spellings of the same port are treated as equal).
+
+## D-033 — Proxy trust and 404 rate limiting
+**Status:** ACCEPTED (security review)
+**Decision:** `TRUST_PROXY_HOPS` (default 0) sets how many reverse-proxy hops are trusted for the client address. With 0, `X-Forwarded-For` is ignored so a client cannot spoof its address; set it to the real number of proxies in production. Unknown routes pass through the rate limiter too.
+
+## D-034 — Workspace-id brand is lint-enforced
+**Status:** ACCEPTED (security review)
+**Context:** `brandWorkspaceId` is exported so the identity service and tests can create a `WorkspaceId`, which means any module could mint one from an unchecked request value.
+**Decision:** An ESLint rule forbids importing `brandWorkspaceId` anywhere in `apps/api` except `identity/service.ts` and tests. The service brands the id returned by the database, not the caller's spelling.
+
+## D-035 — Local database hardening
+**Status:** ACCEPTED (security review)
+**Context:** The first `scripts/pg-local.sh` trusted local socket connections, used a shared `/tmp` socket, and chowned a log file inside a directory the server user owned. Together these let a local user run commands as the server user and trick root into changing ownership of another file.
+**Decision:** Local connections require the password; the socket lives in a private 0700 directory; the data parent directory stays owned by the invoking user so the server user cannot replace files that root later touches; root refuses symlinked paths and unsafe parents.
+
+## D-036 — Extension development key
+**Status:** ACCEPTED
+**Decision:** `apps/extension/dev-extension-key.json` holds only the public key and the id it yields (`emahncamejoabipafmjjfbnkdllmhcnm`). Development and test builds include it so `EXTENSION_ORIGIN` is stable. `pnpm --filter @creatorops/extension build:store` builds without it. `*.pem` is git-ignored. The production extension id is Q-006.
 
 ---
 

@@ -1,0 +1,18 @@
+/* Original CreatorOps dark theme: navy/charcoal surfaces with a warm orange accent. */
+:root {
+  --co-bg: #0d1220;
+  --co-surface: #161d2e;
+  --co-border: #2c3750;
+  --co-text: #e9edf5;
+  --co-text-muted: #a3adbf;
+  --co-accent: #f08a3c;
+  --co-accent-text: #1a1206;
+  --co-danger: #ff8a8a;
+  --co-success: #7fd4a6;
+}
+
+/* Focus must always be visible; never remove the outline. */
+:focus-visible {
+  outline: 3px solid var(--co-accent);
+  outline-offset: 2px;
+}
