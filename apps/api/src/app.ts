@@ -95,6 +95,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     loggerInstance: logger as FastifyBaseLogger,
     genReqId: (request) => generateRequestId(request.headers),
     requestIdHeader: false,
+    // Trust X-Forwarded-For only from the configured number of proxies; never blindly.
+    trustProxy:
+      config.TRUST_PROXY_HOPS > 0
+        ? (_address: string, hop: number) => hop < config.TRUST_PROXY_HOPS
+        : false,
     bodyLimit: options.bodyLimit ?? 1_048_576,
   });
 
@@ -145,7 +150,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     transform: jsonSchemaTransform,
   });
 
-  app.setNotFoundHandler((request, reply) => {
+  // Unknown routes count against the rate limit too, so probing cannot bypass it.
+  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (request, reply) => {
     void reply
       .code(STATUS_BY_CODE.NOT_FOUND)
       .send(toErrorBody('NOT_FOUND', 'The requested resource was not found.', request.id));

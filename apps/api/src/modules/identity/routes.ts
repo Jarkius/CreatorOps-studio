@@ -7,6 +7,7 @@ import { DEV_USER_EMAIL } from '../../db/seed.js';
 import type { ApiConfig } from '../../platform/config.js';
 import { AppError } from '../../platform/errors.js';
 import { createAuthGuard } from './guard.js';
+import { allowedMockHosts } from './mock-host.js';
 import { findAuthContextByEmail, listMemberships } from './service.js';
 import { signToken, TOKEN_TTL_SECONDS } from './token.js';
 
@@ -19,6 +20,7 @@ export function registerIdentityRoutes(app: FastifyInstance, options: IdentityRo
   const { config, db } = options;
   const typed = app.withTypeProvider<ZodTypeProvider>();
   const guard = createAuthGuard({ db, sessionSecret: config.SESSION_SECRET });
+  const mockHosts = allowedMockHosts(config.API_BASE_URL);
 
   app.decorateRequest('auth', null);
 
@@ -35,7 +37,14 @@ export function registerIdentityRoutes(app: FastifyInstance, options: IdentityRo
           response: { 200: MockTokenResponseSchema },
         },
       },
-      async () => {
+      async (request) => {
+        const host = request.headers.host?.toLowerCase();
+        if (host === undefined || !mockHosts.has(host)) {
+          throw new AppError(
+            'FORBIDDEN',
+            'This endpoint is only available on the local API address.',
+          );
+        }
         const user = await findAuthContextByEmail(db, DEV_USER_EMAIL);
         if (user === null) {
           throw new AppError('NOT_FOUND', 'The development user does not exist. Run: pnpm db:seed');

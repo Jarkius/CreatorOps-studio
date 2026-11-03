@@ -1,6 +1,8 @@
 import { parseEnv, type EnvSource } from '@creatorops/config';
 import { z } from 'zod';
 
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
+
 function isUrlWithProtocol(value: string, protocols: readonly string[]): boolean {
   try {
     return protocols.includes(new URL(value).protocol);
@@ -37,6 +39,12 @@ export const apiEnvSchema = z
     // Loopback by default; set HOST=0.0.0.0 deliberately when running in a container.
     HOST: z.string().min(1).default('127.0.0.1'),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
+    // Reverse-proxy hops to trust for the client address (X-Forwarded-For). 0 trusts none, so a
+    // client cannot spoof its address. Set it to the number of proxies in front of the API.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+    // Mock auth hands out tokens without credentials, so it must stay on a loopback address
+    // unless this is set on purpose.
+    ALLOW_MOCK_AUTH_ON_NETWORK: z.stringbool().default(false),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -57,6 +65,18 @@ export const apiEnvSchema = z
     SESSION_SECRET: z.string().min(32),
   })
   .superRefine((env, ctx) => {
+    if (
+      env.AUTH_MODE === 'mock' &&
+      !LOOPBACK_HOSTS.has(env.HOST) &&
+      !env.ALLOW_MOCK_AUTH_ON_NETWORK
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['HOST'],
+        message:
+          'mock authentication may only listen on a loopback address; set ALLOW_MOCK_AUTH_ON_NETWORK=true to override deliberately',
+      });
+    }
     if (env.AUTH_MODE === 'mock' && env.NODE_ENV === 'production') {
       ctx.addIssue({
         code: 'custom',

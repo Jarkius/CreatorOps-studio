@@ -57,16 +57,17 @@ export async function resolveWorkspaceContext(
 ): Promise<RequestContext | null> {
   if (!UUID.test(workspaceId)) return null;
   const rows = await db
-    .select({ role: workspaceMembers.role })
+    .select({ workspaceId: workspaceMembers.workspaceId, role: workspaceMembers.role })
     .from(workspaceMembers)
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
     .limit(1);
-  const role = rows[0]?.role;
-  if (role === undefined) return null;
+  const row = rows[0];
+  if (row === undefined) return null;
+  // Brand the id the database returned (canonical lower case), not the caller's spelling.
   return {
     userId,
-    workspaceId: brandWorkspaceId(workspaceId),
-    role: role as WorkspaceRole,
+    workspaceId: brandWorkspaceId(row.workspaceId),
+    role: row.role as WorkspaceRole,
     requestId,
   };
 }

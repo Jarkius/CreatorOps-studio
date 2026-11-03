@@ -14,6 +14,8 @@ import { signToken, TOKEN_TTL_SECONDS } from './token.js';
 
 const config: ApiConfig = loadConfig(validEnv());
 const silent = createLogger({ level: 'silent' });
+// The Host header a browser sends when it calls the configured API_BASE_URL (http://localhost:3000).
+const LOCAL = { host: 'localhost:3000' };
 
 let testDb: TestDb;
 let seeded: SeedResult;
@@ -36,7 +38,11 @@ async function app(overrides: Partial<ApiConfig> = {}) {
 }
 
 async function mockToken(instance: Awaited<ReturnType<typeof app>>): Promise<string> {
-  const response = await instance.inject({ method: 'POST', url: '/api/v1/auth/mock-token' });
+  const response = await instance.inject({
+    method: 'POST',
+    url: '/api/v1/auth/mock-token',
+    headers: LOCAL,
+  });
   expect(response.statusCode).toBe(200);
   return MockTokenResponseSchema.parse(response.json()).token;
 }
@@ -44,7 +50,11 @@ async function mockToken(instance: Awaited<ReturnType<typeof app>>): Promise<str
 describe('mock token endpoint', () => {
   it('issues a verifiable token for the seeded development user only', async () => {
     const instance = await app();
-    const response = await instance.inject({ method: 'POST', url: '/api/v1/auth/mock-token' });
+    const response = await instance.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mock-token',
+      headers: LOCAL,
+    });
     expect(response.statusCode).toBe(200);
     const body = MockTokenResponseSchema.parse(response.json());
     expect(body.user.id).toBe(seeded.userId);
@@ -55,7 +65,11 @@ describe('mock token endpoint', () => {
 
   it('does not exist when the auth mode is not mock', async () => {
     const instance = await app({ AUTH_MODE: 'other' } as unknown as Partial<ApiConfig>);
-    const response = await instance.inject({ method: 'POST', url: '/api/v1/auth/mock-token' });
+    const response = await instance.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mock-token',
+      headers: LOCAL,
+    });
     expect(response.statusCode).toBe(404);
     ErrorBodySchema.parse(response.json());
     await instance.close();
@@ -65,13 +79,70 @@ describe('mock token endpoint', () => {
     const empty = await createTestDb(requireDatabaseUrl());
     try {
       const instance = await buildApp({ config, logger: silent, db: empty.db });
-      const response = await instance.inject({ method: 'POST', url: '/api/v1/auth/mock-token' });
+      const response = await instance.inject({
+        method: 'POST',
+        url: '/api/v1/auth/mock-token',
+        headers: LOCAL,
+      });
       expect(response.statusCode).toBe(404);
       expect(ErrorBodySchema.parse(response.json()).error.message).toContain('pnpm db:seed');
       await instance.close();
     } finally {
       await empty.drop();
     }
+  });
+});
+
+describe('mock token endpoint host check (DNS rebinding)', () => {
+  it('refuses a request whose Host header is not the local API address', async () => {
+    const instance = await app();
+    for (const host of [
+      'evil.example:3000',
+      'evil.example',
+      'localhost:9999',
+      'localhost.evil.example:3000',
+      '10.0.0.5:3000',
+    ]) {
+      const response = await instance.inject({
+        method: 'POST',
+        url: '/api/v1/auth/mock-token',
+        headers: { host },
+      });
+      expect(response.statusCode, host).toBe(403);
+      expect(ErrorBodySchema.parse(response.json()).error.code).toBe('FORBIDDEN');
+      expect(response.body).not.toContain('"token"');
+    }
+    await instance.close();
+  });
+
+  it('accepts the other loopback spellings of the same port', async () => {
+    const instance = await app();
+    for (const host of ['localhost:3000', '127.0.0.1:3000', '[::1]:3000', 'LOCALHOST:3000']) {
+      const response = await instance.inject({
+        method: 'POST',
+        url: '/api/v1/auth/mock-token',
+        headers: { host },
+      });
+      expect(response.statusCode, host).toBe(200);
+    }
+    await instance.close();
+  });
+
+  it('only accepts the exact configured host when the API is not on loopback', async () => {
+    const instance = await app({ API_BASE_URL: 'https://api.example.com' });
+    const ok = await instance.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mock-token',
+      headers: { host: 'api.example.com' },
+    });
+    const other = await instance.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mock-token',
+      headers: { host: 'localhost:3000' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(other.statusCode).toBe(403);
+    await instance.close();
   });
 });
 
@@ -164,6 +235,16 @@ describe('resolveWorkspaceContext', () => {
       role: 'owner',
       requestId: 'req-1',
     });
+  });
+
+  it('brands the canonical id from the database even if the caller used upper case', async () => {
+    const context = await resolveWorkspaceContext(
+      testDb.db,
+      seeded.userId,
+      seeded.workspaceId.toUpperCase(),
+      'r',
+    );
+    expect(context?.workspaceId).toBe(seeded.workspaceId);
   });
 
   it('returns null for a workspace the user is not a member of', async () => {

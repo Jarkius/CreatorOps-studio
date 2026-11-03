@@ -25,7 +25,7 @@ const URL_PASSWORD = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):[^\s@/]+@/gi;
 // absolute URL with a query string
 const ABSOLUTE_URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>?#]*)\?[^\s"'<>#]*/gi;
 // path (starting with "/") with a query string
-const PATH_QUERY = /(^|[\s"'(])(\/[^\s?"'<>#]*)\?[^\s"'<>#]*/g;
+const PATH_QUERY = /(^|[^\w/])(\/[^\s?"'<>#]*)\?[^\s"'<>#]*/g;
 
 export function redactString(value: string): string {
   return value
@@ -45,6 +45,9 @@ function redactError(error: Error, depth: number, seen: WeakSet<object>): Record
     message: redactString(error.message),
   };
   if (error.stack !== undefined) plain.stack = redactString(error.stack);
+  // `cause` and AggregateError.errors are not enumerable own properties, so handle them here.
+  if (error.cause !== undefined) plain.cause = redactValue(error.cause, depth + 1, seen);
+  if (error instanceof AggregateError) plain.errors = redactValue(error.errors, depth + 1, seen);
   for (const [key, entry] of Object.entries(error)) {
     plain[key] = redactEntry(key, entry, depth + 1, seen);
   }
@@ -67,8 +70,20 @@ export function redactValue(
   if (value === null || typeof value !== 'object') return value;
   if (isBinary(value)) return `[binary ${value.byteLength} bytes]`;
   if (depth >= MAX_DEPTH) return '[max depth]';
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
+  if (value instanceof URL) return redactString(value.href);
+  if (value instanceof RegExp) return value.toString();
   if (seen.has(value)) return '[circular]';
   seen.add(value);
+  if (value instanceof Map) {
+    return Array.from(value, ([key, entry]) => [
+      redactValue(key, depth + 1, seen),
+      redactEntry(typeof key === 'string' ? key : '', entry, depth + 1, seen),
+    ]);
+  }
+  if (value instanceof Set)
+    return Array.from(value, (entry) => redactValue(entry, depth + 1, seen));
 
   if (value instanceof Error) return redactError(value, depth, seen);
   if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1, seen));

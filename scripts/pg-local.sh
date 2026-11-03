@@ -15,6 +15,7 @@
 #   PG_LOCAL_PASSWORD  superuser password (default: change-me, a local-dev placeholder)
 #
 # Server log: <data dir parent>/pg.log (default: .data/pg.log).
+# Local (unix socket) connections require the password; the socket directory is private (0700).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +28,8 @@ PG_PORT="${PG_LOCAL_PORT:-5432}"
 DATA_DIR="${PG_LOCAL_DIR:-$REPO_ROOT/.data/pg}"
 DATA_PARENT="$(dirname "$DATA_DIR")"
 LOG_FILE="$DATA_PARENT/pg.log"
-SOCKET_DIR="/tmp"
+# Private socket directory (mode 0700, owned by the server user). Never a shared directory like /tmp.
+SOCKET_DIR="$DATA_PARENT/sock"
 SERVER_USER="pgdev"
 
 # PostgreSQL refuses to run as root, so server commands run as $SERVER_USER.
@@ -84,26 +86,50 @@ is_running() {
   as_server "$BIN_DIR/pg_ctl" -D "$DATA_DIR" status >/dev/null 2>&1
 }
 
+# Security (root runs this script, the server runs as $SERVER_USER):
+# - $DATA_PARENT stays owned by the invoking user and not writable by others, so the server user
+#   can never rename or replace the files inside it (the log, the cluster directory, the socket
+#   directory). Otherwise it could swap the log for a symlink and have root chown or print a
+#   sensitive file the next time this script runs.
+# - Every path root touches is refused if it is a symlink.
+refuse_symlink() {
+  if [[ -L "$1" ]]; then
+    die "refusing to use $1: it is a symbolic link"
+  fi
+}
+
 prepare_parent() {
-  if [[ ! -d "$DATA_PARENT" ]]; then
-    mkdir -p "$DATA_PARENT"
-    if [[ "$IS_ROOT" -eq 1 ]]; then
-      chown "$SERVER_USER" "$DATA_PARENT"
+  refuse_symlink "$DATA_PARENT"
+  mkdir -p "$DATA_PARENT"
+  if [[ "$IS_ROOT" -eq 1 ]]; then
+    local owner mode
+    owner="$(stat -c '%u' "$DATA_PARENT")"
+    mode="$(stat -c '%a' "$DATA_PARENT")"
+    if [[ "$owner" != "0" || "$mode" =~ [2367].$ || "$mode" =~ [2367]$ ]]; then
+      die "$DATA_PARENT must be owned by root and not writable by group or others (found owner $owner, mode $mode). Fix with: chown root '$DATA_PARENT' && chmod 755 '$DATA_PARENT'"
     fi
   fi
+
+  refuse_symlink "$LOG_FILE"
   if [[ ! -e "$LOG_FILE" ]]; then
-    touch "$LOG_FILE"
+    : > "$LOG_FILE"
   fi
+  chmod 600 "$LOG_FILE"
+
+  refuse_symlink "$SOCKET_DIR"
+  mkdir -p "$SOCKET_DIR"
+  chmod 700 "$SOCKET_DIR"
   if [[ "$IS_ROOT" -eq 1 ]]; then
-    chown "$SERVER_USER" "$LOG_FILE"
+    chown -h "$SERVER_USER" "$LOG_FILE" "$SOCKET_DIR"
   fi
 }
 
 init_cluster() {
   log "initializing cluster in $DATA_DIR"
+  refuse_symlink "$DATA_DIR"
   if [[ "$IS_ROOT" -eq 1 ]]; then
     mkdir -p "$DATA_DIR"
-    chown "$SERVER_USER" "$DATA_DIR"
+    chown -h "$SERVER_USER" "$DATA_DIR"
   fi
 
   # The password goes through a temp file, never on the command line.
@@ -112,7 +138,7 @@ init_cluster() {
   trap 'rm -f -- "$pwfile"' EXIT
   printf '%s\n' "$PG_PASSWORD" > "$pwfile"
   if [[ "$IS_ROOT" -eq 1 ]]; then
-    chown "$SERVER_USER" "$pwfile"
+    chown -h "$SERVER_USER" "$pwfile"
   fi
 
   as_server "$BIN_DIR/initdb" \
@@ -120,7 +146,7 @@ init_cluster() {
     -U "$PG_USER_NAME" \
     --pwfile="$pwfile" \
     --auth-host=scram-sha-256 \
-    --auth-local=trust \
+    --auth-local=scram-sha-256 \
     -E UTF8 >/dev/null
 
   rm -f -- "$pwfile"
@@ -131,7 +157,7 @@ start_server() {
   local opts="-p $PG_PORT -c listen_addresses=localhost -c unix_socket_directories=$SOCKET_DIR"
   log "starting PostgreSQL on localhost:$PG_PORT"
   if ! as_server "$BIN_DIR/pg_ctl" -D "$DATA_DIR" -l "$LOG_FILE" -o "$opts" -w -t 30 start >/dev/null; then
-    tail -n 20 "$LOG_FILE" >&2 || true
+    if [[ -f "$LOG_FILE" && ! -L "$LOG_FILE" ]]; then tail -n 20 "$LOG_FILE" >&2 || true; fi
     die "server failed to start (see $LOG_FILE)"
   fi
 }
@@ -149,10 +175,10 @@ wait_ready() {
 
 ensure_database() {
   local exists
-  exists="$("$BIN_DIR/psql" -X -w -q -A -t -h "$SOCKET_DIR" -p "$PG_PORT" -U "$PG_USER_NAME" -d postgres \
+  exists="$(PGPASSWORD="$PG_PASSWORD" "$BIN_DIR/psql" -X -w -q -A -t -h "$SOCKET_DIR" -p "$PG_PORT" -U "$PG_USER_NAME" -d postgres \
     -v ON_ERROR_STOP=1 -c "SELECT 1 FROM pg_database WHERE datname = '$PG_DB_NAME'")"
   if [[ "$exists" != "1" ]]; then
-    "$BIN_DIR/createdb" -w -h "$SOCKET_DIR" -p "$PG_PORT" -U "$PG_USER_NAME" "$PG_DB_NAME"
+    PGPASSWORD="$PG_PASSWORD" "$BIN_DIR/createdb" -w -h "$SOCKET_DIR" -p "$PG_PORT" -U "$PG_USER_NAME" "$PG_DB_NAME"
     log "created database $PG_DB_NAME"
   fi
 }
@@ -211,6 +237,9 @@ cmd_reset() {
   if [[ -e "$LOG_FILE" ]]; then
     rm -f -- "$LOG_FILE"
     log "deleted $LOG_FILE"
+  fi
+  if [[ -d "$SOCKET_DIR" && ! -L "$SOCKET_DIR" ]]; then
+    rmdir "$SOCKET_DIR" 2>/dev/null || true
   fi
 }
 

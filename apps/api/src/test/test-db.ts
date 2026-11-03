@@ -33,24 +33,30 @@ async function withAdmin<T>(
   }
 }
 
-/** Builds the template database from the committed migrations. Run once per test run. */
+/**
+ * Builds the template database from the committed migrations. Run once per test run. The lock
+ * is held until the migrations finish, so a concurrent run cannot clone a half-built template.
+ */
 export async function provisionTemplate(databaseUrl: string): Promise<void> {
   await withAdmin(databaseUrl, async (admin) => {
     await admin.query('select pg_advisory_lock($1)', [CLONE_LOCK]);
     try {
       await admin.query(`drop database if exists ${TEMPLATE_DB} with (force)`);
       await admin.query(`create database ${TEMPLATE_DB}`);
+
+      const pool = new pg.Pool({
+        connectionString: withDatabase(databaseUrl, TEMPLATE_DB),
+        max: 1,
+      });
+      try {
+        await runMigrations(createDb(pool));
+      } finally {
+        await pool.end();
+      }
     } finally {
       await admin.query('select pg_advisory_unlock($1)', [CLONE_LOCK]);
     }
   });
-
-  const pool = new pg.Pool({ connectionString: withDatabase(databaseUrl, TEMPLATE_DB), max: 1 });
-  try {
-    await runMigrations(createDb(pool));
-  } finally {
-    await pool.end();
-  }
 }
 
 export interface TestDb {

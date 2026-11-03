@@ -27,6 +27,8 @@ export function signToken(payload: TokenPayload, secret: string): string {
   return `${signingInput}.${sign(secret, signingInput).toString('base64url')}`;
 }
 
+const BASE64URL = /^[A-Za-z0-9_-]+$/;
+
 function isPayload(value: unknown): value is TokenPayload {
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
@@ -48,8 +50,12 @@ export function verifyToken(
   if (parts.length !== 3 || parts[0] !== VERSION) return null;
   const [, body, signature] = parts as [string, string, string];
 
+  // Accept only the canonical encoding. Buffer.from(..., 'base64url') ignores stray characters
+  // and unused low bits, so without this check many different strings would verify as one token.
+  if (!BASE64URL.test(body) || !BASE64URL.test(signature)) return null;
   const expected = sign(secret, `${VERSION}.${body}`);
   const given = Buffer.from(signature, 'base64url');
+  if (given.toString('base64url') !== signature) return null;
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
 
   let payload: unknown;

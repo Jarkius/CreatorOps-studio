@@ -89,4 +89,33 @@ describe('loadConfig', () => {
     expect(failure(validEnv({ PORT: '70000' })).message).toContain('PORT');
     expect(failure(validEnv({ PORT: 'abc' })).message).toContain('PORT');
   });
+
+  it('refuses mock authentication on a non-loopback HOST unless explicitly allowed', () => {
+    for (const host of ['0.0.0.0', '192.168.1.10', 'example.com']) {
+      const error = failure(validEnv({ HOST: host }));
+      expect(
+        error.issues.map((issue) => issue.variable),
+        host,
+      ).toContain('HOST');
+    }
+    expect(loadConfig(validEnv({ HOST: '0.0.0.0', ALLOW_MOCK_AUTH_ON_NETWORK: 'true' })).HOST).toBe(
+      '0.0.0.0',
+    );
+    for (const host of ['127.0.0.1', 'localhost', '::1', '[::1]']) {
+      expect(loadConfig(validEnv({ HOST: host })).HOST, host).toBe(host);
+    }
+  });
+
+  it('rejects a malformed ALLOW_MOCK_AUTH_ON_NETWORK', () => {
+    expect(failure(validEnv({ ALLOW_MOCK_AUTH_ON_NETWORK: 'maybe' })).message).toContain(
+      'ALLOW_MOCK_AUTH_ON_NETWORK',
+    );
+  });
+
+  it('parses TRUST_PROXY_HOPS with a safe default and bounds', () => {
+    expect(loadConfig(validEnv()).TRUST_PROXY_HOPS).toBe(0);
+    expect(loadConfig(validEnv({ TRUST_PROXY_HOPS: '2' })).TRUST_PROXY_HOPS).toBe(2);
+    expect(failure(validEnv({ TRUST_PROXY_HOPS: '-1' })).message).toContain('TRUST_PROXY_HOPS');
+    expect(failure(validEnv({ TRUST_PROXY_HOPS: '11' })).message).toContain('TRUST_PROXY_HOPS');
+  });
 });

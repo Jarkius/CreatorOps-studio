@@ -47,6 +47,22 @@ describe('signToken / verifyToken', () => {
     expect(verifyToken(token, SECRET, payload.exp - 1)).not.toBeNull();
   });
 
+  it('rejects non-canonical encodings of an otherwise valid signature', () => {
+    const [version, body, signature] = parts(signToken(payload, SECRET));
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    // A sha256 signature is 43 base64url characters whose last character has 2 unused bits, so
+    // changing those bits decodes to the same bytes. It must still be refused.
+    const last = alphabet.indexOf(signature.slice(-1));
+    const sibling = alphabet[last ^ 1] ?? 'A';
+    expect(
+      verifyToken(`${version}.${body}.${signature.slice(0, -1)}${sibling}`, SECRET, NOW),
+    ).toBeNull();
+    expect(verifyToken(`${version}.${body}.${signature}=`, SECRET, NOW)).toBeNull();
+    expect(verifyToken(`${version}.${body}.${signature}\n`, SECRET, NOW)).toBeNull();
+    expect(verifyToken(`${version}.${body}!.${signature}`, SECRET, NOW)).toBeNull();
+    expect(verifyToken(`${version}.${body}.${signature}`, SECRET, NOW)).not.toBeNull();
+  });
+
   it('rejects unknown versions and malformed shapes', () => {
     const [, body, signature] = parts(signToken(payload, SECRET));
     expect(verifyToken(`v2.${body}.${signature}`, SECRET, NOW)).toBeNull();

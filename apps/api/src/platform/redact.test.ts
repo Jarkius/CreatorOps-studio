@@ -107,3 +107,55 @@ describe('redactValue: special values', () => {
     expect(JSON.stringify(redactValue(deep))).toContain('[max depth]');
   });
 });
+
+describe('redaction gaps closed after review', () => {
+  it('hides the query of a path that follows a key or colon, not just whitespace', () => {
+    for (const text of [
+      'url=/media/a.png?sig=SECRET',
+      'path:/x?token=SECRET',
+      '{"url":"/m/a?sig=SECRET"}',
+      '[/a?sig=SECRET]',
+    ]) {
+      const out = redactString(text);
+      expect(out, text).not.toContain('SECRET');
+      expect(out, text).toContain(REDACTED);
+    }
+  });
+
+  it('is idempotent and does not mangle already redacted URLs', () => {
+    const once = redactString('GET https://files.example.com/m/a.jpg?sig=SECRET ok');
+    expect(redactString(once)).toBe(once);
+  });
+
+  it('follows error causes and aggregate errors', () => {
+    const cause = new Error('inner postgres://u:hunter2@h:5432/d');
+    const outer = new Error('outer', { cause });
+    const out = redactValue(outer) as { cause: { message: string } };
+    expect(out.cause.message).toBe(`inner postgres://u:${REDACTED}@h:5432/d`);
+
+    const aggregate = new AggregateError([new Error('a Bearer abc.def')], 'many');
+    const flat = JSON.stringify(redactValue(aggregate));
+    expect(flat).not.toContain('abc.def');
+    expect(flat).toContain('many');
+  });
+
+  it('keeps useful values for dates, URLs, maps and sets, and scrubs them', () => {
+    expect(redactValue(new Date('2026-11-03T00:00:00.000Z'))).toBe('2026-11-03T00:00:00.000Z');
+    expect(redactValue(new Date('nope'))).toBe('Invalid Date');
+    expect(redactValue(new URL('https://x.test/m?sig=SECRET'))).toBe(
+      `https://x.test/m?${REDACTED}`,
+    );
+    expect(
+      redactValue(
+        new Map([
+          ['password', 'p'],
+          ['ok', 'fine'],
+        ]),
+      ),
+    ).toEqual([
+      ['password', REDACTED],
+      ['ok', 'fine'],
+    ]);
+    expect(redactValue(new Set(['a', 'Bearer abc.def']))).toEqual(['a', `Bearer ${REDACTED}`]);
+  });
+});
