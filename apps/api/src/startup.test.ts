@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { startup } from './startup.js';
+import { prepare } from './startup.js';
 import { SKIP_DB_TESTS, validEnv } from './test/db-url.js';
 
 function io() {
@@ -16,42 +16,48 @@ function io() {
   };
 }
 
-describe('startup', () => {
-  it('exits 1 and names the variable when configuration is missing', async () => {
+describe('prepare', () => {
+  it('fails with exit code 1 and names the variable when configuration is missing', async () => {
     const { io: streams, err } = io();
-    const code = await startup({}, streams);
-    expect(code).toBe(1);
+    const result = await prepare({}, streams);
+    expect(result).toEqual({ ok: false, exitCode: 1 });
     expect(err.join('')).toContain('DATABASE_URL');
     expect(err.join('')).toContain('Invalid configuration');
   });
 
-  it('exits 1 for malformed configuration without leaking secret values', async () => {
+  it('fails for malformed configuration without leaking secret values', async () => {
     const { io: streams, err } = io();
-    const code = await startup(validEnv({ SESSION_SECRET: 'leaky-short-1' }), streams);
-    expect(code).toBe(1);
+    const result = await prepare(validEnv({ SESSION_SECRET: 'leaky-short-1' }), streams);
+    expect(result.ok).toBe(false);
     expect(err.join('')).toContain('SESSION_SECRET');
     expect(err.join('')).not.toContain('leaky-short-1');
   });
 
-  it('exits 1 with a readable message and no credentials when the database is unreachable', async () => {
+  it('fails with a readable message and no credentials when the database is unreachable', async () => {
     const { io: streams, out, err } = io();
-    const code = await startup(
+    const result = await prepare(
       validEnv({ DATABASE_URL: 'postgres://creatorops:supersecret@127.0.0.1:1/creatorops' }),
       streams,
     );
-    expect(code).toBe(1);
+    expect(result).toEqual({ ok: false, exitCode: 1 });
     expect(err.join('')).toContain('Database connection failed');
     expect(err.join('') + out.join('')).not.toContain('supersecret');
   });
 
   it.skipIf(SKIP_DB_TESTS)(
-    'exits 0 and logs a connection event when the database answers',
+    'returns config, logger and a working pool when the database answers',
     async () => {
       const { io: streams, out, err } = io();
-      const code = await startup(validEnv({ LOG_LEVEL: 'info' }), streams);
+      const result = await prepare(validEnv({ LOG_LEVEL: 'info' }), streams);
       expect(err.join('')).toBe('');
-      expect(code).toBe(0);
-      expect(out.join('')).toContain('db.connected');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      try {
+        expect(out.join('')).toContain('db.connected');
+        expect((await result.pool.query('select 1 as ok')).rows[0]).toEqual({ ok: 1 });
+      } finally {
+        await result.pool.end();
+      }
     },
   );
 });

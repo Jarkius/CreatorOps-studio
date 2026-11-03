@@ -34,6 +34,9 @@ export const apiEnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    // Loopback by default; set HOST=0.0.0.0 deliberately when running in a container.
+    HOST: z.string().min(1).default('127.0.0.1'),
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),

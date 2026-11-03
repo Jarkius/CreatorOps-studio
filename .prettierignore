@@ -5,3 +5,4 @@ prompts/
 CLAUDE.md
 README.md
 pnpm-lock.yaml
+apps/api/src/__snapshots__

@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 complete (S0.1, S0.2 done and verified). Next: Phase 1, slice S1.1.
+Phase 0 complete. Phase 1: S1.1 done and verified. Next: S1.2.
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -12,7 +12,8 @@ Phase 0 complete (S0.1, S0.2 done and verified). Next: Phase 1, slice S1.1.
 - [x] Project skill installed (`.claude/skills/app-dev-methodology`)
 - [x] Monorepo scaffold and CI baseline (S0.1)
 - [x] Config, logging with redaction, local database (S0.2)
-- [ ] API foundation (S1.1–S1.2)
+- [x] API foundation, part 1: contracts, error shape, CORS, OpenAPI, rate limit (S1.1)
+- [ ] API foundation, part 2: database schema, mock auth, workspace scope (S1.2)
 - [ ] Dashboard shell (S1.3)
 - [ ] Extension shell (S1.4)
 - [ ] Workspace/products (S2.1–S2.4)
@@ -42,6 +43,7 @@ node apps/api/dist/server.js                    # S0.2 startup check (needs the 
 Verified by the orchestrator (lint, typecheck, test, build, format:check all exit 0):
 - S0.1: dependency rules proven with four throwaway violation files; all four fail lint.
 - S0.2: `packages/config` 12 tests, `apps/api` 34 tests (redaction, logger, config, startup with a live PostgreSQL 16). Built `node apps/api/dist/server.js` checked in four scenarios: missing config exits 1 and names every variable; a short `SESSION_SECRET` exits 1 and the value is not printed; `AUTH_MODE=mock` with `NODE_ENV=production` is refused; a healthy database logs `db.connected` and exits 0.
+- S1.1: `apps/api` 61 tests (27 for the app: health, request ids, error shape, validation, 413/415, rate limit, CORS, security headers, OpenAPI snapshot). Mutation-checked by the orchestrator: reflecting any CORS origin, leaking unexpected error messages, and trusting any caller request id each make tests fail.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes
@@ -65,4 +67,4 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-S1.1 — contracts, health endpoint, error shape, CORS, OpenAPI, baseline rate limit (`docs/08_PHASE_PLAN.md` §3).
+S1.2 — Drizzle schema and migrations, mock auth, auth guard, workspace scope (`docs/08_PHASE_PLAN.md` §3).
