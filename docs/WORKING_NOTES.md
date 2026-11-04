@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.7b done, next S3.7c).
+**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.7c done, next S3.8).
 
 ## Where we are
 
@@ -11,7 +11,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | 0 Foundation (monorepo, CI, config, redaction, local Postgres) | done |
 | 1 Extension shell + API foundation (mock auth, dashboard shell, MV3 side panel) | done |
 | 2 Workspaces, products, media (API, dashboard, extension product view, uploads, signed media) | done; see the exit check in `docs/IMPLEMENTATION_STATUS.md` |
-| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.7b done (see below); plan in D-045..D-058 |
+| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.7c done (see below); plan in D-045..D-058 |
 | 4+ real providers, export, publishing | blocked on open questions Q-001, Q-002, Q-005 (see `docs/DECISIONS.md`) |
 
 ### Phase 3 progress (plan: D-045..D-054, details D-055/D-056, evidence in `docs/IMPLEMENTATION_STATUS.md`)
@@ -27,11 +27,11 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | S3.6 draft get, list, versioned PATCH, regenerate-section job with `SECTION_CHANGED` guard in the handler and again at settle; details in D-058 | done |
 | S3.7a shared API client methods (templates, campaigns, drafts, jobs) | done |
 | S3.7b campaigns UI: list, create, campaign page, Generate, job panel with polling and cancel, drafts list | done |
-| **S3.7c** draft screen (Haiku worker): sections, edit, regenerate, status, claim warnings, conflicts, copy; product-page "Create campaign" shortcut | **next** |
-| S3.8 extension generate action + job status (Haiku worker) | todo |
+| S3.7c draft screen: sections, edit, regenerate, status, claim warnings, conflicts, copy; product-page "Create campaign" shortcut | done |
+| **S3.8** extension generate action and job status (Haiku worker; reuse the shared client and the section/job states from D-059) | **next** |
 | S3.9 exit check against docs/06 Phase 3 and docs/07 | todo |
 
-Tests at the last full run (after S3.7b): contracts 65, provider-core 95, config 12, ui 43, extension 48, web 182, api 421; end-to-end 42 (14 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (after S3.7c): contracts 65, provider-core 95, config 12, ui 43, extension 48, web 250, api 421; end-to-end 42 (14 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -87,5 +87,5 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.7b are done; next is S3.7c (draft screen: Haiku worker from the brief template, reusing `fakeContentApi.ts`; UI direction in D-059 and `docs/UI_RESEARCH.md`; API surface is listed in D-046, D-056 and D-058), then S3.8 (extension generate action and job status), then the S3.9 exit check.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.7c are done; next is S3.8 (extension: generate action and job status in the side panel; Haiku worker from the brief template; reuse the shared client methods; UI direction in D-059 and `docs/UI_RESEARCH.md`), then the S3.9 exit check (add a campaign and draft end-to-end spec with the real API, worker and Redis, and run the screens in a real browser).
 3. Verified for real in S3.6: generate, regenerate-section, a stale-revision 409 and a stale-version 409 over HTTP with API, worker and Redis. Verified for real in S3.5: API + worker + Redis created drafts from an HTTP request; a transient failure retried 3 times and failed with a stable code; a job whose Redis message was wiped was recovered by the reconciler after about 65 s. Not yet exercised: a worker killed mid-job outside the unit tests.

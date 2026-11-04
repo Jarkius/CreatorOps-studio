@@ -213,3 +213,33 @@ describe('ProductEditPage', () => {
     expect(screen.queryByRole('img', { name: /Cover:/ })).not.toBeInTheDocument();
   });
 });
+
+describe('ProductEditPage: create campaign shortcut', () => {
+  const SHORTCUT = 'Create campaign';
+
+  it('shows a link to the new campaign form with the product id for an active product', async () => {
+    renderWeb(EDIT_PATH, createFakeApi({ products: [fan()] }));
+
+    expect(await screen.findByRole('link', { name: SHORTCUT })).toHaveAttribute(
+      'href',
+      `/w/${WORKSPACE.id}/campaigns/new?productId=${PRODUCT_ID}`,
+    );
+  });
+
+  it('hides the shortcut for an archived product', async () => {
+    renderWeb(EDIT_PATH, createFakeApi({ products: [fan({ status: 'archived' })] }));
+
+    expect(await screen.findByRole('heading', { name: THAI_NAME })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: SHORTCUT })).not.toBeInTheDocument();
+  });
+
+  it.each(['viewer', 'reviewer'] as const)('hides the shortcut from a %s', async (role) => {
+    renderWeb(
+      EDIT_PATH,
+      createFakeApi({ products: [fan()], workspaces: [{ ...WORKSPACE, role }] }),
+    );
+
+    expect(await screen.findByRole('heading', { name: THAI_NAME })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: SHORTCUT })).not.toBeInTheDocument();
+  });
+});

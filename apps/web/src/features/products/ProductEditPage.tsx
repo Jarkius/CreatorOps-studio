@@ -3,11 +3,20 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@creatorops/contracts';
 import type { CreateProductRequest, Product, UpdateProductRequest } from '@creatorops/contracts';
-import { Button, ConfirmDialog, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
+import {
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  LoadingState,
+  StatusPill,
+  buttonClassName,
+} from '@creatorops/ui';
 
 import { CoverThumb } from '../assets/CoverThumb.js';
 import { AssetGallery } from '../assets/AssetGallery.js';
 import { UploadPanel } from '../assets/UploadPanel.js';
+import { newCampaignPath } from '../campaigns/paths.js';
+import { useCanWrite } from '../campaigns/useCanWrite.js';
 import { describeError, isNotFound } from '../errors.js';
 import { formatDate } from './format.js';
 import { ProductForm } from './ProductForm.js';
@@ -21,6 +30,7 @@ export function ProductEditPage() {
   const productQuery = useProduct(workspaceId, productId);
   const update = useUpdateProduct(workspaceId, productId);
   const archive = useSetProductArchived(workspaceId, productId);
+  const canWrite = useCanWrite(workspaceId);
 
   const [conflict, setConflict] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -124,6 +134,14 @@ export function ProductEditPage() {
           <span>Version {product.version}</span>
           <span>Updated {formatDate(product.updatedAt)}</span>
         </div>
+        {product.status === 'active' && canWrite ? (
+          <Link
+            to={`${newCampaignPath(workspaceId)}?productId=${encodeURIComponent(product.id)}`}
+            className={buttonClassName('secondary')}
+          >
+            Create campaign
+          </Link>
+        ) : null}
       </header>
 
       {conflict ? (

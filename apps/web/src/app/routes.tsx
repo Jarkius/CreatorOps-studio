@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 
 import { AssetLibraryPage } from '../features/assets/AssetLibraryPage.js';
 import { CampaignPage } from '../features/campaigns/CampaignPage.js';
+import { DraftPage } from '../features/drafts/DraftPage.js';
 import { CampaignsPage } from '../features/campaigns/CampaignsPage.js';
 import { NewCampaignPage } from '../features/campaigns/NewCampaignPage.js';
 import { OverviewPage } from '../features/overview/OverviewPage.js';
@@ -56,6 +57,16 @@ export const routes: RouteObject[] = [
           <SessionGate>
             <WorkspaceRequired>
               <CampaignPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/drafts/:draftId',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <DraftPage />
             </WorkspaceRequired>
           </SessionGate>
         ),

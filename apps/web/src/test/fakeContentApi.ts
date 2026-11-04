@@ -1,4 +1,13 @@
-import type { Campaign, Draft, Job, JobStatus, Template } from '@creatorops/contracts';
+import type {
+  Campaign,
+  Draft,
+  DraftSections,
+  DraftStatus,
+  Job,
+  JobStatus,
+  SectionName,
+  Template,
+} from '@creatorops/contracts';
 import { SECTION_NAMES } from '@creatorops/contracts';
 
 import { json } from './fakeApi.js';
@@ -103,6 +112,8 @@ export interface ContentFakeOptions {
   loseBriefResponses?: number;
   /** The next N generate-brief requests (after the key check) get this error and create nothing. */
   briefErrors?: { status: number; code: string; message: string }[];
+  /** The value a succeeded regenerate-section job writes. Defaults to a Thai placeholder per section. */
+  regenerateValue?: (draft: Draft, section: SectionName) => DraftSections[SectionName];
 }
 
 export interface ContentFakeApi {
@@ -113,6 +124,8 @@ export interface ContentFakeApi {
   templates: Template[];
   /** Moves a job to a new status (what the worker would do) and returns a copy. */
   advanceJob(id: string, status: JobStatus, patch?: Partial<Job>): Job;
+  /** Simulates another editor saving one section: rev + 1, origin edited, version + 1, status rules as in PATCH. */
+  editElsewhere(draftId: string, section: SectionName, value: DraftSections[SectionName]): void;
 }
 
 export const PRODUCT_SHOWCASE = makeTemplate({ id: 'product-showcase' });
@@ -178,6 +191,36 @@ function fail(status: number, code: string, message: string, details?: unknown):
     },
     status,
   );
+}
+
+/** The value a regenerate job writes when the test does not choose one. */
+function defaultRegenerated(section: SectionName): DraftSections[SectionName] {
+  switch (section) {
+    case 'storyboard':
+      return ['ฉากใหม่'];
+    case 'hashtags':
+      return ['#ใหม่'];
+    default:
+      return `ข้อความใหม่ ${section}`;
+  }
+}
+
+/** Writes the sections whose value really changes (rev + 1, origin edited). Returns whether any did. */
+function applySectionChanges(draft: Draft, changes: Partial<DraftSections>): boolean {
+  let changed = false;
+  for (const name of SECTION_NAMES) {
+    const value = changes[name];
+    if (value === undefined) continue;
+    if (JSON.stringify(value) === JSON.stringify(draft.sections[name])) continue;
+    (draft.sections as Record<string, unknown>)[name] = value;
+    draft.sectionState[name] = {
+      rev: draft.sectionState[name].rev + 1,
+      origin: 'edited',
+      jobId: null,
+    };
+    changed = true;
+  }
+  return changed;
 }
 
 function page<T>(items: T[], limit: number, cursor: string | null) {
@@ -254,6 +297,37 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
     return json(job, 202);
   };
 
+  const regenerateSection = (ws: string, body: unknown, key: string | null, bodyText: string) => {
+    if (!key) return fail(400, 'VALIDATION_ERROR', 'Send an Idempotency-Key header.');
+    const input = (body ?? {}) as { draftId?: unknown; section?: unknown; expectedRev?: unknown };
+    const draft = drafts.find((item) => item.workspaceId === ws && item.id === input.draftId);
+    if (draft === undefined) return fail(400, 'VALIDATION_ERROR', 'Draft not found.');
+    const stored = keyed.get(key);
+    if (stored !== undefined) {
+      if (stored.body === bodyText) return json(stored.job, 200);
+      return fail(
+        409,
+        'IDEMPOTENCY_CONFLICT',
+        'This Idempotency-Key was already used for a different request.',
+      );
+    }
+    const section = input.section as SectionName;
+    if (draft.sectionState[section].rev !== input.expectedRev) {
+      return fail(409, 'CONFLICT', 'This section changed since you loaded it.');
+    }
+    const job = makeJob({
+      id: `job_${nextId++}`,
+      workspaceId: ws,
+      type: 'regenerate_section',
+      campaignId: null,
+      draftId: draft.id,
+      input: { draftId: draft.id, section, expectedRev: input.expectedRev },
+    });
+    jobs.push(job);
+    keyed.set(key, { body: bodyText, job });
+    return json(job, 202);
+  };
+
   const intercept = async (call: RecordedCall): Promise<Response | undefined> => {
     const key = activeKey;
     const url = new URL(call.path, 'http://fake.test');
@@ -327,6 +401,30 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
       const draft = drafts.find((item) => item.workspaceId === ws && item.id === id);
       return draft === undefined ? fail(404, 'NOT_FOUND', 'Draft not found.') : json(draft);
     }
+    if (resource === 'drafts' && method === 'PATCH' && id !== undefined && action === undefined) {
+      const draft = drafts.find((item) => item.workspaceId === ws && item.id === id);
+      if (draft === undefined) return fail(404, 'NOT_FOUND', 'Draft not found.');
+      const body = call.body as {
+        version: number;
+        sections?: Partial<DraftSections>;
+        status?: DraftStatus;
+      };
+      if (body.version !== draft.version) {
+        return fail(409, 'CONFLICT', 'The draft was changed by someone else.', {
+          currentVersion: draft.version,
+        });
+      }
+      const contentChanged = applySectionChanges(draft, body.sections ?? {});
+      const statusChanged = body.status !== undefined && body.status !== draft.status;
+      if (!contentChanged && !statusChanged) return json(draft);
+      if (body.status !== undefined) {
+        draft.status = body.status;
+      } else if (contentChanged) {
+        draft.status = 'draft';
+      }
+      draft.version += 1;
+      return json(draft);
+    }
 
     if (resource === 'jobs') {
       if (id === 'generate-brief' && method === 'POST') {
@@ -334,6 +432,9 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
         const result = generateBrief(ws, url, call.body, key, bodyText);
         if (result instanceof Error) throw result;
         return result;
+      }
+      if (id === 'regenerate-section' && method === 'POST') {
+        return regenerateSection(ws, call.body, key, JSON.stringify(call.body));
       }
       if (id === undefined && method === 'GET') {
         return json(
@@ -376,8 +477,38 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
         drafts.push(...(options.draftsOnSuccess ?? defaultDrafts)(job, campaign));
       }
     }
+    if (status === 'succeeded' && job.type === 'regenerate_section') {
+      const draft = drafts.find((item) => item.id === job.draftId);
+      const section = job.input.section as SectionName;
+      if (draft !== undefined) {
+        const value = options.regenerateValue?.(draft, section) ?? defaultRegenerated(section);
+        (draft.sections as Record<string, unknown>)[section] = value;
+        draft.sectionState[section] = {
+          rev: draft.sectionState[section].rev + 1,
+          origin: 'generated',
+          jobId: job.id,
+        };
+        // The worker moves the draft back to Draft when it writes a section (D-058).
+        draft.status = 'draft';
+        draft.version += 1;
+      }
+    }
     return { ...job };
   };
 
-  return { intercept, campaigns, drafts, jobs, templates, advanceJob };
+  const editElsewhere = (
+    draftId: string,
+    section: SectionName,
+    value: DraftSections[SectionName],
+  ) => {
+    const draft = drafts.find((item) => item.id === draftId);
+    if (draft === undefined) throw new Error(`no draft ${draftId}`);
+    const changes = { [section]: value } as Partial<DraftSections>;
+    if (applySectionChanges(draft, changes)) {
+      if (draft.status !== 'draft') draft.status = 'draft';
+      draft.version += 1;
+    }
+  };
+
+  return { intercept, campaigns, drafts, jobs, templates, advanceJob, editElsewhere };
 }

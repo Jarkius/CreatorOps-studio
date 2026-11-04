@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
 import { ApiError } from '@creatorops/contracts';
-import type { Job, JobStatus } from '@creatorops/contracts';
+import type { Job, JobStatus, RegenerateSectionJobRequest } from '@creatorops/contracts';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 import { newIdempotencyKey } from './idempotency.js';
@@ -74,6 +74,46 @@ export function useGenerateBrief(workspaceId: string) {
       pendingRef.current = { campaignId, key };
       try {
         const job = await client.jobs.generateBrief(workspaceId, { campaignId }, key);
+        pendingRef.current = null;
+        return job;
+      } catch (error) {
+        const noResponse =
+          error instanceof ApiError && (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT');
+        if (!noResponse) pendingRef.current = null;
+        throw error;
+      }
+    },
+  });
+}
+
+interface PendingRegenerate {
+  request: RegenerateSectionJobRequest;
+  key: string;
+}
+
+function isSameRegenerate(a: RegenerateSectionJobRequest, b: RegenerateSectionJobRequest): boolean {
+  return a.draftId === b.draftId && a.section === b.section && a.expectedRev === b.expectedRev;
+}
+
+/**
+ * Starts a regenerate-section job. Same key rule as useGenerateBrief: the key is made once per user
+ * action and is reused only when the previous attempt for the same draft, section and revision
+ * failed without a response (network error or timeout). After a success, or any other error, the
+ * next call makes a new key.
+ */
+export function useRegenerateSection(workspaceId: string) {
+  const { client } = useDashboard();
+  const pendingRef = useRef<PendingRegenerate | null>(null);
+  return useMutation({
+    mutationFn: async (request: RegenerateSectionJobRequest): Promise<Job> => {
+      const pending = pendingRef.current;
+      const key =
+        pending !== null && isSameRegenerate(pending.request, request)
+          ? pending.key
+          : newIdempotencyKey();
+      pendingRef.current = { request, key };
+      try {
+        const job = await client.jobs.regenerateSection(workspaceId, request, key);
         pendingRef.current = null;
         return job;
       } catch (error) {
