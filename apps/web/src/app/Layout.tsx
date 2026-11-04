@@ -3,18 +3,12 @@ import { Link, NavLink, Outlet, matchPath, useLocation, useNavigate } from 'reac
 import { buttonClassName } from '@creatorops/ui';
 
 import { assetsPath } from '../features/assets/paths.js';
+import { campaignsPath } from '../features/campaigns/paths.js';
 import { productsPath } from '../features/products/paths.js';
 import { NEW_WORKSPACE_PATH } from '../features/workspaces/WorkspaceRequired.js';
 import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
 
-const DISABLED_ITEMS = [
-  'Campaigns',
-  'Content drafts',
-  'Calendar',
-  'Publishing',
-  'Usage',
-  'Settings',
-] as const;
+const DISABLED_ITEMS = ['Content drafts', 'Calendar', 'Publishing', 'Usage', 'Settings'] as const;
 
 const linkClass =
   'flex min-h-11 items-center rounded-md px-3 py-2 font-medium leading-relaxed hover:bg-[var(--co-surface)]';
@@ -91,6 +85,20 @@ export function Layout() {
               ) : (
                 <NavLink to={productsPath(current.id)} className={linkClass}>
                   Products
+                </NavLink>
+              )}
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
+                  Campaigns
+                </span>
+              ) : (
+                <NavLink to={campaignsPath(current.id)} className={linkClass}>
+                  Campaigns
                 </NavLink>
               )}
             </li>

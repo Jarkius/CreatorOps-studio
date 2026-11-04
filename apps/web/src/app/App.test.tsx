@@ -128,19 +128,14 @@ describe('Overview page', () => {
     expect(links.map((link) => link.textContent)).toEqual([
       'Overview',
       'Products',
+      'Campaigns',
       'Asset library',
     ]);
     expect(links[1]).toHaveAttribute('href', '/w/ws_1/products');
-    expect(links[2]).toHaveAttribute('href', '/w/ws_1/assets');
+    expect(links[2]).toHaveAttribute('href', '/w/ws_1/campaigns');
+    expect(links[3]).toHaveAttribute('href', '/w/ws_1/assets');
 
-    for (const label of [
-      'Campaigns',
-      'Content drafts',
-      'Calendar',
-      'Publishing',
-      'Usage',
-      'Settings',
-    ]) {
+    for (const label of ['Content drafts', 'Calendar', 'Publishing', 'Usage', 'Settings']) {
       const item = within(nav).getByText(label).closest('[aria-disabled="true"]');
       expect(item).not.toBeNull();
       expect(item).toHaveTextContent('Soon');

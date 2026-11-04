@@ -1,6 +1,9 @@
 import type { RouteObject } from 'react-router';
 
 import { AssetLibraryPage } from '../features/assets/AssetLibraryPage.js';
+import { CampaignPage } from '../features/campaigns/CampaignPage.js';
+import { CampaignsPage } from '../features/campaigns/CampaignsPage.js';
+import { NewCampaignPage } from '../features/campaigns/NewCampaignPage.js';
 import { OverviewPage } from '../features/overview/OverviewPage.js';
 import { NewProductPage } from '../features/products/NewProductPage.js';
 import { ProductEditPage } from '../features/products/ProductEditPage.js';
@@ -23,6 +26,36 @@ export const routes: RouteObject[] = [
           <SessionGate>
             <WorkspaceRequired>
               <AssetLibraryPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/campaigns',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <CampaignsPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/campaigns/new',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <NewCampaignPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/campaigns/:campaignId',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <CampaignPage />
             </WorkspaceRequired>
           </SessionGate>
         ),
