@@ -85,6 +85,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-058 | S3.6 drafts: get, list, versioned PATCH, regenerate-section job | ACCEPTED |
 | D-059 | S3.7 and S3.8 UI direction from market research (`docs/UI_RESEARCH.md`) | ACCEPTED |
 | D-060 | Publishing plan: assisted posting first, official APIs next; no UI-automation posting | ACCEPTED |
+| D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -382,6 +383,20 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 2. **Official APIs, one platform at a time (Gate B, D-022).** Order: Facebook Pages (Graph API; needs `pages_manage_posts` and Meta App Review), TikTok "Upload" to the creator's inbox as a draft (lower approval bar than Direct Post; Direct Post only after an audit, until then posts are private), Shopee after its Open Platform documentation is read. Approval times and costs in the research notes come from third-party sources and must be confirmed against each platform's own documentation before a slice is planned. Start the Facebook and TikTok applications early; they take weeks.
 3. **Not built:** posting through desktop or phone UI automation, human-like mouse or timing to avoid detection, account warm-up, fingerprint or proxy tricks. Revisiting this needs the owner to change `CLAUDE.md` and D-022 explicitly, and detection evasion would still not be built.
 **Notes:** Assisted posting needs no platform approval, so it is the only publishing path that can ship before Gate B. Fits `docs/UI_RESEARCH.md` (hand off through the platform's own screens; copy format friendly to LINE and Facebook).
+
+## D-061 — S3.8 side panel: campaigns, generate and job status
+**Status:** ACCEPTED (2026-11-04). Refines D-059 and D-053; adds no permission and no host access (D-022, D-039).
+**Decision:**
+- **Panel.** Below the product list, a "Campaigns" section shows the newest 10 campaigns of the active workspace (archived ones are left out in the panel), each with a Generate button, its latest generation job's status, and a link to the campaign page in the dashboard, where drafts are edited. The panel does not edit drafts and does not create campaigns (links to the dashboard for both).
+- **Who sees Generate.** Owner, admin and editor only (the same roles as `useCanWrite` in the dashboard). Reviewer and viewer see the statuses and links but no button. The API is still the gate (403).
+- **State comes from the API only.** The panel reads `client.jobs.list` with `type=generate_brief` and takes the newest job per campaign (the list is newest first). Nothing is kept in extension storage or the service worker, so reopening the panel shows the same status.
+- **Polling.** The job list is polled with the D-053 steps (2 s to 10 s) only while a listed job is queued or running; it stops at a final state.
+- **Generate.** One `Idempotency-Key` per click, made with `crypto.randomUUID()` (prefix `ext-`). The key is reused only when the request got no response (network error or timeout) for the same campaign; after a success or any other error the next click makes a new key. This is the rule of `useGenerateBrief` (dashboard), copied, because the two apps do not share UI hooks. The button is disabled while a start is pending or the campaign's latest job is queued or running. After a failed or cancelled job the same button reads "Try again" and starts a new job with a new key.
+- **Cancel.** Shown for queued and running jobs, as in the dashboard `JobPanel`. A running job stays "Stopping…" until the worker reports the outcome (polling keeps going).
+- **Shared code.** `pollDelayMs` and `isTerminalJobStatus` move from the dashboard into `packages/contracts` (`jobPolling.ts`), so both apps use one copy; the dashboard keeps its exports unchanged.
+- **Errors.** Every failed request shows the API message and request id where present (`ApiError`), never a raw error; `RATE_LIMITED` (cap of 5 active jobs, or 20 starts a minute) shows its message as is.
+- **Out of scope:** streaming, creating campaigns in the panel, editing or viewing draft sections, claim-warning badges, retry of a single section, product images, notifications.
+**Known limit:** the job list shows only the newest 50 generate jobs of the workspace (one page). A campaign whose latest job is older than that shows no status; the link to the dashboard still works. Fixing it needs a `campaignId` filter on `GET /jobs` (a later slice, if the panel needs it).
 
 ## Open questions
 

@@ -3,6 +3,8 @@ import { EmptyState, ErrorState, LoadingState } from '@creatorops/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
+import { CampaignsPanel } from './CampaignsPanel.js';
+import { canStartGeneration } from './campaigns.js';
 import { API_BASE_URL, DASHBOARD_URL, MOCK_AUTH } from './config.js';
 import { ProductsPanel } from './ProductsPanel.js';
 import { createSessionClient, type SessionClient } from './session.js';
@@ -110,11 +112,17 @@ export function App({ session }: AppProps) {
         ) : null}
 
         {me.isSuccess && activeWorkspace ? (
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
             <ProductsPanel
               api={client.api}
               workspaceId={activeWorkspace.id}
               dashboardUrl={DASHBOARD_URL}
+            />
+            <CampaignsPanel
+              api={client.api}
+              workspaceId={activeWorkspace.id}
+              dashboardUrl={DASHBOARD_URL}
+              canStart={canStartGeneration(activeWorkspace.role)}
             />
           </div>
         ) : null}

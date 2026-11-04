@@ -68,6 +68,8 @@ Short list; the full, current set is in `docs/WORKING_NOTES.md` ("Gotchas") and 
 - Shell state does not persist between commands: re-export `DATABASE_URL` and `REDIS_URL` each time.
 - Probe a third-party limit against the real service before writing it into a decision (BullMQ refuses `:` in job ids).
 - Test each ownership or lease check from both sides: the stale owner must stop and must not touch the new owner's row.
+- A rule inside a React hook (polling stop, key reuse) survives mutation runs unless a test drives the hook or the rule is a pure function. Extract it, then test it.
+- Assertions on text that appears twice in one row (status pill and status line) fail as strict-mode violations; scope them to the row.
 - Test helpers read shared counters before any `await`; tests of table-wide scans empty the table first.
 
 ## 6. End of every slice or session: update these, in this order

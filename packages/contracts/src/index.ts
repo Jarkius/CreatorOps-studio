@@ -28,6 +28,8 @@ export type {
   WorkspaceRoleValue,
 } from './auth.js';
 
+export { isTerminalJobStatus, pollDelayMs } from './jobPolling.js';
+
 export { ApiError, createApiClient } from './client.js';
 export type { ApiClient, ApiClientOptions, ClientErrorCode } from './client.js';
 
