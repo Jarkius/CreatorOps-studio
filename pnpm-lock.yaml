@@ -41,6 +41,9 @@ importers:
       '@creatorops/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@creatorops/provider-core':
+        specifier: workspace:*
+        version: link:../../packages/provider-core
       '@fastify/cors':
         specifier: ^11.4.0
         version: 11.4.0

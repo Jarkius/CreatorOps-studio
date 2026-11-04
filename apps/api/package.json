@@ -17,6 +17,7 @@
   "dependencies": {
     "@creatorops/config": "workspace:*",
     "@creatorops/contracts": "workspace:*",
+    "@creatorops/provider-core": "workspace:*",
     "@fastify/cors": "^11.4.0",
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/swagger": "^9.9.3",
