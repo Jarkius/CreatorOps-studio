@@ -10,6 +10,20 @@ An extension-first content operations tool for Thai solo sellers, affiliate crea
 
 Phases 0–2 are built and verified: monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, and media uploads with signed URLs. Phase 3 (content generation with a mock provider) is next. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. Run commands are under "Development commands" below.
 
+### Screenshots (captured from the running app)
+
+Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, built packages and extension; see the script header). The side panel is loaded as a tab because automation cannot open Chrome's real side panel.
+
+| Dashboard products | Asset library (uploaded) |
+|---|---|
+| ![Products](docs/screenshots/web-products.png) | ![Asset library](docs/screenshots/web-asset-library.png) |
+
+| Product detail | Extension side panel |
+|---|---|
+| ![Product detail](docs/screenshots/web-product-detail.png) | ![Side panel](docs/screenshots/extension-side-panel.png) |
+
+More: `web-overview.png`, `web-new-workspace.png` in `docs/screenshots/`.
+
 ## How it works
 
 - **Chrome side panel** (Manifest V3) is the quick-entry surface. It is a thin client.
