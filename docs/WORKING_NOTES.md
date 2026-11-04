@@ -66,6 +66,8 @@ pnpm e2e                                      # builds, then both suites, each o
 - `z.coerce` makes a schema's input type `unknown`; use the parsed (`z.infer`) type in services.
 - The production-style `pg-local.sh` runs the server as user `pgdev` when invoked as root; the data parent `.data/` must stay root-owned.
 - The 1x1 PNG some snippets use has a bad CRC; sharp rightly rejects it.
+- Job rules (S3.5): every write names the status and the attempt it expects; test each ownership check from both the stale and the new owner's side. Test helpers must read shared counters before any `await`. Tests of table-wide scans (reconciler) empty the table first.
+- Scripted edits: assert the old text exists, then `git diff` the file; a silent miss cost a wrong-file edit in S3.5. Lessons per slice are kept in the log at the bottom of `docs/WORKER_BRIEF_TEMPLATE.md`.
 - Playwright cannot click the real extension toolbar or drive the side-panel UI; the panel page is loaded as a tab and the behaviour checked through `chrome.sidePanel.getPanelBehavior()`.
 
 ## Not verified / known gaps
