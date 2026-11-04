@@ -6,16 +6,19 @@ import {
   JOB_STATUS_VALUES,
   JOB_TYPE_VALUES,
   type GenerateBriefJobRequest,
+  type RegenerateSectionJobRequest,
   type Job,
   type JobListQueryParsed,
   type JobListResponse,
 } from '@creatorops/contracts';
 
-import type { Db } from '../../db/client.js';
+import type { Db, DbOrTx } from '../../db/client.js';
 import { decodeCursor, encodeCursor } from '../../platform/cursor.js';
 import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import { findCampaign } from '../campaigns/repo.js';
+import { findDraft } from '../drafts/repo.js';
+import { readDraftContent } from '../drafts/state.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
 import type { JobQueue } from './queue.js';
@@ -91,18 +94,31 @@ export interface CreateJobResult {
   readonly created: boolean;
 }
 
-export async function createGenerateBriefJob(
+/** What a job type decides itself; everything else about creating a job is shared. */
+interface JobSpec {
+  readonly type: 'generate_brief' | 'regenerate_section';
+  /** Identifies the request: the type plus its target, never the key itself. */
+  readonly hashTarget: string;
+  /** Runs inside the creation transaction, after the replay check; throws to refuse the job. */
+  readonly prepare: (tx: DbOrTx) => Promise<{
+    readonly input: Record<string, unknown>;
+    readonly campaignId: string | null;
+    readonly draftId: string | null;
+    readonly audit: Record<string, unknown>;
+  }>;
+}
+
+async function createJob(
   db: Db,
   queue: JobQueue,
   log: JobLog,
   ctx: RequestContext,
-  body: GenerateBriefJobRequest,
+  spec: JobSpec,
   idempotencyKeyHeader: string | string[] | undefined,
 ): Promise<CreateJobResult> {
   assertCanWrite(ctx);
   const idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader);
-  const campaignId = body.campaignId.toLowerCase();
-  const hash = requestHash('generate_brief', campaignId);
+  const hash = requestHash(spec.type, spec.hashTarget);
 
   const outcome = await db.transaction(async (tx) => {
     // One job creation at a time per workspace: the replay check, the cap and the insert below
@@ -120,39 +136,24 @@ export async function createGenerateBriefJob(
       return { row: existing, created: false };
     }
 
-    const campaign = await findCampaign(tx, ctx, campaignId);
-    if (campaign === null) throw invalid('campaignId', 'Campaign not found');
-    if (campaign.status === 'archived') {
-      throw new AppError('CONFLICT', 'Archived campaigns cannot be generated.');
-    }
+    const prepared = await spec.prepare(tx);
     if ((await countActiveJobs(tx, ctx)) >= MAX_ACTIVE_JOBS_PER_WORKSPACE) {
       throw new AppError('RATE_LIMITED', 'Too many jobs are running. Wait for one to finish.');
     }
 
     const row = await insertJob(tx, ctx, {
-      type: 'generate_brief',
-      // A snapshot of the campaign's settings, so later edits cannot change a queued job.
-      input: {
-        campaignId: campaign.id,
-        productId: campaign.productId,
-        templateId: campaign.templateId,
-        templateVersion: campaign.templateVersion,
-        language: campaign.language,
-        tone: campaign.tone,
-        platform: campaign.platform,
-        durationSeconds: campaign.durationSeconds,
-        variants: campaign.variants,
-      },
+      type: spec.type,
+      input: prepared.input,
       idempotencyKey,
       requestHash: hash,
-      campaignId: campaign.id,
-      draftId: null,
+      campaignId: prepared.campaignId,
+      draftId: prepared.draftId,
     });
     await recordAuditEvent(tx, ctx, {
       action: 'job.create',
       resourceType: 'job',
       resourceId: row.id,
-      metadata: { type: 'generate_brief', campaignId: campaign.id },
+      metadata: { type: spec.type, ...prepared.audit },
     });
     return { row, created: true };
   });
@@ -169,6 +170,116 @@ export async function createGenerateBriefJob(
     }
   }
   return { job: toJob(outcome.row), created: outcome.created };
+}
+
+export function createGenerateBriefJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: GenerateBriefJobRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const campaignId = body.campaignId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'generate_brief',
+      hashTarget: campaignId,
+      prepare: async (tx) => {
+        const campaign = await findCampaign(tx, ctx, campaignId);
+        if (campaign === null) throw invalid('campaignId', 'Campaign not found');
+        if (campaign.status === 'archived') {
+          throw new AppError('CONFLICT', 'Archived campaigns cannot be generated.');
+        }
+        return {
+          // A snapshot of the campaign's settings, so later edits cannot change a queued job.
+          input: {
+            campaignId: campaign.id,
+            productId: campaign.productId,
+            templateId: campaign.templateId,
+            templateVersion: campaign.templateVersion,
+            language: campaign.language,
+            tone: campaign.tone,
+            platform: campaign.platform,
+            durationSeconds: campaign.durationSeconds,
+            variants: campaign.variants,
+          },
+          campaignId: campaign.id,
+          draftId: null,
+          audit: { campaignId: campaign.id },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
+/**
+ * Starts regenerating one section of a draft (D-050, D-058). `expectedRev` is the revision of
+ * that section the client was looking at. It is checked here for a fast answer and again by the
+ * worker when it stores the result, so an edit made in between always wins.
+ */
+export function createRegenerateSectionJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: RegenerateSectionJobRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'regenerate_section',
+      hashTarget: `${draftId}:${body.section}:${body.expectedRev}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        const content = readDraftContent(draft);
+        if (content === null)
+          throw new Error(`Draft ${draft.id} does not match the content contract`);
+        if (content.sectionState[body.section]?.rev !== body.expectedRev) {
+          throw new AppError(
+            'CONFLICT',
+            'This section was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const campaign = await findCampaign(tx, ctx, draft.campaignId);
+        if (campaign === null) throw new Error(`Campaign of draft ${draft.id} is missing`);
+        if (campaign.status === 'archived') {
+          throw new AppError('CONFLICT', 'Archived campaigns cannot be generated.');
+        }
+        return {
+          // A snapshot of the campaign's settings, as for generate_brief.
+          input: {
+            draftId: draft.id,
+            campaignId: campaign.id,
+            section: body.section,
+            expectedRev: body.expectedRev,
+            templateId: campaign.templateId,
+            templateVersion: campaign.templateVersion,
+            language: campaign.language,
+            tone: campaign.tone,
+            platform: campaign.platform,
+            durationSeconds: campaign.durationSeconds,
+            variantIndex: draft.variantIndex,
+          },
+          campaignId: null,
+          draftId: draft.id,
+          audit: { draftId: draft.id, section: body.section },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
 }
 
 function errorName(error: unknown): string {

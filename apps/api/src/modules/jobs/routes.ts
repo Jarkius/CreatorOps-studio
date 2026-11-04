@@ -4,6 +4,7 @@ import {
   JobListResponseSchema,
   JobParamsSchema,
   JobSchema,
+  RegenerateSectionJobRequestSchema,
   WorkspaceParamsSchema,
 } from '@creatorops/contracts';
 import type {
@@ -19,7 +20,13 @@ import type { Db } from '../../db/client.js';
 import { AppError } from '../../platform/errors.js';
 import type { RequestContext } from '../identity/context.js';
 import type { JobQueue } from './queue.js';
-import { cancelJob, createGenerateBriefJob, getJob, listJobs } from './service.js';
+import {
+  cancelJob,
+  createGenerateBriefJob,
+  createRegenerateSectionJob,
+  getJob,
+  listJobs,
+} from './service.js';
 
 export interface JobRouteOptions {
   readonly db: Db;
@@ -64,6 +71,34 @@ export function registerJobRoutes(app: FastifyInstance, options: JobRouteOptions
     },
     async (request, reply) => {
       const { job, created } = await createGenerateBriefJob(
+        db,
+        queue,
+        request.log,
+        contextOf(request),
+        request.body,
+        request.headers['idempotency-key'],
+      );
+      return reply.code(created ? 202 : 200).send(job);
+    },
+  );
+
+  typed.post(
+    `${base}/regenerate-section`,
+    {
+      ...common,
+      config: { rateLimit: { max: options.createsPerMinute ?? 20, timeWindow: '1 minute' } },
+      schema: {
+        tags,
+        summary: 'Start regenerating one section of a draft (requires an Idempotency-Key header)',
+        security,
+        params: WorkspaceParamsSchema,
+        headers: IdempotencyHeaders,
+        body: RegenerateSectionJobRequestSchema,
+        response: { 200: JobSchema, 202: JobSchema },
+      },
+    },
+    async (request, reply) => {
+      const { job, created } = await createRegenerateSectionJob(
         db,
         queue,
         request.log,

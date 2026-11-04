@@ -174,9 +174,9 @@ This is a logical MVP contract. Final field types and naming should be aligned w
 - `POST /workspaces/:workspaceId/campaigns`
 - `GET /campaigns/:campaignId`
 - `POST /campaigns/:campaignId/generate-brief`
-- `GET /drafts/:draftId`
-- `PATCH /drafts/:draftId`
-- `POST /drafts/:draftId/regenerate-section`
+- `GET /workspaces/:workspaceId/drafts` and `GET /workspaces/:workspaceId/drafts/:draftId`
+- `PATCH /workspaces/:workspaceId/drafts/:draftId` (send the `version` you last saw; D-058)
+- `POST /workspaces/:workspaceId/jobs/regenerate-section` (D-058; replaces `/drafts/:draftId/regenerate-section`)
 
 ### Jobs
 - `GET /workspaces/:workspaceId/jobs`

@@ -5,11 +5,14 @@ import {
   type TextProvider,
 } from '@creatorops/provider-core';
 
-import type { Db } from '../../db/client.js';
+import type { Db, DbOrTx } from '../../db/client.js';
 import { contentDrafts } from '../../db/schema.js';
+import { findDraftIn, updateDraftRow } from '../drafts/repo.js';
+import { applySectionChanges, readDraftContent } from '../drafts/state.js';
 import { generateBrief, PermanentJobFailure, type GenerationResult } from './generate-brief.js';
+import { regenerateSection, type RegenerationResult } from './regenerate-section.js';
 import type { JobQueue } from './queue.js';
-import { decideRetry } from './retry.js';
+import { decideRetry, FAILURE_MESSAGES } from './retry.js';
 import type { JobRow } from './repo.js';
 import {
   claimJob,
@@ -124,13 +127,21 @@ async function run(
   const timeout = AbortSignal.timeout(settings.providerTimeoutMs);
   const signal = AbortSignal.any([controller.signal, timeout]);
 
-  let result: GenerationResult;
+  let result: JobResult;
   try {
-    if (job.type !== 'generate_brief') {
-      // regenerate_section arrives with S3.6; until then nothing creates one.
-      throw new PermanentJobFailure('INTERNAL', 'This job type is not supported yet.');
+    if (job.type === 'generate_brief') {
+      result = {
+        kind: 'generate_brief',
+        ...(await generateBrief(deps.db, deps.provider, job, signal)),
+      };
+    } else if (job.type === 'regenerate_section') {
+      result = {
+        kind: 'regenerate_section',
+        ...(await regenerateSection(deps.db, deps.provider, job, signal)),
+      };
+    } else {
+      throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
     }
-    result = await generateBrief(deps.db, deps.provider, job, signal);
   } catch (error) {
     if (controller.signal.aborted) {
       return controller.signal.reason === 'lease' ? 'lost' : settleCancelled(deps, job, attempt);
@@ -142,11 +153,15 @@ async function run(
   return settleSuccess(deps, job, attempt, result);
 }
 
+type JobResult =
+  | ({ readonly kind: 'generate_brief' } & GenerationResult)
+  | ({ readonly kind: 'regenerate_section' } & RegenerationResult);
+
 async function settleSuccess(
   deps: WorkerDeps,
   job: JobRow,
   attempt: number,
-  result: GenerationResult,
+  result: JobResult,
 ): Promise<ProcessOutcome> {
   return deps.db.transaction(async (tx) => {
     const owned = await lockOwnedJob(tx, job.id, attempt);
@@ -155,6 +170,9 @@ async function settleSuccess(
     if (owned.cancelRequestedAt !== null) {
       await markCancelled(tx, job.id);
       return 'cancelled';
+    }
+    if (result.kind === 'regenerate_section') {
+      return settleRegeneration(tx, job, result);
     }
     const rows = await tx
       .insert(contentDrafts)
@@ -180,6 +198,63 @@ async function settleSuccess(
     });
     return 'succeeded';
   });
+}
+
+/**
+ * Stores a regenerated section (D-050). The draft row is locked first, so a manual edit and this
+ * job cannot interleave: if the section's revision is no longer the one the job was created for,
+ * the job fails with SECTION_CHANGED and the draft is left exactly as the edit made it.
+ */
+async function settleRegeneration(
+  tx: DbOrTx,
+  job: JobRow,
+  result: RegenerationResult,
+): Promise<ProcessOutcome> {
+  const draft = await findDraftIn(tx, job.workspaceId, result.draftId, { forUpdate: true });
+  const content = draft === null ? null : readDraftContent(draft);
+  if (draft === null || content === null) {
+    await markFailed(tx, job.id, {
+      code: 'INTERNAL',
+      message: 'The draft is no longer available.',
+    });
+    return 'failed';
+  }
+  if (content.sectionState[result.section]?.rev !== result.expectedRev) {
+    await markFailed(tx, job.id, {
+      code: 'SECTION_CHANGED',
+      message: FAILURE_MESSAGES.SECTION_CHANGED,
+    });
+    return 'failed';
+  }
+  const next = applySectionChanges(
+    content,
+    { [result.section]: result.value },
+    { origin: 'generated', jobId: job.id },
+    result.facts,
+  );
+  // A value equal to the old one changes nothing: the job still succeeds, the revision stays.
+  const updated =
+    next.changed.length === 0
+      ? draft
+      : await updateDraftRow(tx, job.workspaceId, draft.id, draft.version, {
+          sections: next.sections,
+          sectionState: next.sectionState,
+          claimWarnings: next.claimWarnings,
+          needsReview: next.needsReview,
+          status: 'draft',
+        });
+  if (updated === null) throw new Error('Draft update lost its row lock');
+  await markSucceeded(tx, job.id, {
+    output: {
+      draftId: draft.id,
+      section: result.section,
+      rev: next.sectionState[result.section]?.rev ?? result.expectedRev,
+      changed: next.changed.length > 0,
+      model: result.model,
+    },
+    provider: result.provider,
+  });
+  return 'succeeded';
 }
 
 async function settleCancelled(

@@ -31,7 +31,7 @@ const InputSchema = z.object({
 /** A failure that no retry can fix, with a message that is safe to show to a user. */
 export class PermanentJobFailure extends Error {
   constructor(
-    readonly code: 'INTERNAL',
+    readonly code: 'INTERNAL' | 'SECTION_CHANGED',
     message: string,
   ) {
     super(message);
@@ -54,7 +54,7 @@ export interface GenerationResult {
   readonly variants: GeneratedVariant[];
 }
 
-function toFacts(row: typeof products.$inferSelect): ProductFacts {
+export function toFacts(row: typeof products.$inferSelect): ProductFacts {
   const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   return {

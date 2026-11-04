@@ -19,6 +19,7 @@ import { createAssetDeps } from './modules/assets/deps.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
+import { registerDraftRoutes } from './modules/drafts/routes.js';
 import { NullJobQueue, type JobQueue } from './modules/jobs/queue.js';
 import { registerJobRoutes } from './modules/jobs/routes.js';
 import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
@@ -217,6 +218,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerWorkspaceRoutes(app, { db: options.db, guard, scope });
   registerProductRoutes(app, { db: options.db, guard, scope });
   registerCampaignRoutes(app, { db: options.db, guard, scope });
+  registerDraftRoutes(app, { db: options.db, guard, scope });
   registerJobRoutes(app, {
     db: options.db,
     guard,

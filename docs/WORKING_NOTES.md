@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.5 done, next S3.6).
+**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.6 done, next S3.7).
 
 ## Where we are
 
@@ -11,7 +11,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | 0 Foundation (monorepo, CI, config, redaction, local Postgres) | done |
 | 1 Extension shell + API foundation (mock auth, dashboard shell, MV3 side panel) | done |
 | 2 Workspaces, products, media (API, dashboard, extension product view, uploads, signed media) | done; see the exit check in `docs/IMPLEMENTATION_STATUS.md` |
-| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.5 done (see below); plan in D-045..D-056 |
+| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.6 done (see below); plan in D-045..D-058 |
 | 4+ real providers, export, publishing | blocked on open questions Q-001, Q-002, Q-005 (see `docs/DECISIONS.md`) |
 
 ### Phase 3 progress (plan: D-045..D-054, details D-055/D-056, evidence in `docs/IMPLEMENTATION_STATUS.md`)
@@ -24,14 +24,14 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | S3.3 campaign API + templates list | done |
 | S3.4 jobs API: idempotent create, cancel, caps, `JobQueue` interface (`NullJobQueue` default), transition table | done (commit 798206c) |
 | S3.5 worker: claim, lease + heartbeat on DB time, retry (D-048), reconciler every 30 s, cancel handling, BullMQ adapter, `scripts/redis-local.sh`, `REDIS_URL`, CI `redis:7`; details in D-057 | done |
-| **S3.6** draft get + versioned PATCH, regenerate-section job (`SECTION_CHANGED` guard; the worker already fails that job type with `INTERNAL` until its handler exists, see `process.ts`) | **next** |
-| S3.7 dashboard UI (Haiku worker) | todo |
+| S3.6 draft get, list, versioned PATCH, regenerate-section job with `SECTION_CHANGED` guard in the handler and again at settle; details in D-058 | done |
+| **S3.7** dashboard UI (Haiku worker): campaign list/create, generate, job status polling, draft view, section edit and regenerate | **next** |
 | S3.8 extension generate action + job status (Haiku worker) | todo |
 | S3.9 exit check against docs/06 Phase 3 and docs/07 | todo |
 
-Tests at the last full run (after S3.5): contracts 60, provider-core 95, config 12, ui 43, extension 48, web 124, api 384; end-to-end 42 (14 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (after S3.6): contracts 60, provider-core 95, config 12, ui 43, extension 48, web 124, api 421; end-to-end 42 (14 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
 
-Phase 3 gotchas: the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
+Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
 ## How to run things
 
@@ -85,5 +85,5 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.5 are done; next is S3.6 (draft get and list, versioned PATCH, regenerate-section job with its worker handler; orchestrator writes the job part), then S3.7 and S3.8 (Haiku workers), then the S3.9 exit check.
-3. Verified for real in S3.5: API + worker + Redis created drafts from an HTTP request; a transient failure retried 3 times and failed with a stable code; a job whose Redis message was wiped was recovered by the reconciler after about 65 s. Not yet exercised: a worker killed mid-job outside the unit tests.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.6 are done; next is S3.7 (dashboard: Haiku worker from the brief template; API surface is listed in D-046, D-056 and D-058), then S3.8 (extension generate action and job status), then the S3.9 exit check.
+3. Verified for real in S3.6: generate, regenerate-section, a stale-revision 409 and a stale-version 409 over HTTP with API, worker and Redis. Verified for real in S3.5: API + worker + Redis created drafts from an HTTP request; a transient failure retried 3 times and failed with a stable code; a job whose Redis message was wiped was recovered by the reconciler after about 65 s. Not yet exercised: a worker killed mid-job outside the unit tests.

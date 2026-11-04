@@ -81,4 +81,5 @@ Bad (survived): a restricted-claim test whose claim and text were both lower-cas
 | 2026-11-04 | S3.5 | Prettier run inside `apps/api` reformatted the OpenAPI snapshot (the ignore file is at the repo root) | Run Prettier from the repo root only |
 | 2026-11-04 | S3.5 | BullMQ rejects `:` in custom job ids, contradicting D-045 | Probe a third-party rule against the real service before writing it into a decision; record deviations in the decision file |
 | 2026-11-04 | S3.5 | Shell variables and exports do not survive between tool calls; a script used an unset variable | Put exports and `set -u` variables at the top of each script; re-export `DATABASE_URL` and `REDIS_URL` in every command |
-
+| 2026-11-04 | S3.6 | First mutation run reported every mutation "killed" because the authorization harness was already red (no fixtures for the new routes), so kills proved nothing | Run the touched test files green before any mutation run; list the failing test names, not only "failed" |
+| 2026-11-04 | S3.6 | A test helper `key = newKey()` default parameter: passing `undefined` to mean "no header" silently generated one | Use `null` for "absent" when a parameter has a default |

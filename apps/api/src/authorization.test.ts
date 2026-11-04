@@ -26,6 +26,7 @@ let victimProductId: string;
 let victimAssetId: string;
 let victimCampaignId: string;
 let victimJobId: string;
+let victimDraftId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -62,6 +63,29 @@ beforeAll(async () => {
     [victim.workspaceId, victim.userId, victimCampaignId],
   );
   victimJobId = job.rows[0]?.id ?? '';
+  const [draft] = await testDb.db
+    .insert(schema.contentDrafts)
+    .values({
+      workspaceId: victim.workspaceId,
+      campaignId: victimCampaignId,
+      productId: victimProductId,
+      sections: {
+        title: 'Victim draft',
+        hook: 'Hook',
+        script: 'Script',
+        storyboard: ['Scene'],
+        caption: 'Caption',
+        hashtags: ['#a'],
+        callToAction: 'Buy',
+      },
+      sectionState: Object.fromEntries(
+        ['title', 'hook', 'script', 'storyboard', 'caption', 'hashtags', 'callToAction'].map(
+          (name) => [name, { rev: 1, origin: 'generated', jobId: null }],
+        ),
+      ),
+    })
+    .returning({ id: schema.contentDrafts.id });
+  victimDraftId = draft?.id ?? '';
   fixtures = {
     foreignParams: {
       workspaceId: victim.workspaceId,
@@ -69,6 +93,7 @@ beforeAll(async () => {
       assetId: victimAssetId,
       campaignId: victimCampaignId,
       jobId: victimJobId,
+      draftId: victimDraftId,
     },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
@@ -80,6 +105,15 @@ beforeAll(async () => {
         templateVersion: 1,
       },
       'POST /api/v1/workspaces/:workspaceId/jobs/generate-brief': { campaignId: victimCampaignId },
+      'POST /api/v1/workspaces/:workspaceId/jobs/regenerate-section': {
+        draftId: victimDraftId,
+        section: 'hook',
+        expectedRev: 1,
+      },
+      'PATCH /api/v1/workspaces/:workspaceId/drafts/:draftId': {
+        version: 1,
+        sections: { hook: 'Pwned' },
+      },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,
         name: 'Pwned',
