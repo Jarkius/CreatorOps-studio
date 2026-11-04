@@ -31,7 +31,7 @@ const InputSchema = z.object({
 /** A failure that no retry can fix, with a message that is safe to show to a user. */
 export class PermanentJobFailure extends Error {
   constructor(
-    readonly code: 'INTERNAL' | 'SECTION_CHANGED',
+    readonly code: 'INTERNAL' | 'SECTION_CHANGED' | 'ASSET_UNAVAILABLE' | 'EXPORT_TOO_LARGE',
     message: string,
   ) {
     super(message);

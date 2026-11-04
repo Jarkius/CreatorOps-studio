@@ -1,4 +1,5 @@
 import {
+  CreateExportRequestSchema,
   GenerateBriefJobRequestSchema,
   JobListQuerySchema,
   JobListResponseSchema,
@@ -22,6 +23,7 @@ import type { RequestContext } from '../identity/context.js';
 import type { JobQueue } from './queue.js';
 import {
   cancelJob,
+  createExportPackageJob,
   createGenerateBriefJob,
   createRegenerateSectionJob,
   getJob,
@@ -99,6 +101,35 @@ export function registerJobRoutes(app: FastifyInstance, options: JobRouteOptions
     },
     async (request, reply) => {
       const { job, created } = await createRegenerateSectionJob(
+        db,
+        queue,
+        request.log,
+        contextOf(request),
+        request.body,
+        request.headers['idempotency-key'],
+      );
+      return reply.code(created ? 202 : 200).send(job);
+    },
+  );
+
+  typed.post(
+    `${base}/export-package`,
+    {
+      ...common,
+      config: { rateLimit: { max: options.createsPerMinute ?? 20, timeWindow: '1 minute' } },
+      schema: {
+        tags,
+        summary:
+          'Start building the export package of a draft (requires an Idempotency-Key header)',
+        security,
+        params: WorkspaceParamsSchema,
+        headers: IdempotencyHeaders,
+        body: CreateExportRequestSchema,
+        response: { 200: JobSchema, 202: JobSchema },
+      },
+    },
+    async (request, reply) => {
+      const { job, created } = await createExportPackageJob(
         db,
         queue,
         request.log,

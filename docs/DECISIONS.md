@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-074 | S5.7a export job: snapshot at creation, one storage key per job, row written when the job settles, worker gets storage | ACCEPTED (orchestrator, S5.7a) |
 | D-073 | A4 Full Auto: one tick on Create content runs the script, then the four scene images in order | ACCEPTED (orchestrator, A4) |
 | D-072 | A3 build choices: `scripting` permission, optional meta.ai host, e2e build grants it, helper structure | ACCEPTED (orchestrator, A3) |
 | D-071 | Meta AI helper: the extension drives the owner's own logged-in meta.ai tab, user-initiated and narrowly scoped (owner decision) | ACCEPTED (owner decision 2026-11-04) |
@@ -551,6 +552,15 @@ The real provider refuses to start without configured prices (no guessed default
 4. **Stops:** the first problem (sign-in wait timeout, challenge, limit, page not recognised, timeout, upload failure) or Cancel stops the whole run and says how many scenes were saved; nothing restarts by itself. Each scene is on the server before the next starts, so closing the panel loses at most the scene in progress. The run lives in the open panel page; it does not continue if the panel is closed.
 5. **Not built:** video scenes, a fresh Meta AI chat per scene (scenes share the owner's current thread; new images are found by comparing with the page before sending), saving edited prompts, resuming after the panel closes.
 6. **Not verified:** how the real meta.ai orders and addresses several images in one thread, and whether a prompt that follows an earlier one in the same thread behaves as a new request.
+
+## D-074 — S5.7a export job (2026-11-04)
+**Status:** ACCEPTED. Implements D-067 items 4 to 7 for job creation and the worker; the routes, signed download and sweeper are S5.7b.
+**Decision:**
+1. **Creation:** `POST /workspaces/:ws/jobs/export-package` (owner, admin, editor) takes `draftId` and `draftVersion`. A version that is not the current one gets 409. The job input is a snapshot: the draft text, status, claim-warning count and the attached files in package order with mime type, size and sha256, so a retry builds the same package and a later edit cannot race it. Caps are checked at creation (10 files, 500 MB: 409; 20 live packages per workspace: 429). The Idempotency-Key request hash is the draft id and version.
+2. **Worker:** `processJob` gets an optional `storage`. Without it the job fails with INTERNAL and a plain message. The handler loads the files by id in the job's own workspace, ready only, and requires the row's hash and size and the stored bytes' sha256 to equal the snapshot; anything else is `ASSET_UNAVAILABLE`, permanent, not retried. Over the cap is `EXPORT_TOO_LARGE`.
+3. **Storage and row:** the package is written to `exports/<workspace>/<job>.zip`, one key per job, so a retry deletes and replaces its own earlier file. The `draft_exports` row (expiry 7 days on the database clock) and the job's success are one transaction. If the job ends cancelled or lost, the file is deleted at once; a file left by a crash between the write and the settle has no row and is for the sweeper (S5.7b).
+4. **Package contents:** `media/NN-<cover|scene|media>.<ext>`, `draft.txt`, `caption.txt`, `hashtags.txt`, `publishing-checklist.md` (Thai; says posting is manual; adds lines for an unapproved draft, claim warnings and AI-made files by tool name), `manifest.json` (paths, roles, scenes, hashes, AI label; no user file names, no URLs). The zip builder is S5.6 (stored entries, ASCII names only).
+5. **Known limit:** the media of one package are held in memory while it is built (at most 500 MB by the cap); streaming from disk is a later change if the cap is raised.
 
 ## Open questions
 

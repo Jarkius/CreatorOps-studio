@@ -6,44 +6,10 @@ import { crc32 } from 'node:zlib';
 
 import { describe, expect, it } from 'vitest';
 
+import { readZip } from '../../test/zip-reader.js';
 import { ZipError, buildZip, zipChunks, type ZipEntry } from './zip.js';
 
 const FIXED = new Date(Date.UTC(2026, 10, 4, 12, 30, 10));
-
-interface Parsed {
-  name: string;
-  data: Buffer;
-  crc: number;
-  method: number;
-}
-
-/** Independent reader: walks the central directory, then reads each entry through its local header. */
-function readZip(zip: Buffer): Parsed[] {
-  const eocd = zip.length - 22;
-  expect(zip.readUInt32LE(eocd)).toBe(0x06054b50);
-  const count = zip.readUInt16LE(eocd + 10);
-  const centralSize = zip.readUInt32LE(eocd + 12);
-  const centralOffset = zip.readUInt32LE(eocd + 16);
-  expect(centralOffset + centralSize).toBe(eocd);
-  const out: Parsed[] = [];
-  let at = centralOffset;
-  for (let i = 0; i < count; i += 1) {
-    expect(zip.readUInt32LE(at)).toBe(0x02014b50);
-    const method = zip.readUInt16LE(at + 10);
-    const crc = zip.readUInt32LE(at + 16);
-    const size = zip.readUInt32LE(at + 24);
-    const nameLength = zip.readUInt16LE(at + 28);
-    const offset = zip.readUInt32LE(at + 42);
-    const name = zip.subarray(at + 46, at + 46 + nameLength).toString('ascii');
-    expect(zip.readUInt32LE(offset)).toBe(0x04034b50);
-    const localName = zip.readUInt16LE(offset + 26);
-    const localExtra = zip.readUInt16LE(offset + 28);
-    const start = offset + 30 + localName + localExtra;
-    out.push({ name, data: zip.subarray(start, start + size), crc, method });
-    at += 46 + nameLength;
-  }
-  return out;
-}
 
 const text = (value: string): ZipEntry['data'] => Buffer.from(value, 'utf8');
 

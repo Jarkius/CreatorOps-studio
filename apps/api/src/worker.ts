@@ -1,6 +1,7 @@
 import { MockTextProvider } from '@creatorops/provider-core';
 
 import { createDb } from './db/client.js';
+import { LocalFsStorage } from './storage/local-fs.js';
 import { BullMqJobQueue, startQueueWorker } from './modules/jobs/bullmq-queue.js';
 import { processJob } from './modules/jobs/process.js';
 import { RECONCILE_INTERVAL_MS, reconcile } from './modules/jobs/reconcile.js';
@@ -28,7 +29,8 @@ if (!prepared.ok) {
   const db = createDb(pool);
   const queue = new BullMqJobQueue(redisUrl);
   // The mock provider is the only one until Q-001 is answered (D-052).
-  const deps = { db, provider: new MockTextProvider(), queue, log: logger };
+  const storage = new LocalFsStorage(prepared.config.DATA_DIR);
+  const deps = { db, provider: new MockTextProvider(), queue, log: logger, storage };
 
   const worker = startQueueWorker({
     redisUrl,

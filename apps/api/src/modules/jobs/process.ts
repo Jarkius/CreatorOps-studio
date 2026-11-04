@@ -1,3 +1,5 @@
+import { EXPORT_LIMITS } from '@creatorops/contracts';
+import { sql } from 'drizzle-orm';
 import {
   isProviderError,
   ProviderError,
@@ -6,9 +8,11 @@ import {
 } from '@creatorops/provider-core';
 
 import type { Db, DbOrTx } from '../../db/client.js';
-import { contentDrafts } from '../../db/schema.js';
+import { contentDrafts, draftExports } from '../../db/schema.js';
+import type { Storage } from '../../storage/storage.js';
 import { findDraftIn, updateDraftRow } from '../drafts/repo.js';
 import { applySectionChanges, readDraftContent } from '../drafts/state.js';
+import { buildExport, type ExportResult } from './export-package.js';
 import { generateBrief, PermanentJobFailure, type GenerationResult } from './generate-brief.js';
 import { regenerateSection, type RegenerationResult } from './regenerate-section.js';
 import type { JobQueue } from './queue.js';
@@ -51,6 +55,8 @@ export interface WorkerDeps {
   readonly provider: TextProvider;
   readonly queue: JobQueue;
   readonly log: WorkerLog;
+  /** Where export packages are written. Without it an export job fails with a plain message. */
+  readonly storage?: Storage;
   readonly settings?: Partial<WorkerSettings>;
   /** Replaceable so tests can make the retry delay exact. */
   readonly random?: () => number;
@@ -139,6 +145,14 @@ async function run(
         kind: 'regenerate_section',
         ...(await regenerateSection(deps.db, deps.provider, job, signal)),
       };
+    } else if (job.type === 'export_package') {
+      if (deps.storage === undefined) {
+        throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
+      }
+      result = {
+        kind: 'export_package',
+        ...(await buildExport(deps.db, deps.storage, job, signal)),
+      };
     } else {
       throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
     }
@@ -150,12 +164,18 @@ async function run(
       timeout.aborted && !isProviderError(error) ? new ProviderError('TIMEOUT') : error;
     return settleFailure(deps, job, attempt, failure);
   }
-  return settleSuccess(deps, job, attempt, result);
+  const outcome = await settleSuccess(deps, job, attempt, result);
+  if (result.kind === 'export_package' && outcome !== 'succeeded' && deps.storage !== undefined) {
+    // The job was cancelled or taken over, so no row points at the file: remove it now.
+    await deps.storage.delete(result.storageKey).catch(() => undefined);
+  }
+  return outcome;
 }
 
 type JobResult =
   | ({ readonly kind: 'generate_brief' } & GenerationResult)
-  | ({ readonly kind: 'regenerate_section' } & RegenerationResult);
+  | ({ readonly kind: 'regenerate_section' } & RegenerationResult)
+  | ({ readonly kind: 'export_package' } & ExportResult);
 
 async function settleSuccess(
   deps: WorkerDeps,
@@ -173,6 +193,9 @@ async function settleSuccess(
     }
     if (result.kind === 'regenerate_section') {
       return settleRegeneration(tx, job, result);
+    }
+    if (result.kind === 'export_package') {
+      return settleExport(tx, job, result);
     }
     const rows = await tx
       .insert(contentDrafts)
@@ -253,6 +276,46 @@ async function settleRegeneration(
       model: result.model,
     },
     provider: result.provider,
+  });
+  return 'succeeded';
+}
+
+/**
+ * Records a finished package (D-067 item 4). The row and the job's success are one transaction, so
+ * a row always has a finished job. The expiry uses the database clock.
+ */
+async function settleExport(
+  tx: DbOrTx,
+  job: JobRow,
+  result: ExportResult,
+): Promise<ProcessOutcome> {
+  const rows = await tx
+    .insert(draftExports)
+    .values({
+      workspaceId: job.workspaceId,
+      draftId: result.draftId,
+      jobId: job.id,
+      createdBy: result.createdBy,
+      draftVersion: result.draftVersion,
+      fileCount: result.fileCount,
+      sizeBytes: result.sizeBytes,
+      sha256: result.sha256,
+      filename: result.filename,
+      storageKey: result.storageKey,
+      manifest: result.manifest,
+      expiresAt: sql`date_trunc('milliseconds', now()) + make_interval(days => ${EXPORT_LIMITS.ttlDays})`,
+    })
+    .returning({ id: draftExports.id });
+  const row = rows[0];
+  if (row === undefined) throw new Error('Export row was not written');
+  await markSucceeded(tx, job.id, {
+    output: {
+      exportId: row.id,
+      draftId: result.draftId,
+      fileCount: result.fileCount,
+      sizeBytes: result.sizeBytes,
+    },
+    provider: 'export',
   });
   return 'succeeded';
 }

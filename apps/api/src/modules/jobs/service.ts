@@ -5,6 +5,9 @@ import {
   JOB_ERROR_CODES,
   JOB_STATUS_VALUES,
   JOB_TYPE_VALUES,
+  DRAFT_SCENE_VALUES,
+  EXPORT_LIMITS,
+  type CreateExportRequest,
   type GenerateBriefJobRequest,
   type RegenerateSectionJobRequest,
   type Job,
@@ -19,6 +22,9 @@ import { recordAuditEvent } from '../audit/repo.js';
 import { findCampaign } from '../campaigns/repo.js';
 import { findDraft } from '../drafts/repo.js';
 import { readDraftContent } from '../drafts/state.js';
+import { listLinked } from '../draft-assets/repo.js';
+import { countLiveExports } from '../export/repo.js';
+import type { ExportInput } from '../export/input.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
 import type { JobQueue } from './queue.js';
@@ -66,6 +72,7 @@ export function toJob(row: JobRow): Job {
 }
 
 const notFound = () => new AppError('NOT_FOUND', 'Job not found.');
+const SCENE_VALUES = DRAFT_SCENE_VALUES;
 
 function invalid(path: string, message: string): AppError {
   return new AppError('VALIDATION_ERROR', 'The request is not valid.', [{ path, message }]);
@@ -96,7 +103,7 @@ export interface CreateJobResult {
 
 /** What a job type decides itself; everything else about creating a job is shared. */
 interface JobSpec {
-  readonly type: 'generate_brief' | 'regenerate_section';
+  readonly type: 'generate_brief' | 'regenerate_section' | 'export_package';
   /** Identifies the request: the type plus its target, never the key itself. */
   readonly hashTarget: string;
   /** Runs inside the creation transaction, after the replay check; throws to refuse the job. */
@@ -275,6 +282,86 @@ export function createRegenerateSectionJob(
           campaignId: null,
           draftId: draft.id,
           audit: { draftId: draft.id, section: body.section },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
+/**
+ * Starts building the export package of a draft (D-067). The job carries a snapshot of the text and
+ * of the attached files (with their hashes), so a retry builds the same package and a later edit
+ * cannot race it. `draftVersion` is the version the user is looking at: a newer one is refused.
+ */
+export function createExportPackageJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: CreateExportRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'export_package',
+      hashTarget: `${draftId}:${body.draftVersion}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        if (draft.version !== body.draftVersion) {
+          throw new AppError(
+            'CONFLICT',
+            'This draft was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const content = readDraftContent(draft);
+        if (content === null)
+          throw new Error(`Draft ${draft.id} does not match the content contract`);
+        const linked = await listLinked(tx, ctx.workspaceId, draft.id);
+        const total = linked.reduce((sum, item) => sum + item.asset.sizeBytes, 0);
+        if (linked.length > EXPORT_LIMITS.maxMediaFiles || total > EXPORT_LIMITS.maxPackageBytes) {
+          throw new AppError(
+            'CONFLICT',
+            'The attached files are too large to export. Remove some and try again.',
+          );
+        }
+        if ((await countLiveExports(tx, ctx)) >= EXPORT_LIMITS.maxLivePerWorkspace) {
+          throw new AppError(
+            'RATE_LIMITED',
+            'This workspace has too many packages. Wait for older ones to expire.',
+          );
+        }
+        const snapshot: ExportInput = {
+          draftId: draft.id,
+          draftVersion: draft.version,
+          status:
+            draft.status === 'approved' || draft.status === 'in_review' ? draft.status : 'draft',
+          needsReview: draft.needsReview,
+          claimWarningCount: content.claimWarnings.length,
+          sections: content.sections,
+          media: linked.map(({ link, asset }) => ({
+            assetId: asset.id,
+            role: link.role === 'cover' ? 'cover' : 'media',
+            scene: SCENE_VALUES.find((scene) => scene === link.scene) ?? null,
+            aiGenerated: link.aiGenerated,
+            generator: link.generator,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            sha256: asset.sha256,
+          })),
+        };
+        return {
+          input: snapshot as unknown as Record<string, unknown>,
+          campaignId: null,
+          draftId: draft.id,
+          // Counts only: never text, names or URLs.
+          audit: { draftId: draft.id, draftVersion: draft.version, files: linked.length },
         };
       },
     },
