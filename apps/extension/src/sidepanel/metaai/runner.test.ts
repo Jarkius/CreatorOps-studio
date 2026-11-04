@@ -45,7 +45,8 @@ function setup(options: Setup = {}) {
   const file = options.file ?? new Uint8Array([1, 2, 3, 4]);
   let mediaCall = 0;
   const media = options.media ?? [[], ['https://cdn.test/a.png']];
-  const calls = { submit: 0, clear: 0, open: 0, sleeps: 0, typedPrompt: '' };
+  const calls = { submit: 0, clear: 0, open: 0, sleeps: 0, focus: 0, typedPrompt: '' };
+  const signIn: boolean[] = [];
   const page: PageFunctions = {
     probePage: () => (options.probes ?? (() => probe()))(),
     submitPrompt: (_sel, prompt) => {
@@ -69,6 +70,10 @@ function setup(options: Setup = {}) {
     hasPermission: () => Promise.resolve(options.permission ?? true),
     requestPermission: () => Promise.resolve(true),
     findTab: () => Promise.resolve(options.tab === undefined ? 7 : options.tab),
+    focusTab: () => {
+      calls.focus += 1;
+      return Promise.resolve();
+    },
     openTab: () => {
       calls.open += 1;
       return Promise.resolve(9);
@@ -86,6 +91,7 @@ function setup(options: Setup = {}) {
       prompt: PROMPT,
       signal: controller.signal,
       onStep: (step) => steps.push(step),
+      onWaitingForSignIn: (waiting) => signIn.push(waiting),
       log: (line) => lines.push(line),
       sleep: () => {
         calls.sleeps += 1;
@@ -93,7 +99,7 @@ function setup(options: Setup = {}) {
         return Promise.resolve();
       },
     });
-  return { run, steps, lines, calls, controller };
+  return { run, steps, lines, calls, controller, signIn };
 }
 
 async function code(promise: Promise<unknown>): Promise<string> {
@@ -148,18 +154,76 @@ describe('runMetaAiScene', () => {
     expect(t.lines.some((line) => line.note.includes('1 new media items'))).toBe(true);
   });
 
-  it('stops before typing on a login page, a challenge or a limit', async () => {
+  it('stops before typing on a challenge or a limit', async () => {
     for (const [state, expected] of [
-      ['login', 'LOGIN_REQUIRED'],
       ['challenge', 'CHALLENGE'],
       ['limit', 'RATE_LIMITED'],
     ] as const) {
-      const t = setup({
-        probes: () => probe({ state, promptBoxIndex: state === 'login' ? -1 : 0 }),
-      });
+      const t = setup({ probes: () => probe({ state }) });
       expect(await code(t.run()), state).toBe(expected);
       expect(t.calls.submit, state).toBe(0);
     }
+  });
+
+  const loginPage = () => probe({ state: 'login', promptBoxIndex: -1 });
+
+  it('waits for the owner on a sign-in page, brings the tab forward, and carries on by itself', async () => {
+    let calls = 0;
+    const t = setup({ probes: () => (++calls <= 4 ? loginPage() : probe()) });
+    const result = await t.run();
+    expect(result.bytes.byteLength).toBe(4);
+    expect(t.signIn).toEqual([true, false]);
+    expect(t.calls.focus).toBe(1);
+    expect(t.calls.submit).toBe(1);
+  });
+
+  it('gives up on a sign-in page after five minutes and never types', async () => {
+    const t = setup({ probes: loginPage });
+    expect(await code(t.run())).toBe('LOGIN_REQUIRED');
+    expect(t.calls.sleeps).toBeGreaterThan(140);
+    expect(t.calls.sleeps).toBeLessThan(160);
+    expect(t.calls.submit).toBe(0);
+    expect(t.signIn).toEqual([true, false]);
+  });
+
+  it('keeps waiting while the tab is on another site to sign in, and then continues', async () => {
+    let calls = 0;
+    const t = setup({
+      probes: () => {
+        calls += 1;
+        if (calls === 1) return loginPage();
+        if (calls <= 4) throw new Error('cannot read this page');
+        return probe();
+      },
+    });
+    await t.run();
+    expect(t.calls.submit).toBe(1);
+  });
+
+  it('does not wait for a tab that cannot be read when the owner is not signing in', async () => {
+    const t = setup({
+      probes: () => {
+        throw new Error('cannot read this page');
+      },
+    });
+    await expect(t.run()).rejects.toThrow('cannot read this page');
+  });
+
+  it('stops with a challenge that shows up during sign-in', async () => {
+    let calls = 0;
+    const t = setup({ probes: () => (++calls <= 2 ? loginPage() : probe({ state: 'challenge' })) });
+    expect(await code(t.run())).toBe('CHALLENGE');
+  });
+
+  it('can be cancelled while waiting for sign-in', async () => {
+    const controller = new AbortController();
+    const t = setup({
+      probes: loginPage,
+      controller,
+      onSleep: (n) => n === 3 && controller.abort(),
+    });
+    expect(await code(t.run())).toBe('CANCELLED');
+    expect(t.signIn).toEqual([true, false]);
   });
 
   it('stops with a challenge that appears while waiting', async () => {

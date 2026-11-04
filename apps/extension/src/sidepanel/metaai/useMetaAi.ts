@@ -36,6 +36,7 @@ export type HelperState =
       readonly phase: 'running';
       readonly scene: DraftScene;
       readonly step: StepId;
+      readonly waitingForSignIn: boolean;
       readonly diagnostics: string;
     }
   | { readonly phase: 'done'; readonly scene: DraftScene; readonly diagnostics: string }
@@ -72,7 +73,17 @@ export function useMetaAiHelper(
       const report = (code: MetaAiErrorCode | 'OK' | 'UNKNOWN') =>
         formatDiagnostics(lines, { code, scene }, new Date());
       const step = (next: StepId) =>
-        setState({ phase: 'running', scene, step: next, diagnostics: report('OK') });
+        setState({
+          phase: 'running',
+          scene,
+          step: next,
+          waitingForSignIn: false,
+          diagnostics: report('OK'),
+        });
+      const signIn = (waiting: boolean) =>
+        setState((previous) =>
+          previous.phase === 'running' ? { ...previous, waitingForSignIn: waiting } : previous,
+        );
       step('opening');
       try {
         const helper = deps ?? defaultHelperDeps();
@@ -91,6 +102,7 @@ export function useMetaAiHelper(
           prompt,
           signal: controller.signal,
           onStep: step,
+          onWaitingForSignIn: signIn,
           log,
           ...(helper.sleep === undefined ? {} : { sleep: helper.sleep }),
         });

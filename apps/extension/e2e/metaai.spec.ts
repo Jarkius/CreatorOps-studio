@@ -71,15 +71,20 @@ document.querySelector('button').addEventListener('click', function () {
 const LOGIN_PAGE = `<!doctype html><html><head><title>Meta AI</title></head><body><p>Log in to continue</p></body></html>`;
 
 /** Serves a fake meta.ai: no network, no real site. */
-async function fakeMetaAi(context: BrowserContext, html: string): Promise<void> {
+async function fakeMetaAi(
+  context: BrowserContext,
+  html: string,
+): Promise<{ setHtml: (next: string) => void }> {
+  const state = { html };
   await context.route('https://www.meta.ai/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('.png')) {
       await route.fulfill({ status: 200, contentType: 'image/png', body: pngBytes() });
     } else {
-      await route.fulfill({ status: 200, contentType: 'text/html', body: html });
+      await route.fulfill({ status: 200, contentType: 'text/html', body: state.html });
     }
   });
+  return { setHtml: (next) => (state.html = next) };
 }
 
 async function api<T>(
@@ -228,21 +233,37 @@ test('Generate in Meta AI types the prompt into the owner tab and saves the imag
   });
 });
 
-test('Generate in Meta AI stops on a sign-in page and offers diagnostics', async ({
+test('Generate in Meta AI waits for the owner to sign in, then carries on by itself', async ({
   context,
   extensionId,
   request,
 }) => {
   const name = `E2E Meta AI login ${Date.now()}`;
-  await finishedCampaign(request, name);
-  await fakeMetaAi(context, LOGIN_PAGE);
+  const seeded = await finishedCampaign(request, name);
+  const site = await fakeMetaAi(context, LOGIN_PAGE);
 
   const panel = await context.newPage();
   await openScenes(panel, extensionId, name);
   await panel.getByRole('button', { name: 'Generate Usage in Meta AI' }).click();
-  await expect(panel.getByRole('alert')).toContainText('asking you to sign in', {
+  await expect(panel.getByText(/Waiting for you to sign in in the Meta AI tab/)).toBeVisible({
     timeout: 30_000,
   });
-  await expect(panel.getByRole('button', { name: 'Copy diagnostics' })).toBeVisible();
+  // Nothing is typed or saved while it waits.
   await expect(panel.getByText(/File: /)).toHaveCount(0);
+
+  // The owner signs in: the tab now shows the chat, and the helper continues without a click.
+  site.setHtml(FAKE_PAGE);
+  const tab = context.pages().find((page) => page.url().startsWith('https://www.meta.ai/'));
+  await tab?.reload();
+  await expect(
+    panel.getByRole('status').filter({ hasText: 'Saved the image to Usage.' }),
+  ).toBeVisible({ timeout: 45_000 });
+  await expect(panel.getByText(/File: meta-ai-usage-/)).toBeVisible();
+  const attached = await api<{ items: { scene: string }[] }>(
+    request,
+    seeded.token,
+    'GET',
+    `/api/v1/workspaces/${encodeURIComponent(seeded.workspaceId)}/drafts/${seeded.draftId}/assets`,
+  );
+  expect(attached.items.map((item) => item.scene)).toEqual(['usage']);
 });

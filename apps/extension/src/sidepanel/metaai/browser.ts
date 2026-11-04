@@ -43,6 +43,9 @@ export function createChromeBrowser(): MetaAiBrowser {
         );
       });
     },
+    async focusTab(tabId) {
+      await chrome.tabs.update(tabId, { active: true });
+    },
     async run(tabId, func, args) {
       try {
         const results = await chrome.scripting.executeScript({

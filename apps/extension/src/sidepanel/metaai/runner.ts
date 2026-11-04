@@ -4,6 +4,7 @@ import type { PageProbe, StashInfo, SubmitResult } from './page.js';
 import {
   META_AI_CHUNK_BYTES,
   META_AI_LOAD_TIMEOUT_MS,
+  META_AI_LOGIN_TIMEOUT_MS,
   META_AI_POLL_MS,
   META_AI_PROMPT_BOX_TIMEOUT_MS,
   META_AI_SELECTORS,
@@ -43,6 +44,8 @@ export interface MetaAiBrowser {
   findTab(): Promise<number | null>;
   /** Opens a visible tab and resolves when it has finished loading (or rejects on timeout). */
   openTab(url: string, timeoutMs: number): Promise<number>;
+  /** Brings the tab to the front so the owner sees the sign-in page. Optional. */
+  focusTab?(tabId: number): Promise<void>;
   /** Runs one of the functions of `page.ts` inside the tab. */
   run<Args extends unknown[], Result>(
     tabId: number,
@@ -99,6 +102,8 @@ export interface RunOptions {
   readonly kind?: 'image' | 'video';
   readonly signal: AbortSignal;
   readonly onStep: (step: StepId) => void;
+  /** True while the helper waits for the owner to sign in in the Meta AI tab. */
+  readonly onWaitingForSignIn?: (waiting: boolean) => void;
   readonly log: (line: DiagnosticLine) => void;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly now?: () => number;
@@ -208,23 +213,60 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
   }
   const tab = tabId;
   const stashed = { value: false };
+  const signingIn = { value: false };
 
   try {
     onStep('checking');
-    let probe: PageProbe | null = null;
-    for (let waited = 0; waited <= META_AI_PROMPT_BOX_TIMEOUT_MS; waited += META_AI_POLL_MS) {
+    // Wait for the prompt box. On a sign-in page the helper waits for the owner (bounded) in
+    // the visible tab and carries on by itself once the box appears; it never signs in.
+    let loadWaited = 0;
+    let signInWaited = 0;
+    for (;;) {
       checkAborted();
-      probe = await inTab(tab, page.probePage, [selectors]);
-      note('checking', describe(probe));
-      assertUsable(probe);
-      if (probe.promptBoxIndex >= 0) break;
+      let probe: PageProbe | null = null;
+      try {
+        probe = await inTab(tab, page.probePage, [selectors]);
+      } catch (error) {
+        // While signing in the tab may be on another site's sign-in page, which the helper
+        // cannot read; keep waiting for it to come back.
+        if (!signingIn.value || (error instanceof MetaAiError && error.code === 'CANCELLED')) {
+          throw error;
+        }
+        note('checking', 'the tab is not readable right now (signing in)');
+      }
+      if (probe !== null) {
+        note('checking', describe(probe));
+        if (probe.state !== 'login') assertUsable(probe);
+        if (probe.promptBoxIndex >= 0) break;
+        if (probe.state === 'login' && !signingIn.value) {
+          signingIn.value = true;
+          options.onWaitingForSignIn?.(true);
+          await browser.focusTab?.(tab).catch(() => undefined);
+          note('checking', 'sign-in page: waiting for the owner to sign in');
+        }
+      }
+      if (signingIn.value) {
+        signInWaited += META_AI_POLL_MS;
+        if (signInWaited > META_AI_LOGIN_TIMEOUT_MS) {
+          throw new MetaAiError(
+            'LOGIN_REQUIRED',
+            'Meta AI was not signed in within 5 minutes. Sign in in that tab, then try again.',
+          );
+        }
+      } else {
+        loadWaited += META_AI_POLL_MS;
+        if (loadWaited > META_AI_PROMPT_BOX_TIMEOUT_MS) {
+          throw new MetaAiError(
+            'PAGE_NOT_RECOGNISED',
+            'The Meta AI page does not look the way the helper expects. Use Copy diagnostics and send it for a fix.',
+          );
+        }
+      }
       await wait(META_AI_POLL_MS);
     }
-    if (probe === null || probe.promptBoxIndex < 0) {
-      throw new MetaAiError(
-        'PAGE_NOT_RECOGNISED',
-        'The Meta AI page does not look the way the helper expects. Use Copy diagnostics and send it for a fix.',
-      );
+    if (signingIn.value) {
+      signingIn.value = false;
+      options.onWaitingForSignIn?.(false);
     }
 
     const before = await inTab(tab, page.listMedia, [selectors]);
@@ -299,6 +341,7 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     }
     return { bytes, mimeType: info.type };
   } finally {
+    if (signingIn.value) options.onWaitingForSignIn?.(false);
     if (stashed.value) {
       await browser.run(tab, page.clearStash, []).catch(() => false);
     }

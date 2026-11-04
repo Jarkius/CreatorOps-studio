@@ -49,6 +49,11 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
               );
             })}
           </ol>
+          {state.waitingForSignIn ? (
+            <p role="status" className="mt-2 font-medium">
+              Waiting for you to sign in in the Meta AI tab. It continues by itself afterwards.
+            </p>
+          ) : null}
           <div className="mt-2">
             <Button variant="secondary" onClick={onCancel}>
               Cancel

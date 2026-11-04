@@ -56,6 +56,8 @@ export const META_AI_TIMEOUT_MS = { image: 3 * 60_000, video: 10 * 60_000 } as c
 /** How long a new tab may take to load, and how long the prompt box may take to show up. */
 export const META_AI_LOAD_TIMEOUT_MS = 30_000;
 export const META_AI_PROMPT_BOX_TIMEOUT_MS = 15_000;
+/** How long the helper waits for the owner to sign in before it gives up. */
+export const META_AI_LOGIN_TIMEOUT_MS = 5 * 60_000;
 export const META_AI_POLL_MS = 2_000;
 /** Bytes read from the page per call (before base64). */
 export const META_AI_CHUNK_BYTES = 512 * 1024;

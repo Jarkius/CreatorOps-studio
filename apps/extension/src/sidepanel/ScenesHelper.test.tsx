@@ -43,6 +43,7 @@ function fakeHelper(options: {
   permission?: boolean;
   grant?: boolean;
   probe?: PageProbe | 'hang';
+  hangSleep?: boolean;
 }) {
   let mediaCalls = 0;
   const calls = { request: 0, submit: 0, probe: 0 };
@@ -75,7 +76,7 @@ function fakeHelper(options: {
   const deps: HelperDeps = {
     browser,
     page,
-    sleep: () => Promise.resolve(),
+    sleep: () => (options.hangSleep ? new Promise(() => undefined) : Promise.resolve()),
     fetchImpl: (() => Promise.resolve(new Response(null, { status: 200 }))) as typeof fetch,
   };
   return { deps, calls };
@@ -177,13 +178,28 @@ describe('Meta AI helper in the scene list (A3)', () => {
     await waitFor(() => expect(api.listAssets.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
-  it('stops on a login page with a plain message and a Copy diagnostics button', async () => {
+  it('tells the owner it is waiting for sign-in, and can be cancelled meanwhile', async () => {
+    const user = userEvent.setup();
+    setup(
+      fakeHelper({
+        probe: { ...READY, state: 'login', promptBoxIndex: -1 },
+        hangSleep: true,
+      }).deps,
+    );
+    await openScenes(user);
+    await user.click(screen.getByRole('button', { name: 'Generate Usage in Meta AI' }));
+    expect(await screen.findByText(/Waiting for you to sign in in the Meta AI tab/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cancelled.');
+  });
+
+  it('stops when nobody signs in in time, with a plain message and a Copy diagnostics button', async () => {
     const user = userEvent.setup();
     const writeText = stubClipboard();
     setup(fakeHelper({ probe: { ...READY, state: 'login', promptBoxIndex: -1 } }).deps);
     await openScenes(user);
     await user.click(screen.getByRole('button', { name: 'Generate Detail in Meta AI' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('asking you to sign in');
+    expect(await screen.findByRole('alert')).toHaveTextContent('not signed in within 5 minutes');
     await user.click(screen.getByRole('button', { name: 'Copy diagnostics' }));
     const text = String(writeText.mock.calls[0]?.[0]);
     expect(text).toContain('result: LOGIN_REQUIRED');
