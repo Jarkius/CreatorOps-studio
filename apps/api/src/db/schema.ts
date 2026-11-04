@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -411,7 +412,7 @@ export const contentDrafts = pgTable(
   ],
 );
 
-export const JOB_TYPES = ['generate_brief', 'regenerate_section'] as const;
+export const JOB_TYPES = ['generate_brief', 'regenerate_section', 'export_package'] as const;
 export const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 export const JOB_ERROR_CODES = [
   'PROVIDER_TIMEOUT',
@@ -420,6 +421,8 @@ export const JOB_ERROR_CODES = [
   'INVALID_PROVIDER_OUTPUT',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
+  'ASSET_UNAVAILABLE',
+  'EXPORT_TOO_LARGE',
   'CANCELLED',
   'INTERNAL',
 ] as const;
@@ -475,14 +478,17 @@ export const jobs = pgTable(
       columns: [t.workspaceId, t.draftId],
       foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
     }),
-    check('jobs_type_check', sql`${t.type} in ('generate_brief', 'regenerate_section')`),
+    check(
+      'jobs_type_check',
+      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package')`,
+    ),
     check(
       'jobs_status_check',
       sql`${t.status} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`,
     ),
     check(
       'jobs_error_code_check',
-      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'CANCELLED', 'INTERNAL')`,
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
     ),
     check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
     check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),
@@ -510,10 +516,108 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_target_matches_type',
-      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null)`,
+      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null)`,
     ),
     index('jobs_claim_idx').on(t.status, t.runAfter),
     index('jobs_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
     index('jobs_workspace_status_idx').on(t.workspaceId, t.status),
+  ],
+);
+
+export const DRAFT_ASSET_ROLES = ['cover', 'media'] as const;
+
+/**
+ * Assets attached to a draft, in package order (D-067). Both foreign keys carry the workspace, so
+ * an asset or a draft of another workspace cannot be linked. At most one cover per draft, at most
+ * ten rows per draft (sort_order 0 to 9, unique per draft).
+ */
+export const draftAssets = pgTable(
+  'draft_assets',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    draftId: uuid('draft_id').notNull(),
+    assetId: uuid('asset_id').notNull(),
+    role: text('role').notNull().default('media'),
+    sortOrder: integer('sort_order').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    primaryKey({ name: 'draft_assets_pk', columns: [t.draftId, t.assetId] }),
+    foreignKey({
+      name: 'draft_assets_draft_fk',
+      columns: [t.workspaceId, t.draftId],
+      foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'draft_assets_asset_fk',
+      columns: [t.workspaceId, t.assetId],
+      foreignColumns: [assets.workspaceId, assets.id],
+    }),
+    unique('draft_assets_order_unique').on(t.draftId, t.sortOrder),
+    check('draft_assets_role_check', sql`${t.role} in ('cover', 'media')`),
+    check('draft_assets_sort_order_check', sql`${t.sortOrder} between 0 and 9`),
+    uniqueIndex('draft_assets_one_cover_idx')
+      .on(t.draftId)
+      .where(sql`${t.role} = 'cover'`),
+    index('draft_assets_asset_idx').on(t.workspaceId, t.assetId),
+  ],
+);
+
+export const EXPORT_STATUSES = ['ready', 'expired'] as const;
+
+/**
+ * A finished export package (D-067). The file lives in object storage under `storage_key`; the row
+ * is written in the same transaction that settles the export job, so a row always has a finished
+ * job. `expired` rows keep their metadata after the file is deleted.
+ */
+export const draftExports = pgTable(
+  'draft_exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    draftId: uuid('draft_id').notNull(),
+    jobId: uuid('job_id').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull().default('ready'),
+    draftVersion: integer('draft_version').notNull(),
+    fileCount: integer('file_count').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    sha256: char('sha256', { length: 64 }).notNull(),
+    filename: text('filename').notNull(),
+    storageKey: text('storage_key').notNull(),
+    manifest: jsonb('manifest').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    unique('draft_exports_workspace_id_id_unique').on(t.workspaceId, t.id),
+    unique('draft_exports_job_unique').on(t.jobId),
+    unique('draft_exports_storage_key_unique').on(t.storageKey),
+    foreignKey({
+      name: 'draft_exports_draft_fk',
+      columns: [t.workspaceId, t.draftId],
+      foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
+    }),
+    foreignKey({
+      name: 'draft_exports_job_fk',
+      columns: [t.workspaceId, t.jobId],
+      foreignColumns: [jobs.workspaceId, jobs.id],
+    }),
+    check('draft_exports_status_check', sql`${t.status} in ('ready', 'expired')`),
+    check('draft_exports_counts_check', sql`${t.fileCount} >= 0 and ${t.sizeBytes} >= 0`),
+    check('draft_exports_sha_format', sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check('draft_exports_manifest_object', sql`jsonb_typeof(${t.manifest}) = 'object'`),
+    index('draft_exports_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
+    index('draft_exports_draft_idx').on(t.workspaceId, t.draftId),
+    index('draft_exports_expiry_idx').on(t.status, t.expiresAt),
   ],
 );

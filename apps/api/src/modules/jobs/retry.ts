@@ -33,6 +33,9 @@ export const FAILURE_MESSAGES: Readonly<Record<JobErrorCode, string>> = {
   INVALID_PROVIDER_OUTPUT: 'The text provider returned output that failed validation.',
   CONTENT_REFUSED: 'The text provider refused to generate this content.',
   SECTION_CHANGED: 'The section was edited while the job was running.',
+  ASSET_UNAVAILABLE:
+    'An attached file is missing or no longer available. Check the attachments and try again.',
+  EXPORT_TOO_LARGE: 'The package is too large to export. Remove some attachments and try again.',
   CANCELLED: 'Cancelled by a user.',
   INTERNAL: 'The job failed unexpectedly.',
 };

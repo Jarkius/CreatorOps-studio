@@ -31,7 +31,7 @@ export const DRAFT_STATUS_VALUES = ['draft', 'in_review', 'approved'] as const;
 export const DraftStatusSchema = z.enum(DRAFT_STATUS_VALUES);
 export type DraftStatus = z.infer<typeof DraftStatusSchema>;
 
-export const JOB_TYPE_VALUES = ['generate_brief', 'regenerate_section'] as const;
+export const JOB_TYPE_VALUES = ['generate_brief', 'regenerate_section', 'export_package'] as const;
 export const JobTypeSchema = z.enum(JOB_TYPE_VALUES);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
@@ -47,6 +47,8 @@ export const JOB_ERROR_CODES = [
   'INVALID_PROVIDER_OUTPUT',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
+  'ASSET_UNAVAILABLE',
+  'EXPORT_TOO_LARGE',
   'CANCELLED',
   'INTERNAL',
 ] as const;

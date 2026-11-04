@@ -97,7 +97,7 @@ describe('enum tuples', () => {
     expect(PLATFORM_VALUES).toEqual(['tiktok', 'facebook', 'shopee', 'generic']);
     expect(CAMPAIGN_STATUS_VALUES).toEqual(['draft', 'active', 'archived']);
     expect(DRAFT_STATUS_VALUES).toEqual(['draft', 'in_review', 'approved']);
-    expect(JOB_TYPE_VALUES).toEqual(['generate_brief', 'regenerate_section']);
+    expect(JOB_TYPE_VALUES).toEqual(['generate_brief', 'regenerate_section', 'export_package']);
     expect(JOB_STATUS_VALUES).toEqual(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
     expect(JOB_ERROR_CODES).toEqual([
       'PROVIDER_TIMEOUT',
@@ -106,6 +106,8 @@ describe('enum tuples', () => {
       'INVALID_PROVIDER_OUTPUT',
       'CONTENT_REFUSED',
       'SECTION_CHANGED',
+      'ASSET_UNAVAILABLE',
+      'EXPORT_TOO_LARGE',
       'CANCELLED',
       'INTERNAL',
     ]);

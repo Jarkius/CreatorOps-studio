@@ -1705,7 +1705,8 @@
                                 "type": "string",
                                 "enum": [
                                   "generate_brief",
-                                  "regenerate_section"
+                                  "regenerate_section",
+                                  "export_package"
                                 ]
                               },
                               "status": {
@@ -1737,6 +1738,8 @@
                                   "INVALID_PROVIDER_OUTPUT",
                                   "CONTENT_REFUSED",
                                   "SECTION_CHANGED",
+                                  "ASSET_UNAVAILABLE",
+                                  "EXPORT_TOO_LARGE",
                                   "CANCELLED",
                                   "INTERNAL"
                                 ]
@@ -3223,7 +3226,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -3255,6 +3259,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3337,7 +3343,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -3369,6 +3376,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3524,7 +3533,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -3556,6 +3566,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3638,7 +3650,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -3670,6 +3683,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3765,7 +3780,8 @@
               "type": "string",
               "enum": [
                 "generate_brief",
-                "regenerate_section"
+                "regenerate_section",
+                "export_package"
               ]
             },
             "in": "query",
@@ -3849,7 +3865,8 @@
                             "type": "string",
                             "enum": [
                               "generate_brief",
-                              "regenerate_section"
+                              "regenerate_section",
+                              "export_package"
                             ]
                           },
                           "status": {
@@ -3881,6 +3898,8 @@
                               "INVALID_PROVIDER_OUTPUT",
                               "CONTENT_REFUSED",
                               "SECTION_CHANGED",
+                              "ASSET_UNAVAILABLE",
+                              "EXPORT_TOO_LARGE",
                               "CANCELLED",
                               "INTERNAL"
                             ]
@@ -4008,7 +4027,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -4040,6 +4060,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4155,7 +4177,8 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package"
                       ]
                     },
                     "status": {
@@ -4187,6 +4210,8 @@
                         "INVALID_PROVIDER_OUTPUT",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
                         "CANCELLED",
                         "INTERNAL"
                       ]
