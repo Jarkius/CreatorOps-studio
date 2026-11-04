@@ -81,7 +81,7 @@ Exit criteria from docs/06: create a product in the dashboard and see it in the 
 | Extension shows product images | not implemented: needs `img-src` in the manifest CSP (D-039) | Deferred |
 | Provider secrets server-side; all routes enforce workspace authorization; no prohibited features; publishing disabled | bundle scan; route policy and harness; no such code exists | Done |
 
-Known gaps carried forward: a workspace-creation screen; visual and screen-reader checks beyond axe; real toolbar-click check in Chrome; progress bars in a real browser.
+Workspace-creation screen added after the exit check (route `/workspaces/new`, "New workspace" link, zero-workspace prompt on Overview and product pages; web unit 124, e2e 28 on a fresh DB; verified by the orchestrator). Known gaps carried forward: the asset library is not gated for a zero-workspace user; the zero-workspace state has unit tests only (no e2e); visual and screen-reader checks beyond axe; real toolbar-click check in Chrome; progress bars in a real browser.
 Not verified locally: the GitHub Actions workflow (including the `postgres:16` service and the gitleaks job) has not run yet; Docker Compose is untested because no Docker daemon is available here.
 
 ## Tooling notes

@@ -1,7 +1,10 @@
-import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router';
+
+import { buttonClassName } from '@creatorops/ui';
 
 import { assetsPath } from '../features/assets/paths.js';
 import { productsPath } from '../features/products/paths.js';
+import { NEW_WORKSPACE_PATH } from '../features/workspaces/WorkspaceRequired.js';
 import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
 
 const DISABLED_ITEMS = [
@@ -67,6 +70,9 @@ export function Layout() {
             </select>
           </div>
         ) : null}
+        <Link to={NEW_WORKSPACE_PATH} className={`${buttonClassName('secondary')} mt-3 w-full`}>
+          New workspace
+        </Link>
         <nav aria-label="Main" className="mt-4">
           <ul className="flex flex-wrap gap-2 md:flex-col md:gap-1">
             <li>

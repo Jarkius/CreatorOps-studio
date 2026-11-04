@@ -5,6 +5,8 @@ import { OverviewPage } from '../features/overview/OverviewPage.js';
 import { NewProductPage } from '../features/products/NewProductPage.js';
 import { ProductEditPage } from '../features/products/ProductEditPage.js';
 import { ProductsPage } from '../features/products/ProductsPage.js';
+import { NewWorkspacePage } from '../features/workspaces/NewWorkspacePage.js';
+import { WorkspaceRequired } from '../features/workspaces/WorkspaceRequired.js';
 import { Layout } from './Layout.js';
 import { NotFoundPage } from './NotFoundPage.js';
 import { SessionGate } from './SessionGate.js';
@@ -27,7 +29,9 @@ export const routes: RouteObject[] = [
         path: 'w/:workspaceId/products',
         element: (
           <SessionGate>
-            <ProductsPage />
+            <WorkspaceRequired>
+              <ProductsPage />
+            </WorkspaceRequired>
           </SessionGate>
         ),
       },
@@ -35,7 +39,9 @@ export const routes: RouteObject[] = [
         path: 'w/:workspaceId/products/new',
         element: (
           <SessionGate>
-            <NewProductPage />
+            <WorkspaceRequired>
+              <NewProductPage />
+            </WorkspaceRequired>
           </SessionGate>
         ),
       },
@@ -43,7 +49,17 @@ export const routes: RouteObject[] = [
         path: 'w/:workspaceId/products/:productId',
         element: (
           <SessionGate>
-            <ProductEditPage />
+            <WorkspaceRequired>
+              <ProductEditPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'workspaces/new',
+        element: (
+          <SessionGate>
+            <NewWorkspacePage />
           </SessionGate>
         ),
       },

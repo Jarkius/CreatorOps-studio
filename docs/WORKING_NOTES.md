@@ -60,5 +60,5 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 ## Next steps
 
-1. (This session) workspace-creation screen in the dashboard, then full test run.
+1. Workspace-creation screen: done and verified. Minor leftover: gate the asset library for a zero-workspace user.
 2. Advisor breakdown of Phase 3, recorded as decisions; then slice by slice.

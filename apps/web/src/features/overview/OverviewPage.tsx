@@ -2,10 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { ApiError } from '@creatorops/contracts';
 import type { WorkspaceRoleValue } from '@creatorops/contracts';
-import { EmptyState, ErrorState, LoadingState } from '@creatorops/ui';
+import { EmptyState, ErrorState, LoadingState, buttonClassName } from '@creatorops/ui';
+import { Link } from 'react-router';
 
 import { SignInUnavailableError } from '../../api/session.js';
 import { useDashboard } from '../../app/dashboard-context.js';
+import { NEW_WORKSPACE_PATH } from '../workspaces/WorkspaceRequired.js';
 
 const ROLE_LABELS: Record<WorkspaceRoleValue, string> = {
   owner: 'Owner',
@@ -102,8 +104,13 @@ export function OverviewPage() {
         {meData.workspaces.length === 0 ? (
           <div className="mt-3">
             <EmptyState
-              title="No workspaces yet"
-              description="You are not a member of any workspace."
+              title="You have no workspaces yet"
+              description="Create a workspace to hold your products, assets and drafts."
+              action={
+                <Link to={NEW_WORKSPACE_PATH} className={buttonClassName('primary')}>
+                  Create workspace
+                </Link>
+              }
             />
           </div>
         ) : (

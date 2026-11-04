@@ -200,8 +200,33 @@ export function createFakeApi(options: FakeApiOptions = {}): FakeApi {
   };
 
   const handle = async (method: string, url: URL, body: unknown): Promise<Response> => {
+    if (method === 'GET' && url.pathname === '/api/v1/health') {
+      return json({ status: 'ok', service: 'creatorops-api', time: '2026-11-03T00:00:00.000Z' });
+    }
+    if (method === 'GET' && url.pathname === '/api/v1/me') {
+      return json({
+        user: { id: 'usr_1', email: 'dev@example.test', displayName: 'Dev User' },
+        workspaces: workspaces.map((workspace) => ({
+          id: workspace.id,
+          name: workspace.name,
+          role: workspace.role,
+        })),
+      });
+    }
     if (method === 'GET' && url.pathname === '/api/v1/workspaces') {
       return json({ items: workspaces });
+    }
+    if (method === 'POST' && url.pathname === '/api/v1/workspaces') {
+      const input = body as Record<string, unknown>;
+      const created: Workspace = {
+        ...WORKSPACE,
+        id: `ws_created_${nextId++}`,
+        name: String(input.name),
+        defaultLanguage: input.defaultLanguage === 'en' ? 'en' : 'th',
+        brandVoice: typeof input.brandVoice === 'string' ? input.brandVoice : null,
+      };
+      workspaces.push(created);
+      return json(created, 201);
     }
     const assetMatch = ASSET_ROUTE.exec(url.pathname);
     if (assetMatch !== null) {

@@ -81,4 +81,30 @@ describe('Layout', () => {
     expect(router.state.location.pathname).toBe(`/w/${SECOND_WORKSPACE.id}/products`);
     expect(router.state.location.search).toBe('');
   });
+
+  it('always offers a New workspace link, with one workspace too', async () => {
+    renderWeb(`/w/${WORKSPACE.id}/products`, createFakeApi());
+
+    const link = await screen.findByRole('link', { name: 'New workspace' });
+    expect(link).toHaveAttribute('href', '/workspaces/new');
+  });
+
+  it('keeps the New workspace link next to the switcher with several workspaces', async () => {
+    renderWeb(
+      `/w/${WORKSPACE.id}/products`,
+      createFakeApi({ workspaces: [WORKSPACE, SECOND_WORKSPACE] }),
+    );
+
+    expect(await screen.findByRole('combobox', { name: 'Workspace' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New workspace' })).toHaveAttribute(
+      'href',
+      '/workspaces/new',
+    );
+  });
+
+  it('offers the New workspace link when the user has no workspaces', async () => {
+    renderWeb('/', createFakeApi({ workspaces: [] }));
+
+    expect(await screen.findByRole('link', { name: 'New workspace' })).toBeInTheDocument();
+  });
 });
