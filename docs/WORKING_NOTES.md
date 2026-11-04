@@ -92,6 +92,7 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 ## Next steps
 
+0c. **Meta AI helper (D-071, newest, owner decision):** the extension drives the owner's own logged-in meta.ai tab from the side panel, per scene, to generate and import images and videos; optional host permission for meta.ai only; built against a fake page, first real run done by the owner with the diagnostics button. Needs S5.3 first (attach media to scenes).
 0b. **Media sourcing (D-070, newest):** the owner's Meta subscription is used through an assisted manual path (prompt pack with copy, open link, upload result per scene); no key or adapter needed; API adapters (OpenRouter images and video) come after. Order: S5.3 (scene label, migration 0007), S5.5, S6.5a scene screen, S5.6 to S5.9 export, then Phase 4 text, then adapters.
 0a. **Providers (D-069):** one OpenRouter key for text, image and video; no Meta AI automation; spend cap optional. Next real step is S6.0, a small real test (3 scene images and 1 short clip from one product photo) once the owner sets the key; mock-first slices continue meanwhile.
 0. **Scope change (D-068):** image and video generation are part of the MVP, built mock first like text. Order: S5.3 to S5.5 (attachments), then S6.1 to S6.8 (media pipeline, scene screen, export of generated media), with Phase 4 real text and the real media adapters plugging in after the owner enters keys.

@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-071 | Meta AI helper: the extension drives the owner's own logged-in meta.ai tab, user-initiated and narrowly scoped (owner decision) | ACCEPTED (owner decision 2026-11-04) |
 | D-070 | Media sourcing: assisted manual path first (prompt pack and import, works with the owner's Meta subscription), API adapters second; no website automation | ACCEPTED (owner request, research 2026-11-04) |
 | D-069 | Media providers: one OpenRouter key for text, image and video; no Meta AI website automation; spend cap optional | ACCEPTED (research 2026-11-04) |
 | D-068 | Image and video generation join the MVP, built mock-first like text; supersedes Phase 6 as optional and after MVP | ACCEPTED (owner direction 2026-11-04) |
@@ -516,6 +517,17 @@ The real provider refuses to start without configured prices (no guessed default
 5. **Slice order, simplest first:** S5.3 attachments API with a scene label on each attachment (new migration 0007, since 0006 is committed), S5.5 attach and scene UI, S6.5a the scene screen with prompt pack, copy, open link and upload (no provider), S5.6 to S5.9 export including the scene media and an AI-generated label, then Phase 4 real text, then the API adapters. The `MediaProvider` contracts and mock providers of D-068 move after the export.
 6. Provenance still applies: the user marks an uploaded asset as AI-generated (default on for the scene screen) and records the tool (free text, for example "Meta AI"); exports carry it in the checklist.
 7. Text: real Thai copy still needs a text model (D-065); until then the mock text provider writes the prompts and copy.
+
+## D-071 — Meta AI helper in the extension (owner decision, 2026-11-04)
+**Status:** ACCEPTED by the owner, who chose to work like AutoGenX and not to spend time on Meta's terms. Supersedes D-070 item 2 (no automation) and adds one exception to the extension rule "do not manipulate arbitrary websites by default" in `CLAUDE.md`; D-070's manual path (copy prompt, open link, upload) stays as the fallback and the first thing built.
+**Risk accepted by the owner:** Meta's terms on automated use of the consumer site were not checked, the account used may be restricted, and a change to meta.ai's page can break the helper at any time. Nothing here is verified against the real site: it cannot be reached from the build environment, so the first real run is a test the owner performs.
+**Decision:**
+1. **Scope:** one site only, `https://www.meta.ai/*`, requested as an **optional host permission** at the moment the owner turns the helper on (a Chrome prompt), never in the install-time permissions. No other site, no broad permissions, no content script injected at page load.
+2. **User-initiated and visible:** the helper runs only when the owner clicks "Generate in Meta AI" for a scene in the side panel. It uses the owner's own signed-in tab (opens one if none), shows each step in the panel (opening, typing, waiting, collecting, uploading), and has Cancel. One scene at a time; one run at a time.
+3. **How:** `chrome.scripting.executeScript` into that tab on click. The injected function finds the prompt box and send button by role, label and placeholder text (kept in one file, `metaAiSelectors`, with several fallbacks per element), enters the prompt, sends it, waits (a bounded time: 3 minutes for images, 10 for video) for new generated media to appear, reads the media bytes inside the page with the owner's session, and returns them to the extension in chunks. The extension uploads them through the existing upload path and attaches them to the scene (S5.3), marked as AI-generated with the tool "Meta AI".
+4. **Limits and honesty:** the helper does not log in, does not store or send the owner's cookies or tokens anywhere, makes no requests of its own to Meta, does not try to hide that it is automated (no fake typing rhythm, no fingerprint or proxy tricks), does not solve or bypass CAPTCHAs or challenges, and stops with a plain message when it sees a login page, a challenge, a rate-limit or any page it does not recognise. A "Copy diagnostics" button copies what the helper saw (page title, the elements it found, timings, never cookies, tokens or generated content) so the owner can send it for a fix.
+5. **Testing:** the helper is built and tested against a local fake meta.ai page in the extension e2e suite; the selector file and the diagnostics make the first real-site fixes small.
+6. **Not changed:** no auto-posting, no fake engagement, no account warming (D-060); no second account or account rotation; generation through the owner's browser stays one scene at a time.
 
 ## Open questions
 
