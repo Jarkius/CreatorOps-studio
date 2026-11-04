@@ -70,8 +70,9 @@ export function buildManifest(input: ManifestInput): Manifest {
     permissions: [...EXTENSION_PERMISSIONS],
     host_permissions: [`${origin}/*`],
     content_security_policy: {
-      // No remote code, no plugins, and the panel may only talk to itself and the API origin.
-      extension_pages: `script-src 'self'; object-src 'none'; base-uri 'none'; connect-src 'self' ${origin}`,
+      // No remote code, no plugins, and everything not listed falls back to the extension itself.
+      // Images and media may also load from the API origin (signed media URLs, D-039).
+      extension_pages: `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; img-src 'self' ${origin}; media-src ${origin}; connect-src 'self' ${origin}`,
     },
     ...(input.key ? { key: input.key } : {}),
   };

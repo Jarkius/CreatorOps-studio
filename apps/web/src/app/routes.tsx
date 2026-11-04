@@ -21,7 +21,9 @@ export const routes: RouteObject[] = [
         path: 'w/:workspaceId/assets',
         element: (
           <SessionGate>
-            <AssetLibraryPage />
+            <WorkspaceRequired>
+              <AssetLibraryPage />
+            </WorkspaceRequired>
           </SessionGate>
         ),
       },

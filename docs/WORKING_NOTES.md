@@ -51,7 +51,7 @@ pnpm e2e                                      # builds, then both suites, each o
 
 - Real toolbar click in Chrome; GitHub Actions has never run (including the e2e job and gitleaks).
 - Visual layout and real screen readers (only automated axe checks).
-- Extension does not show product images (needs `img-src` in the manifest CSP, D-039); current-page import deferred (D-019).
+- Extension does not show product images yet (the CSP already allows them since S3.0); current-page import deferred (D-019).
 - Pin GitHub Actions to commit SHAs before the first release.
 
 ## Open questions that need the owner
@@ -60,5 +60,5 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 ## Next steps
 
-1. Workspace-creation screen: done and verified. Minor leftover: gate the asset library for a zero-workspace user.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). Start with S3.0 (Phase 2 cleanups), then S3.1 and onward in order.
+1. Workspace-creation screen: done and verified. Asset library now gated.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 (Phase 2 cleanups) is done; next is S3.1 (contracts, TextProvider and mock, templates, claim guard), then S3.2 onward in order.

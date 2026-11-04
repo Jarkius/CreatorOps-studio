@@ -50,6 +50,9 @@ jobs:
           git diff --exit-code -- infra/migrations
           test -z "$(git status --porcelain -- infra/migrations)"
 
+      - name: Format
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
 

@@ -6,7 +6,11 @@ import { schema } from './db/client.js';
 import { createAuthGuard } from './modules/identity/guard.js';
 import { loadConfig } from './platform/config.js';
 import { createLogger } from './platform/logger.js';
-import { runAuthorizationHarness, type HarnessFixtures } from './test/authorization-harness.js';
+import {
+  runAuthorizationHarness,
+  runReadOnlyMemberHarness,
+  type HarnessFixtures,
+} from './test/authorization-harness.js';
 import { requireDatabaseUrl, validEnv } from './test/db-url.js';
 import { createPerson, type Person } from './test/people.js';
 import { createTestDb, type TestDb } from './test/test-db.js';
@@ -63,6 +67,41 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await testDb.drop();
+});
+
+describe('read-only members over every write route', () => {
+  it.each(['viewer', 'reviewer'])(
+    'a %s gets 403 on every write route, and nothing changes',
+    async (role) => {
+      const member = await createPerson(testDb.db, config.SESSION_SECRET, `member-${role}`);
+      await testDb.pool.query(
+        `insert into workspace_members (workspace_id, user_id, role) values ($1, $2, $3)`,
+        [victim.workspaceId, member.userId, role],
+      );
+      const app = await buildApp({ config, logger: silent, db: testDb.db, storage: testStorage() });
+      const report = await runReadOnlyMemberHarness(app, member.token, {
+        ownParams: fixtures.foreignParams,
+        bodies: fixtures.bodies,
+      });
+      expect(report.failures).toEqual([]);
+      expect(report.checked).toEqual(
+        expect.arrayContaining([
+          'POST /api/v1/workspaces/:workspaceId/products',
+          'PATCH /api/v1/workspaces/:workspaceId/products/:productId',
+          'POST /api/v1/workspaces/:workspaceId/assets/upload-intent',
+        ]),
+      );
+      expect(report.checked.length).toBeGreaterThanOrEqual(6);
+      // The viewer can still read.
+      const read = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workspaces/${victim.workspaceId}/products`,
+        headers: { authorization: `Bearer ${member.token}` },
+      });
+      expect(read.statusCode).toBe(200);
+      await app.close();
+    },
+  );
 });
 
 describe('authorization harness over every registered route', () => {

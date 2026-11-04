@@ -24,7 +24,7 @@ Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified 
 - [ ] Export workflow (Phase 5)
 
 ## Current branch / commit
-Branch `ccr-14958772-bzlatd`. S0.2 committed on top of S0.1 and the documentation commits.
+Branch `ccr-14958772-bzlatd`. Phases 0 to 2 and S3.0 are committed; see `git log` for the current commit.
 
 ## How to run
 Node 22+, pnpm 10.28.0.
@@ -65,7 +65,7 @@ Exit criteria from docs/06: create a product in the dashboard and see it in the 
 
 | docs/07 item | Evidence | Status |
 |---|---|---|
-| Create a workspace | `POST /workspaces` API tests (limit under concurrency, audit) | Done in the API. **No UI yet**: the dashboard only switches between existing workspaces |
+| Create a workspace | `POST /workspaces` API tests (limit under concurrency, audit) | Done in the API and the dashboard (`/workspaces/new`, added after the exit check) |
 | Create, edit, archive, view a product | API tests; dashboard E2E | Done |
 | Required fields validated with clear messages | contracts, API and E2E tests | Done |
 | Cannot reach another workspace's products by changing an id | IDOR tests (both URL shapes, cursors, bodies), harness over every route | Done |
@@ -78,7 +78,7 @@ Exit criteria from docs/06: create a product in the dashboard and see it in the 
 | Side panel opens through the extension action | `setPanelBehavior` checked via `getPanelBehavior()`; panel page loaded as a tab | **Not verified with a real toolbar click** |
 | Extension has loading, empty, error states; survives service-worker suspension | extension E2E | Done |
 | Current-page import is user-triggered and narrow | not implemented (a later slice, own decision, D-019) | Deferred |
-| Extension shows product images | not implemented: needs `img-src` in the manifest CSP (D-039) | Deferred |
+| Extension shows product images | not implemented in the UI; the manifest CSP already allows images and media from the API origin (S3.0) | Deferred |
 | Provider secrets server-side; all routes enforce workspace authorization; no prohibited features; publishing disabled | bundle scan; route policy and harness; no such code exists | Done |
 
 Workspace-creation screen added after the exit check (route `/workspaces/new`, "New workspace" link, zero-workspace prompt on Overview and product pages; web unit 124, e2e 28 on a fresh DB; verified by the orchestrator). Known gaps carried forward: the asset library is not gated for a zero-workspace user; the zero-workspace state has unit tests only (no e2e); visual and screen-reader checks beyond axe; real toolbar-click check in Chrome; progress bars in a real browser.
@@ -111,3 +111,9 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 
 ## Next smallest task
 Phase 3, slice 1. Before starting, have the advisor break Phase 3 down (content templates, the mock text provider, the job table and worker, Redis and BullMQ per D-006, idempotency, regenerate-one-section) and record the decisions.
+
+## S3.0 Phase 2 cleanups (2026-11-04)
+- Extension manifest CSP now has `default-src 'self'`, `form-action 'none'`, `img-src 'self' <api>`, `media-src <api>` (manifest test added; side panel e2e and screenshot confirm styling intact).
+- Authorization harness gained a read-only-member pass: viewer and reviewer get 403 on every write route that takes a workspace id, and can still read. Mutation check: removing `assertCanWrite` from asset delete made the pass fail with "got 200"; restored.
+- Asset library is gated by the zero-workspace prompt; `.env.example` lists every config variable; CI runs `format:check`; doc 04 routes corrected.
+- Verified by the orchestrator: lint, typecheck, build, format, unit (api 240, web 124, extension 48, ui 43, contracts 27, config 12, provider-core 1) and both e2e suites (14 and 28) on a fresh database.

@@ -157,16 +157,18 @@ This is a logical MVP contract. Final field types and naming should be aligned w
 ### Products
 - `GET /workspaces/:workspaceId/products`
 - `POST /workspaces/:workspaceId/products`
-- `GET /products/:productId`
-- `PATCH /products/:productId`
-- `DELETE /products/:productId` (soft delete/archive preferred)
+- `GET /workspaces/:workspaceId/products/:productId`
+- `PATCH /workspaces/:workspaceId/products/:productId`
+- `POST /workspaces/:workspaceId/products/:productId/archive` and `/unarchive` (archive instead of delete; D-042)
 
 ### Assets
 - `POST /workspaces/:workspaceId/assets/upload-intent`
 - `POST /workspaces/:workspaceId/assets/complete-upload`
 - `GET /workspaces/:workspaceId/assets`
-- `GET /assets/:assetId`
-- `DELETE /assets/:assetId`
+- `GET /workspaces/:workspaceId/assets/:assetId`
+- `DELETE /workspaces/:workspaceId/assets/:assetId`
+
+(Asset and product routes are nested under the workspace; see D-042. Media bytes are read through signed `GET /media/:assetId/:variant` URLs, D-039.)
 
 ### Content
 - `POST /workspaces/:workspaceId/campaigns`

@@ -100,3 +100,48 @@ export async function runAuthorizationHarness(
   }
   return { checked, failures };
 }
+
+/**
+ * Role check (D-025 follow-up): a read-only member (viewer or reviewer) of a workspace must get
+ * 403 on every route that changes data inside that workspace. The sample ids belong to the
+ * workspace the caller IS a member of, so a 404 would mean the route never reached its permission
+ * check, and a 2xx or 4xx other than 403 means the route lets a read-only member through.
+ * Routes with no workspace path parameter (such as creating a workspace) are not in scope.
+ */
+export async function runReadOnlyMemberHarness(
+  app: FastifyInstance,
+  readOnlyToken: string,
+  fixtures: Pick<HarnessFixtures, 'bodies'> & {
+    /** Path parameter values for the workspace the caller is a read-only member of. */
+    readonly ownParams: Readonly<Record<string, string>>;
+  },
+): Promise<HarnessReport> {
+  const checked: string[] = [];
+  const failures: string[] = [];
+
+  for (const route of app.registeredRoutes) {
+    if (route.isPublic) continue;
+    if (route.method === 'GET' || route.method === 'HEAD' || route.method === 'OPTIONS') continue;
+    const names = paramNames(route.url);
+    if (!names.includes('workspaceId')) continue;
+    const key = `${route.method} ${route.url}`;
+    checked.push(key);
+
+    const url = fill(route.url, fixtures.ownParams);
+    if (url === null) {
+      failures.push(`${key}: no fixture for parameters ${names.join(', ')}`);
+      continue;
+    }
+    const method = route.method as 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+    const response = await app.inject({
+      method,
+      url,
+      headers: { authorization: `Bearer ${readOnlyToken}` },
+      ...(method === 'DELETE' ? {} : { payload: fixtures.bodies?.[key] ?? {} }),
+    });
+    if (response.statusCode !== 403) {
+      failures.push(`${key}: expected 403 for a read-only member, got ${response.statusCode}`);
+    }
+  }
+  return { checked, failures };
+}

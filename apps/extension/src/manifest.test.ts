@@ -50,6 +50,12 @@ describe('buildManifest', () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'none'");
     expect(csp).toContain("connect-src 'self' http://localhost:3000");
+    // Everything not listed falls back to the extension itself, so no other origin can load
+    // styles, fonts, frames or form targets.
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("form-action 'none'");
+    expect(csp).toContain("img-src 'self' http://localhost:3000");
+    expect(csp).toContain('media-src http://localhost:3000');
     expect(csp).not.toMatch(/unsafe-eval|unsafe-inline|\*|https?:\/\/[^ ]*\*/);
   });
 
