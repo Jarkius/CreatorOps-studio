@@ -12,6 +12,7 @@ Read in this order before changing code:
 8. `07_ACCEPTANCE_TESTS.md`
 9. `DECISIONS.md`
 10. `IMPLEMENTATION_STATUS.md`
+11. `WORKING_NOTES.md` (compact handoff: state, commands, gotchas; read first when resuming)
 
 ## Which document wins
 

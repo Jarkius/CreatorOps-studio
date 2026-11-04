@@ -73,8 +73,8 @@ Do not silently skip failing tests. Report blockers, assumptions, and anything t
 
 ## Project state and next task
 
-Repository assessment, architecture decisions, and project documents are complete (see `docs/IMPLEMENTATION_STATUS.md`). The repository has documentation only; no application code exists yet.
+Phases 0, 1 and 2 are built and verified (monorepo, API, dashboard, MV3 side panel, products, uploads). Current state, commands and gotchas: `docs/WORKING_NOTES.md` (read it first when resuming) and `docs/IMPLEMENTATION_STATUS.md`.
 
-The next task is slice **S0.1** in `docs/08_PHASE_PLAN.md`: monorepo scaffold and CI baseline. Wait for the owner's go-ahead before starting it. Then follow `docs/08_PHASE_PLAN.md` one slice at a time, starting with Phase 0 and Phase 1 (extension shell and API foundation). The first product-facing slice (create a product, upload reference media, view it in the dashboard and the side panel) is Phase 2.
+The next work is Phase 3 (content generation with a mock provider, job table and worker, Redis and BullMQ per D-006). Before starting it, have the advisor break Phase 3 into slices and record the decisions in `docs/DECISIONS.md`. Then follow `docs/08_PHASE_PLAN.md` one slice at a time.
 
-Do not add paid-provider integrations, publishing connectors, broad browser permissions, or a desktop companion without the gates recorded in `docs/DECISIONS.md` (D-022).
+Do not add paid-provider integrations, publishing connectors, broad browser permissions, or a desktop companion without the gates recorded in `docs/DECISIONS.md` (D-022). Real providers also need the owner's answers to Q-001, Q-002 and Q-005.
