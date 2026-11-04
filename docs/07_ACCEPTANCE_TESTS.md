@@ -18,20 +18,20 @@
 
 ## Content generation
 
-- [ ] User can choose a template and configure language/tone/variant count.
-- [ ] Thai text generation works with mock provider.
-- [ ] Generated claims are tied to source product facts or marked for review.
-- [ ] User can edit each generated section.
-- [ ] Regenerating one section does not overwrite unrelated edited sections.
-- [ ] Duplicate submissions with the same idempotency key do not create duplicate jobs.
+- [x] User can choose a template and configure language/tone/variant count.
+- [x] Thai text generation works with mock provider.
+- [x] Generated claims are tied to source product facts or marked for review.
+- [x] User can edit each generated section.
+- [x] Regenerating one section does not overwrite unrelated edited sections.
+- [x] Duplicate submissions with the same idempotency key do not create duplicate jobs.
 
 ## Jobs
 
-- [ ] Job transitions through valid states.
-- [ ] Closing the side panel does not cancel a job.
+- [x] Job transitions through valid states.
+- [x] Closing the side panel does not cancel a job.
 - [ ] Browser restart does not lose durable job state.
-- [ ] Retry is bounded and does not retry permanent failures.
-- [ ] User can cancel a cancellable job.
+- [x] Retry is bounded and does not retry permanent failures.
+- [x] User can cancel a cancellable job.
 - [ ] Logs do not expose credentials or private signed URLs.
 
 ## Assets and export

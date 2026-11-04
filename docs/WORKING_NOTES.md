@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** this session worked on `ccr-186e9c63-3y215n` (the designated branch in the session instructions); `CLAUDE.md` names `ccr-14958772-bzlatd`. Check which one to push to before pushing. **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.8 done, next S3.9).
+**Last updated:** 2026-11-04 · **Branch:** this session worked on `ccr-186e9c63-3y215n` (the designated branch in the session instructions); `CLAUDE.md` names `ccr-14958772-bzlatd`. Check which one to push to before pushing. **Phase:** 2 complete; Phase 3 built through S3.9 (exit check run, see `docs/IMPLEMENTATION_STATUS.md`); next is Phase 4, which is blocked on Q-001, Q-002 and Q-005.
 
 ## Where we are
 
@@ -29,9 +29,9 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | S3.7b campaigns UI: list, create, campaign page, Generate, job panel with polling and cancel, drafts list | done |
 | S3.7c draft screen: sections, edit, regenerate, status, claim warnings, conflicts, copy; product-page "Create campaign" shortcut | done |
 | S3.8 side panel: campaigns list, Generate, job status with polling and cancel, dashboard links; shared poll helpers in `packages/contracts`; details in D-061 | done (built by the orchestrator, live run done) |
-| **S3.9** exit check against docs/06 Phase 3 and docs/07 (campaign and draft e2e with the real API, worker and Redis; screens in a real browser) | **next** |
+| S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (S3.8): contracts 68, provider-core 95, config 12, ui 43, extension unit 66, web 250, api 421; end-to-end 44 (16 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (S3.9): contracts 68, provider-core 95, config 12, ui 43, extension unit 66, web 250, api 421; end-to-end 45 (16 extension, 29 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -89,9 +89,7 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 ## Next steps
 
-1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054, with D-055 to D-061 for the slices. S3.0 to S3.8 are done. Next is S3.9, the exit check: run the Phase 3 acceptance items in `docs/06` and `docs/07` against the real API, worker and Redis; add a campaign-and-draft e2e spec (the worker must run in that test, so it needs a harness that starts it, or a Playwright-driven live run kept out of CI); view the dashboard campaign, draft and side-panel screens in a real browser (not done for S3.7c or S3.8 beyond the 360px screenshot); then record the result in `docs/IMPLEMENTATION_STATUS.md` and the Phase 3 exit in `docs/06`.
-3. S3.8 is the side panel: `apps/extension/src/sidepanel/{campaigns.ts, campaignHooks.ts, CampaignsPanel.tsx}`. Known limit (D-061): the panel reads the newest 50 generate jobs, so an older campaign shows no status. Fix with a `campaignId` filter on `GET /jobs` if the exit check needs it. The side panel does not show draft sections; it links to the dashboard campaign page.
-4. Services stop between sessions: start `pnpm dev:db` and `pnpm dev:redis` and re-export `DATABASE_URL` and `REDIS_URL` before running tests (an `ECONNREFUSED 5432` Unhandled Error means Postgres is down, not a code failure). A fresh container also has no `node_modules`: run `pnpm install --frozen-lockfile`, then build `packages/ui` and `packages/contracts` before the extension's typecheck and tests.
-4. Services stop between sessions: start `pnpm dev:db` and `pnpm dev:redis` and re-export `DATABASE_URL` and `REDIS_URL` before running tests (an `ECONNREFUSED 5432` Unhandled Error means Postgres is down, not a code failure).
-5. Verified for real in S3.6: generate, regenerate-section, a stale-revision 409 and a stale-version 409 over HTTP with API, worker and Redis. Verified for real in S3.5: API + worker + Redis created drafts from an HTTP request; a transient failure retried 3 times and failed with a stable code; a job whose Redis message was wiped was recovered by the reconciler after about 65 s. Not yet exercised: a worker killed mid-job outside the unit tests.
+1. Phase 3 is done apart from the gaps listed under S3.9 in `docs/IMPLEMENTATION_STATUS.md` (no visual review of the new screens, GitHub Actions never run). Phase 4 (real text provider) needs the owner's answers to Q-001, Q-002 and Q-005 first. Until then: a `campaignId` filter on `GET /jobs` (D-061 limit), a real-browser look at the campaign, draft and side-panel screens, or work that needs no provider.
+2. The dashboard e2e suite needs `REDIS_URL` and a running Redis: `pnpm dev:redis`, export `REDIS_URL`, then `pnpm e2e`.
+3. Services stop between sessions: start `pnpm dev:db` and `pnpm dev:redis` and re-export `DATABASE_URL` and `REDIS_URL` before running tests (an `ECONNREFUSED 5432` Unhandled Error means Postgres is down, not a code failure). A fresh container also has no `node_modules`: run `pnpm install --frozen-lockfile`, then build `packages/ui` and `packages/contracts` before the extension's typecheck and tests.
+4. Verified for real: generate, regenerate-section, stale-revision and stale-version 409s (S3.6); retry bounded, reconciler recovery after about 65 s (S3.5); generate, edit and regenerate through the browser (S3.9). Not yet exercised: a worker killed mid-job outside the unit tests.

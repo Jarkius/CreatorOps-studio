@@ -55,9 +55,9 @@ Deliver:
 - Job status UI and regeneration of one section.
 
 Exit criteria:
-- Start job, close extension, reopen, and see correct job status.
-- Failed job displays actionable error.
-- Idempotency prevents duplicate job creation.
+- [x] Start job, close extension, reopen, and see correct job status.
+- [x] Failed job displays actionable error.
+- [x] Idempotency prevents duplicate job creation.
 
 ## Phase 4 — Real text provider and usage guardrails
 
