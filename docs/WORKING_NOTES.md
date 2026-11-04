@@ -61,4 +61,4 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Minor leftover: gate the asset library for a zero-workspace user.
-2. Advisor breakdown of Phase 3, recorded as decisions; then slice by slice.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). Start with S3.0 (Phase 2 cleanups), then S3.1 and onward in order.

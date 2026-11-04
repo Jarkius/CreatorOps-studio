@@ -69,6 +69,16 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-042 | Product routes are nested under the workspace | ACCEPTED |
 | D-043 | Upload hardening found in testing: early error listener, configurable per-route limit | ACCEPTED |
 | D-044 | Phase 2 security review fixes: quota, purge, completion and sweep races, timeouts | ACCEPTED |
+| D-045 | Phase 3 execution model: DB row is the truth, BullMQ carries only a job id, leases, reconciler | ACCEPTED |
+| D-046 | Phase 3 routes nested under the workspace; job types | ACCEPTED |
+| D-047 | Idempotency-Key required on job-creating POSTs | ACCEPTED |
+| D-048 | Retry policy: pure function, 3 attempts, transient only | ACCEPTED |
+| D-049 | Templates in code, id and version pinned per job | ACCEPTED |
+| D-050 | Draft sections, per-section revision, regenerate guard | ACCEPTED |
+| D-051 | Claim guard on every provider output | ACCEPTED |
+| D-052 | TextProvider interface and deterministic Thai-first mock | ACCEPTED |
+| D-053 | Polling with backoff; per-workspace active-job and rate caps | ACCEPTED |
+| D-054 | Local Redis without Docker; Redis tests gated on REDIS_URL | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -301,6 +311,23 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 - Sweeping and a completion that read the file just before the sweep can leave an orphaned thumbnail; the retention purge does not cover orphans yet.
 
 ---
+
+## D-045 to D-054 — Phase 3 plan (advisor, 2026-11-04)
+**Status:** ACCEPTED. Mock provider only; no paid provider, no publishing.
+- **D-045 Execution.** The `jobs` row holds all state. BullMQ carries only `{jobId}` (queue id `${jobId}:${attempt}`, `attempts: 1`, `removeOnComplete`/`removeOnFail`). A conditional update claims a job (`queued` to `running WHERE status='queued' AND run_after<=now()`), so a duplicate in Redis never runs twice. The worker holds a lease (`locked_until` plus heartbeat, database time). A reconciler runs every 30 s and re-queues stale queued rows and expired leases. Losing Redis loses nothing.
+- **D-046 Routes.** All content and job routes nest under `/workspaces/:workspaceId/...` (follows D-042; supersedes id-only routes in doc 04 section 4). Job types: `generate_brief`, `regenerate_section`.
+- **D-047 Idempotency.** `Idempotency-Key` (8-128 chars of `[A-Za-z0-9_-]`) is required on job-creating POSTs, unique per (workspace, user, key), stored with a request hash. Replay returns 200 with the original job; new job 202; same key with a different body 409 `IDEMPOTENCY_CONFLICT`. Created with `INSERT ... ON CONFLICT DO NOTHING` then select.
+- **D-048 Retry.** `decideRetry(error, attempt)` is pure. Max 3 attempts, backoff 2 s, 10 s, 30 s plus jitter. Only transient errors (timeout, 5xx, rate limited with capped retry-after) retry. Permanent errors (validation, invalid output, `SECTION_CHANGED`, cancelled) fail at once. Error codes are stable; messages are safe to show.
+- **D-049 Templates** live in code with id and version; the job input pins both. Custom templates deferred.
+- **D-050 Sections.** Fixed set: title, hook, script, storyboard, caption, hashtags, callToAction. `section_state` jsonb holds `{rev, origin: generated|edited, jobId}`. Regenerate applies only if the section's `rev` is unchanged since the request, else the job fails `SECTION_CHANGED` and keeps its output. Generating never overwrites existing drafts.
+- **D-051 Claim guard.** Deterministic post-processing on all provider output: each claim cites a product fact or is marked `needsReview`; matches against `restrictedClaims` go into `claimWarnings`.
+- **D-052 Provider.** `TextProvider` and typed errors in `provider-core`. The mock is deterministic and Thai-first; failures are injected only by a name marker inside the mock adapter. One contract suite covers all adapters (D-009). Thai lengths count graphemes (`Intl.Segmenter`), NFC.
+- **D-053 Delivery and limits.** UI polls with backoff (2 s to 10 s, stop at final state); no SSE yet. At most 5 active jobs per workspace; generate routes limited to 20 per minute.
+- **D-054 Redis.** `scripts/redis-local.sh` (redis-server 7.0.15 present): bind 127.0.0.1, protected mode, generated password, `--appendonly yes`, `--maxmemory-policy noeviction`, non-root like pg-local. `REDIS_URL` config; password redacted. API tests use a fake `JobQueue`; worker tests call `processJob` and `reconcile` directly; one BullMQ smoke suite needs `REDIS_URL` (`SKIP_REDIS_TESTS=1` to skip); CI gets a `redis:7` service.
+**Data model (all with `unique(workspace_id,id)` and composite FKs, D-037):** `campaigns`, `content_drafts`, `jobs` (adds `created_by`, `request_hash`, `attempts`, `max_attempts`, `run_after`, `locked_until`, `cancel_requested_at`).
+**Slices:** S3.0 Phase 2 cleanups (Haiku); S3.1 contracts, provider, templates, claim guard (Haiku); S3.2 migration (orchestrator); S3.3 campaign CRUD (Haiku); S3.4 job repo, idempotency, queue, endpoints (orchestrator); S3.5 worker, retry, lease, reconciler, BullMQ, redis script (orchestrator); S3.6 drafts and regenerate (orchestrator + Haiku); S3.7 dashboard (Haiku); S3.8 extension (Haiku); S3.9 exit check (orchestrator).
+**Phase 2 follow-ups from the same review (fix in S3.0):** extension CSP has no `default-src` (set `default-src 'self'; img-src 'self' <api>; media-src <api>` with a manifest test; D-039 wording that images are blocked is wrong); `.env.example` missing `DATA_DIR`, `TRUST_PROXY_HOPS`, `ALLOW_MOCK_AUTH_ON_NETWORK`, `LOG_LEVEL`, `NODE_ENV`; doc 04 asset routes and doc 07 checkboxes stale; add `format:check` to CI; harness lacks a viewer-403 pass on every write route; gate the asset library for zero workspaces.
+**Accepted for now:** signed URLs do not re-check membership (record before Phase 8 member removal); per-user disk is effectively 40 GiB (20 workspaces x 2 GiB); possible orphan thumbnail on refused completion; `POST /workspaces` not idempotent.
 
 ## Open questions
 
