@@ -24,6 +24,7 @@ let attacker: Person;
 let fixtures: HarnessFixtures;
 let victimProductId: string;
 let victimAssetId: string;
+let victimCampaignId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -40,16 +41,40 @@ beforeAll(async () => {
     [victim.workspaceId, victim.userId],
   );
   victimAssetId = asset.rows[0]?.id ?? '';
+  const [campaign] = await testDb.db
+    .insert(schema.campaigns)
+    .values({
+      workspaceId: victim.workspaceId,
+      productId: victimProductId,
+      name: 'Victim campaign',
+      templateId: 'product-showcase',
+      templateVersion: 1,
+      language: 'th',
+      durationSeconds: 30,
+      createdBy: victim.userId,
+    })
+    .returning({ id: schema.campaigns.id });
+  victimCampaignId = campaign?.id ?? '';
   fixtures = {
     foreignParams: {
       workspaceId: victim.workspaceId,
       productId: victimProductId,
       assetId: victimAssetId,
+      campaignId: victimCampaignId,
     },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
       'POST /api/v1/workspaces/:workspaceId/products': { name: 'Planted' },
       'PATCH /api/v1/workspaces/:workspaceId/products/:productId': { version: 1, name: 'Pwned' },
+      'POST /api/v1/workspaces/:workspaceId/campaigns': {
+        productId: victimProductId,
+        templateId: 'product-showcase',
+        templateVersion: 1,
+      },
+      'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
+        version: 1,
+        name: 'Pwned',
+      },
       'POST /api/v1/workspaces/:workspaceId/assets/upload-intent': {
         filename: 'a.png',
         mimeType: 'image/png',

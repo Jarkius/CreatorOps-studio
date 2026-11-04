@@ -71,3 +71,7 @@ Bad (survived): a restricted-claim test whose claim and text were both lower-cas
 | earlier | uploads | Hand-written PNG had a bad CRC | Test data rules (section 3) |
 | earlier | uploads | E2E hit the 20-workspace cap on the shared database | Fresh e2e database, unique names (section 3) |
 | 2026-11-04 | S3.1 | Mock added extra request checks and ranges not in the spec | "Do NOT add" line (section 1) |
+| 2026-11-04 | S3.3 | New API routes change the OpenAPI snapshot, which was outside the worker's allowed paths; the worker stopped and reported instead of editing (good) | Specs for API slices must list `apps/api/src/__snapshots__/openapi.json` as an allowed file (regenerate with `vitest run app.test -u`, then check the diff has no removed lines) |
+| 2026-11-04 | S3.3 | Cursor encode/decode copied from products instead of shared | Spec should say "extract and share" when a pattern is needed a second time; orchestrator to refactor before a third copy (drafts, jobs) |
+| 2026-11-04 | S3.3 | Edge case (default name from one huge grapheme cluster) found by the worker but untested | Ask for "inputs that make a derived value empty or too long" in every spec |
+

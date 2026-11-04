@@ -18,6 +18,7 @@ import { createWorkspaceScope } from './modules/identity/scope.js';
 import { createAssetDeps } from './modules/assets/deps.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
+import { registerCampaignRoutes } from './modules/campaigns/routes.js';
 import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
 import type { ApiConfig } from './platform/config.js';
 import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
@@ -209,6 +210,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerIdentityRoutes(app, { config, db: options.db, guard });
   registerWorkspaceRoutes(app, { db: options.db, guard, scope });
   registerProductRoutes(app, { db: options.db, guard, scope });
+  registerCampaignRoutes(app, { db: options.db, guard, scope });
   const assetDeps = createAssetDeps({
     db: options.db,
     storage: options.storage,
