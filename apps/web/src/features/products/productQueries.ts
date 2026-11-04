@@ -31,11 +31,16 @@ export function useProductList(workspaceId: string, status: ProductStatus) {
   });
 }
 
-export function useProduct(workspaceId: string, productId: string) {
+export function useProduct(
+  workspaceId: string,
+  productId: string,
+  options: { enabled?: boolean } = {},
+) {
   const { client } = useDashboard();
   return useQuery({
     queryKey: productKeys.detail(workspaceId, productId),
     queryFn: () => client.products.get(workspaceId, productId),
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -8,6 +8,7 @@ import { draftKeys, useDraftList } from '../drafts/draftQueries.js';
 import { draftPath } from '../drafts/paths.js';
 import { formatDate } from '../products/format.js';
 import { productPath } from '../products/paths.js';
+import { useProduct } from '../products/productQueries.js';
 import { NotFoundNotice } from '../products/ProductStates.js';
 import { JobPanel } from '../jobs/JobPanel.js';
 import { useGenerateBrief, useJobReader } from '../jobs/jobQueries.js';
@@ -31,6 +32,10 @@ export function CampaignPage() {
   const queryClient = useQueryClient();
   const campaignQuery = useCampaign(workspaceId, campaignId);
   const canWrite = useCanWrite(workspaceId);
+  // Only the product's name is needed here; until it loads (or if it fails) the link says "View product".
+  const product = useProduct(workspaceId, campaignQuery.data?.productId ?? '', {
+    enabled: campaignQuery.data !== undefined,
+  });
   const generate = useGenerateBrief(workspaceId);
   const drafts = useDraftList(workspaceId, campaignId);
 
@@ -172,7 +177,7 @@ export function CampaignPage() {
                 to={productPath(workspaceId, campaign.productId)}
                 className="text-[var(--co-accent)] underline underline-offset-4 [overflow-wrap:anywhere]"
               >
-                {campaign.productId}
+                {product.data?.name ?? 'View product'}
               </Link>
             </dd>
           </div>
