@@ -11,6 +11,7 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 
 ## Mandatory first actions
 
+0. When starting or resuming any work, invoke the project skill `app-dev-methodology` (Skill tool) and read `docs/WORKING_NOTES.md` first. They say what to read next, how to run a slice, and which files to update at the end.
 1. Inspect the existing repository, package manager, runtime, tests, and conventions.
 2. Do not overwrite or restructure an existing project before explaining what is already present.
 3. Read every file in `docs/` and `README.md`.
