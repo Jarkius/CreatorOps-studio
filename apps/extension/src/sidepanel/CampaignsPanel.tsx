@@ -1,20 +1,13 @@
-import { ApiError, type ApiClient, type Campaign, type Job } from '@creatorops/contracts';
+import { ApiError, type ApiClient, type CampaignListItem, type Job } from '@creatorops/contracts';
 import { Button, EmptyState, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
-import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 
-import {
-  useCancelGeneration,
-  useGenerateJobs,
-  usePanelCampaigns,
-  useStartGeneration,
-} from './campaignHooks.js';
+import { useCancelGeneration, usePanelCampaigns, useStartGeneration } from './campaignHooks.js';
 import {
   dashboardCampaignPath,
   dashboardCampaignsPath,
   dashboardNewCampaignPath,
   jobStatusText,
-  latestGenerateJobs,
 } from './campaigns.js';
 import { dashboardHref } from './format.js';
 
@@ -33,11 +26,9 @@ export interface CampaignsPanelProps {
  */
 export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: CampaignsPanelProps) {
   const campaigns = usePanelCampaigns(api, workspaceId);
-  const jobs = useGenerateJobs(api, workspaceId);
   const start = useStartGeneration(api, workspaceId);
   const cancel = useCancelGeneration(api, workspaceId);
 
-  const latest = useMemo(() => latestGenerateJobs(jobs.data?.items ?? []), [jobs.data]);
   const visible = (campaigns.data?.items ?? []).filter(
     (campaign) => campaign.status !== 'archived',
   );
@@ -85,14 +76,14 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
             <CampaignRow
               key={campaign.id}
               campaign={campaign}
-              job={latest.get(campaign.id) ?? null}
+              job={campaign.latestGenerateJob}
               canStart={canStart}
               starting={start.isPending && start.variables === campaign.id}
               startError={start.isError && start.variables === campaign.id ? start.error : null}
               onStart={() => start.mutate(campaign.id)}
-              cancelling={cancel.isPending && cancel.variables === latest.get(campaign.id)?.id}
+              cancelling={cancel.isPending && cancel.variables === campaign.latestGenerateJob?.id}
               cancelError={
-                cancel.isError && cancel.variables === latest.get(campaign.id)?.id
+                cancel.isError && cancel.variables === campaign.latestGenerateJob?.id
                   ? cancel.error
                   : null
               }
@@ -104,12 +95,6 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
             />
           ))}
         </ul>
-      ) : null}
-
-      {jobs.isError && campaigns.isSuccess ? (
-        <p role="alert" className="mt-3 text-sm text-[var(--co-danger)]">
-          Could not load generation status. Statuses may be out of date.
-        </p>
       ) : null}
 
       {campaigns.isSuccess ? (
@@ -129,7 +114,7 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
 }
 
 interface CampaignRowProps {
-  campaign: Campaign;
+  campaign: CampaignListItem;
   job: Job | null;
   canStart: boolean;
   starting: boolean;

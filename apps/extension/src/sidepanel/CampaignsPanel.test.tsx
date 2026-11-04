@@ -1,7 +1,7 @@
 import {
   ApiError,
   type ApiClient,
-  type Campaign,
+  type CampaignListItem,
   type Job,
   type JobStatus,
 } from '@creatorops/contracts';
@@ -15,7 +15,11 @@ import { CampaignsPanel } from './CampaignsPanel.js';
 const DASHBOARD = 'http://dash.test';
 const KEY_PATTERN = /^ext-[0-9a-f-]{36}$/;
 
-function campaign(id: string, name: string, overrides: Partial<Campaign> = {}): Campaign {
+function campaign(
+  id: string,
+  name: string,
+  overrides: Partial<CampaignListItem> = {},
+): CampaignListItem {
   return {
     id,
     workspaceId: 'w1',
@@ -32,6 +36,7 @@ function campaign(id: string, name: string, overrides: Partial<Campaign> = {}): 
     version: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    latestGenerateJob: null,
     ...overrides,
   };
 }
@@ -59,8 +64,7 @@ function job(id: string, campaignId: string, status: JobStatus, overrides: Parti
 }
 
 interface Fakes {
-  campaigns?: () => Promise<{ items: Campaign[]; nextCursor: null }>;
-  jobs?: () => Promise<{ items: Job[]; nextCursor: null }>;
+  campaigns?: () => Promise<{ items: CampaignListItem[]; nextCursor: null }>;
   generateBrief?: (...args: unknown[]) => Promise<Job>;
   cancel?: (workspaceId: string, jobId: string) => Promise<Job>;
 }
@@ -69,7 +73,6 @@ function renderPanel(fakes: Fakes, options: { canStart?: boolean } = {}) {
   const campaignsList = vi.fn(
     fakes.campaigns ?? (() => Promise.resolve({ items: [], nextCursor: null })),
   );
-  const jobsList = vi.fn(fakes.jobs ?? (() => Promise.resolve({ items: [], nextCursor: null })));
   const generateBrief = vi.fn(
     fakes.generateBrief ?? (() => Promise.resolve(job('new', 'c1', 'queued'))),
   );
@@ -78,7 +81,7 @@ function renderPanel(fakes: Fakes, options: { canStart?: boolean } = {}) {
   );
   const api = {
     campaigns: { list: campaignsList },
-    jobs: { list: jobsList, generateBrief, cancel },
+    jobs: { generateBrief, cancel },
   } as unknown as ApiClient;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -91,7 +94,7 @@ function renderPanel(fakes: Fakes, options: { canStart?: boolean } = {}) {
       />
     </QueryClientProvider>,
   );
-  return { campaignsList, jobsList, generateBrief, cancel };
+  return { campaignsList, generateBrief, cancel };
 }
 
 const section = () => screen.getByRole('region', { name: 'Campaigns' });
@@ -103,17 +106,9 @@ describe('side panel campaigns', () => {
       campaigns: () =>
         Promise.resolve({
           items: [
-            campaign('c1', 'Hero launch'),
+            campaign('c1', 'Hero launch', { latestGenerateJob: job('j2', 'c1', 'succeeded') }),
             campaign('c2', 'Old one', { status: 'archived' }),
             campaign('c3', 'Spring sale'),
-          ],
-          nextCursor: null,
-        }),
-      jobs: () =>
-        Promise.resolve({
-          items: [
-            job('j2', 'c1', 'succeeded'),
-            job('j1', 'c1', 'failed', { errorMessage: 'Busy.' }),
           ],
           nextCursor: null,
         }),
@@ -136,7 +131,7 @@ describe('side panel campaigns', () => {
 
   it('shows an error with a retry that loads again', async () => {
     const list = vi
-      .fn<() => Promise<{ items: Campaign[]; nextCursor: null }>>()
+      .fn<() => Promise<{ items: CampaignListItem[]; nextCursor: null }>>()
       .mockRejectedValueOnce(
         new ApiError({
           code: 'INTERNAL_ERROR',
@@ -220,9 +215,14 @@ describe('side panel campaigns', () => {
     const cancel = vi.fn((_w: string, id: string) => Promise.resolve(job(id, 'c1', 'cancelled')));
     renderPanel({
       campaigns: () =>
-        Promise.resolve({ items: [campaign('c1', 'Hero launch')], nextCursor: null }),
-      jobs: () =>
-        Promise.resolve({ items: [job('j9', 'c1', 'running', { attempts: 2 })], nextCursor: null }),
+        Promise.resolve({
+          items: [
+            campaign('c1', 'Hero launch', {
+              latestGenerateJob: job('j9', 'c1', 'running', { attempts: 2 }),
+            }),
+          ],
+          nextCursor: null,
+        }),
       cancel,
     });
     await screen.findByText(/Writing your content… attempt 2 of 3/);
@@ -237,14 +237,13 @@ describe('side panel campaigns', () => {
     renderPanel({
       campaigns: () =>
         Promise.resolve({
-          items: [campaign('c1', 'Hero launch'), campaign('c2', 'Spring sale')],
-          nextCursor: null,
-        }),
-      jobs: () =>
-        Promise.resolve({
           items: [
-            job('j2', 'c1', 'failed', { errorMessage: 'The provider is busy.' }),
-            job('j1', 'c2', 'succeeded'),
+            campaign('c1', 'Hero launch', {
+              latestGenerateJob: job('j2', 'c1', 'failed', {
+                errorMessage: 'The provider is busy.',
+              }),
+            }),
+            campaign('c2', 'Spring sale', { latestGenerateJob: job('j1', 'c2', 'succeeded') }),
           ],
           nextCursor: null,
         }),
@@ -258,30 +257,45 @@ describe('side panel campaigns', () => {
     );
   });
 
-  it('polls the job list while a job runs, and stops once every job is final', async () => {
+  it('polls the campaign list while a job runs, and stops once every job is final', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const jobs = vi
-        .fn<() => Promise<{ items: Job[]; nextCursor: null }>>()
-        .mockResolvedValueOnce({ items: [job('j1', 'c1', 'running')], nextCursor: null })
-        .mockResolvedValue({ items: [job('j1', 'c1', 'succeeded')], nextCursor: null });
-      const { jobsList } = renderPanel({
-        campaigns: () =>
-          Promise.resolve({ items: [campaign('c1', 'Hero launch')], nextCursor: null }),
-        jobs,
+      const page = (status: JobStatus) => ({
+        items: [campaign('c1', 'Hero launch', { latestGenerateJob: job('j1', 'c1', status) })],
+        nextCursor: null as null,
       });
+      const campaigns = vi
+        .fn<() => Promise<{ items: CampaignListItem[]; nextCursor: null }>>()
+        .mockResolvedValueOnce(page('running'))
+        .mockResolvedValue(page('succeeded'));
+      const { campaignsList } = renderPanel({ campaigns });
       await screen.findByText(/Writing your content/);
-      expect(jobsList).toHaveBeenCalledTimes(1);
+      expect(campaignsList).toHaveBeenCalledTimes(1);
 
       // First poll after 2 s; the answer is final, so polling stops.
-      await waitFor(() => expect(jobsList).toHaveBeenCalledTimes(2), { timeout: 5000 });
+      await waitFor(() => expect(campaignsList).toHaveBeenCalledTimes(2), { timeout: 5000 });
       await screen.findByText(/Done\. Review the drafts/);
       vi.advanceTimersByTime(30000);
       await new Promise((resolve) => setTimeout(resolve, 20));
-      expect(jobsList).toHaveBeenCalledTimes(2);
+      expect(campaignsList).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('shows the latest job of a campaign however old, because the list carries it (D-064)', async () => {
+    renderPanel({
+      campaigns: () =>
+        Promise.resolve({
+          items: [
+            campaign('c1', 'Old campaign', {
+              latestGenerateJob: job('j1', 'c1', 'failed', { errorMessage: 'Provider timed out.' }),
+            }),
+          ],
+          nextCursor: null,
+        }),
+    });
+    expect(await screen.findByText('Provider timed out.')).toBeInTheDocument();
   });
 
   it('shows a start error under its own row with the request id', async () => {

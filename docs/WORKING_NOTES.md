@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** this session worked on `ccr-186e9c63-3y215n` (the designated branch in the session instructions); `CLAUDE.md` names `ccr-14958772-bzlatd`. Check which one to push to before pushing. **Phase:** 2 complete; Phase 3 built through S3.9 (exit check run, see `docs/IMPLEMENTATION_STATUS.md`); next is Phase 4, which is blocked on Q-001, Q-002 and Q-005.
+**Last updated:** 2026-11-04 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 follow-ups done; next is Phase 5 (export), S5.1.
 
 ## Where we are
 
@@ -29,9 +29,10 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | S3.7b campaigns UI: list, create, campaign page, Generate, job panel with polling and cancel, drafts list | done |
 | S3.7c draft screen: sections, edit, regenerate, status, claim warnings, conflicts, copy; product-page "Create campaign" shortcut | done |
 | S3.8 side panel: campaigns list, Generate, job status with polling and cancel, dashboard links; shared poll helpers in `packages/contracts`; details in D-061 | done (built by the orchestrator, live run done) |
+| S5.0 follow-ups (D-064): `latestGenerateJob` on the campaign list, `campaignId`/`draftId` job filters, reopen and failed-job e2e | done |
 | S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (S3.9): contracts 68, provider-core 95, config 12, ui 43, extension unit 66, web 251, api 421; end-to-end 45 (16 extension, 29 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (S5.0): contracts 68, provider-core 95, config 12, ui 43, extension unit 65, web 251, api 423; end-to-end 47 (17 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -90,7 +91,7 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 0. **Owner chose the Phase 4 provider (2026-11-04):** an OpenAI-compatible gateway (`maxplus-ai.cc`), 100-credit cap, owner reviews Thai output. Plan: D-062 and D-063; slices S4.0 (one real call to verify the gateway, needs the owner's key in `TEXT_PROVIDER_API_KEY`), S4.1 config and redaction, S4.2 adapter, S4.3 usage ledger and budget cap, S4.4 usage screen, S4.5 Thai evaluation. The gateway is development and pilot only. Phase 5 (export) is independent and can run first.
-1. Phase 3 is done apart from the gaps listed under S3.9 in `docs/IMPLEMENTATION_STATUS.md` (screens reviewed in `docs/screenshots/` but the side panel not re-captured, GitHub Actions never run). Phase 4 (real text provider) needs the owner's answers to Q-001, Q-002 and Q-005 first. Until then: a `campaignId` filter on `GET /jobs` (D-061 limit), a real-browser look at the campaign, draft and side-panel screens, or work that needs no provider.
+1. Phase 3 is done apart from the gaps listed under S3.9 in `docs/IMPLEMENTATION_STATUS.md` (screens reviewed in `docs/screenshots/` but the side panel not re-captured, GitHub Actions never run). Phase 4 (real text provider) needs the owner's answers to Q-001, Q-002 and Q-005 first. The D-061 job-window limit is fixed (D-064). Next is Phase 5 (export), which needs no provider; start with S5.1 after recording the Phase 5 decisions.
 2. The dashboard e2e suite needs `REDIS_URL` and a running Redis: `pnpm dev:redis`, export `REDIS_URL`, then `pnpm e2e`.
 3. Services stop between sessions: start `pnpm dev:db` and `pnpm dev:redis` and re-export `DATABASE_URL` and `REDIS_URL` before running tests (an `ECONNREFUSED 5432` Unhandled Error means Postgres is down, not a code failure). A fresh container also has no `node_modules`: run `pnpm install --frozen-lockfile`, then build `packages/ui` and `packages/contracts` before the extension's typecheck and tests.
 4. Verified for real: generate, regenerate-section, stale-revision and stale-version 409s (S3.6); retry bounded, reconciler recovery after about 65 s (S3.5); generate, edit and regenerate through the browser (S3.9). Not yet exercised: a worker killed mid-job outside the unit tests.

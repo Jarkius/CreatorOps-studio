@@ -28,11 +28,12 @@ async function createCampaign(
   auth: Auth,
   workspaceId: string,
   name: string,
+  productName = `สินค้า ${name}`,
 ): Promise<{ id: string }> {
   const base = `${API}/workspaces/${workspaceId}`;
   const productResponse = await request.post(`${base}/products`, {
     headers: auth.headers,
-    data: { name: `สินค้า ${name}`, sellingPoints: ['ลมแรง เงียบ'], restrictedClaims: [] },
+    data: { name: productName, sellingPoints: ['ลมแรง เงียบ'], restrictedClaims: [] },
   });
   expect(productResponse.status()).toBe(201);
   const product = (await productResponse.json()) as { id: string };
@@ -101,5 +102,44 @@ test.describe('campaigns and drafts (real API, worker and Redis)', () => {
     // The edit is durable: it is still there after a reload.
     await page.reload();
     await expect(page.getByRole('region', { name: 'Caption' })).toContainText(edited);
+  });
+
+  test('a refused generation fails at once with a plain message and offers Try again', async ({
+    page,
+    request,
+  }) => {
+    const auth = await authFor(request);
+    const workspaceId = await firstWorkspaceId(request, auth);
+    const name = `e2e refused ${Date.now()}`;
+    // The mock provider refuses a product whose text carries this marker: a permanent error, so
+    // the worker must not retry it.
+    const campaign = await createCampaign(
+      request,
+      auth,
+      workspaceId,
+      name,
+      'สินค้าทดสอบ [[mock:refused]]',
+    );
+
+    await page.goto(`/w/${workspaceId}/campaigns/${campaign.id}`);
+    await page.getByRole('button', { name: 'Generate content' }).click();
+
+    const job = page.getByRole('region', { name: 'Generation job' });
+    await expect(job).toContainText('The text provider refused to generate this content.', {
+      timeout: 30_000,
+    });
+    await expect(job.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByText('No drafts yet')).toBeVisible();
+
+    // One attempt only: a permanent error is never retried.
+    const jobs = await request.get(
+      `${API}/workspaces/${workspaceId}/jobs?campaignId=${campaign.id}`,
+      {
+        headers: auth.headers,
+      },
+    );
+    const body = (await jobs.json()) as { items: { status: string; attempts: number }[] };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ status: 'failed', attempts: 1 });
   });
 });

@@ -190,13 +190,6 @@ export type CampaignListQuery = z.input<typeof CampaignListQuerySchema>;
 /** What the API sees after parsing and defaults. */
 export type CampaignListQueryParsed = z.infer<typeof CampaignListQuerySchema>;
 
-export const CampaignListResponseSchema = z.object({
-  items: z.array(CampaignSchema),
-  /** Pass back as `cursor` for the next page; null when there are no more. */
-  nextCursor: z.string().nullable(),
-});
-export type CampaignListResponse = z.infer<typeof CampaignListResponseSchema>;
-
 export const CampaignParamsSchema = z.object({ workspaceId: z.string(), campaignId: z.string() });
 export type CampaignParams = z.infer<typeof CampaignParamsSchema>;
 
@@ -348,6 +341,10 @@ export const JobListQuerySchema = z
   .object({
     status: JobStatusSchema.optional(),
     type: JobTypeSchema.optional(),
+    /** Only jobs for this campaign (generate jobs). */
+    campaignId: idString.optional(),
+    /** Only jobs for this draft (regenerate-section jobs). */
+    draftId: idString.optional(),
     limit: limitParam,
     cursor: cursorString.optional(),
   })
@@ -360,6 +357,22 @@ export const JobListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type JobListResponse = z.infer<typeof JobListResponseSchema>;
+
+/**
+ * A campaign in a list, with its newest generate job, so a screen needs one request to show every
+ * campaign's state however many jobs the workspace has (D-064). `null` when it was never generated.
+ */
+export const CampaignListItemSchema = CampaignSchema.extend({
+  latestGenerateJob: JobSchema.nullable(),
+});
+export type CampaignListItem = z.infer<typeof CampaignListItemSchema>;
+
+export const CampaignListResponseSchema = z.object({
+  items: z.array(CampaignListItemSchema),
+  /** Pass back as `cursor` for the next page; null when there are no more. */
+  nextCursor: z.string().nullable(),
+});
+export type CampaignListResponse = z.infer<typeof CampaignListResponseSchema>;
 
 export const JobParamsSchema = z.object({ workspaceId: z.string(), jobId: z.string() });
 export type JobParams = z.infer<typeof JobParamsSchema>;

@@ -300,6 +300,8 @@ export async function listJobs(
   const rows = await listJobRows(db, ctx, {
     status: query.status,
     type: query.type,
+    campaignId: query.campaignId,
+    draftId: query.draftId,
     limit: query.limit + 1,
     after: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
   });

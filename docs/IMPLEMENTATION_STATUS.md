@@ -3,7 +3,7 @@
 Update this file at the end of every implementation session.
 
 ## Current phase
-Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified list under Tests). Phase 2 complete (S2.1 to S2.8; see the exit check below). Next: Phase 3 (content generation with a mock provider). Consult the advisor on the Phase 3 slice breakdown first (docs/08 section 7).
+Phases 0 to 3 complete (see the exit checks below and S3.9). S5.0 (Phase 3 follow-ups, D-064) done. Next: Phase 5 (asset library and export). Phase 4 (real text provider) is planned (D-062, D-063) and waits for the owner's key.
 
 ## Completed
 - [x] Repository discovery (repository was empty; recorded 2026-11-03)
@@ -18,13 +18,13 @@ Phase 0 and Phase 1 complete (S1.1–S1.5 done and verified; see the unverified 
 - [x] Extension shell (S1.4)
 - [x] Workspace/products (S2.1–S2.4)
 - [x] Media upload/library (S2.5 to S2.7)
-- [ ] Mock generation provider (Phase 3)
-- [ ] Durable jobs (Phase 3)
+- [x] Mock generation provider, durable jobs, campaigns, drafts, dashboard and side panel (Phase 3, S3.0 to S3.9)
+- [x] Phase 3 follow-ups (S5.0, D-064)
 - [ ] Real text provider (Phase 4)
 - [ ] Export workflow (Phase 5)
 
 ## Current branch / commit
-Branch `ccr-14958772-bzlatd`. Phases 0 to 2 and S3.0 are committed; see `git log` for the current commit.
+Branch `ccr-186e9c63-3y215n` (D-064). Everything through S3.9 is committed; see `git log`.
 
 ## How to run
 Node 22+, pnpm 10.28.0.
@@ -110,7 +110,7 @@ Not verified locally: the GitHub Actions workflow (including the `postgres:16` s
 - Before a beta: Q-006 (extension distribution).
 
 ## Next smallest task
-Phase 3, slice 1. Before starting, have the advisor break Phase 3 down (content templates, the mock text provider, the job table and worker, Redis and BullMQ per D-006, idempotency, regenerate-one-section) and record the decisions.
+Phase 5, slice S5.1 (contracts for draft assets, export and asset filters), after the S5.0 commit. The advisor's Phase 5 plan: S5.1 contracts, S5.2 migration 0006 (`draft_assets`, `exports`), S5.3 attach API, S5.4 asset filters, S5.5 draft attach UI, S5.6 zip builder, S5.7 export job and signed download, S5.8 export UI, S5.9 exit check. Record the Phase 5 decisions (D-065 onward) before S5.1.
 
 ## S3.0 Phase 2 cleanups (2026-11-04)
 - Extension manifest CSP now has `default-src 'self'`, `form-action 'none'`, `img-src 'self' <api>`, `media-src <api>` (manifest test added; side panel e2e and screenshot confirm styling intact).
@@ -189,3 +189,10 @@ Phase 3, slice 1. Before starting, have the advisor break Phase 3 down (content 
 - Full chain: lint, typecheck, build, format:check clean. Unit: contracts 68, provider-core 95, config 12, ui 43, extension 66, web 250, api 421. E2E: extension 16, dashboard 29 (45 in total).
 - Not done: no visual review of the campaign, draft and side-panel screens beyond S3.8's 360px screenshot and the automated checks (no new screenshots taken here); a worker killed mid-job is still only covered by unit tests; "logs never expose private signed URLs" is covered by the redaction tests, not re-checked against a live log; the side-panel job list limit (D-061) is unchanged; GitHub Actions has still never run, so the new CI Redis service is untested.
 - Visual review (added the same day): screens captured from the real stack in Chromium at 1280px and 360px, saved in `docs/screenshots/web-campaigns-list.png`, `web-campaign-generating.png`, `web-campaign-drafts.png`, `web-draft.png`, `web-draft-editing.png`, `web-campaign-mobile-360.png`. Two findings: (1) the campaign page showed the product as a raw ID. Fixed: the link now shows the product name (`useProduct` with an `enabled` option) and says "View product" while the name loads or if it cannot be loaded, never the ID; two web tests (name shown; ID never shown), mutation (put the ID back) caught by both; web tests 251. (2) The mock Thai Script repeats one line; it comes from the mock templates and needs native review (Q-005), not an app fix. No clipped text at 360px. The side-panel screens were not re-captured here (see S3.8).
+
+## S5.0 Phase 3 follow-ups (2026-11-04)
+- Built by the orchestrator (job and API code). Rules in D-064. API: `GET /campaigns` items carry `latestGenerateJob` (one `DISTINCT ON` query per page, workspace-scoped); `GET /jobs` takes `campaignId` and `draftId`. Contracts: `CampaignListItem`, `CampaignListItemSchema`. OpenAPI snapshot regenerated (additions only, plus one comma). The side panel reads `latestGenerateJob` from the campaign list and polls that list (the 50-job window and `useGenerateJobs` are gone); the web test fake models the same field.
+- Tests added: api 2 (`jobs.test.ts`: campaign and draft filters including malformed, foreign and upper-case ids; campaigns list with newest job, null when never generated, none from another workspace); extension unit 1 (a campaign shows its latest job whatever its age), polling test now drives the campaign list; e2e 2 (extension: close and reopen the panel, job still queued and not cancelled; dashboard: refused generation through the real worker, plain message, Try again, one attempt).
+- Mutation checks (orchestrator, run after a green baseline): campaign filter dropped, oldest job instead of newest, malformed-id guard removed, draft filter dropped, polling stop inverted, panel ignoring `latestGenerateJob`: all caught. One survived: dropping the `type = generate_brief` condition in `latestGenerateJobsFor`. It is unreachable today because the database ties regenerate jobs to a draft, not a campaign (`jobs_target_matches_type`), so the condition is defence in depth and has no test.
+- Docs: `CLAUDE.md` project state and branch, D-017 index row, this file's header, branch and next task, and D-064. The Phase 2 acceptance boxes in `docs/07` are still unticked; reconcile in S5.9.
+- Full chain after the slice: see the commit message.

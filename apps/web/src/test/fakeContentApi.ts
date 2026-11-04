@@ -349,7 +349,20 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
         const matching = campaigns.filter(
           (item) => item.workspaceId === ws && (status === null || item.status === status),
         );
-        return json(page(matching, listLimit(url), url.searchParams.get('cursor')));
+        // Like the API (D-064): each campaign carries its newest generate job (jobs are appended).
+        const withJob = matching.map((item) => ({
+          ...item,
+          latestGenerateJob:
+            jobs
+              .filter(
+                (job) =>
+                  job.workspaceId === ws &&
+                  job.type === 'generate_brief' &&
+                  job.campaignId === item.id,
+              )
+              .at(-1) ?? null,
+        }));
+        return json(page(withJob, listLimit(url), url.searchParams.get('cursor')));
       }
       if (id === undefined && method === 'POST') {
         const input = call.body as Record<string, unknown>;

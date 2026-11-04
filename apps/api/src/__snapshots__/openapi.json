@@ -1690,6 +1690,114 @@
                           },
                           "updatedAt": {
                             "type": "string"
+                          },
+                          "latestGenerateJob": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "workspaceId": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "generate_brief",
+                                  "regenerate_section"
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "queued",
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "cancelled"
+                                ]
+                              },
+                              "input": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "output": {
+                                "nullable": true,
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "errorCode": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "PROVIDER_TIMEOUT",
+                                  "PROVIDER_UNAVAILABLE",
+                                  "PROVIDER_RATE_LIMITED",
+                                  "INVALID_PROVIDER_OUTPUT",
+                                  "CONTENT_REFUSED",
+                                  "SECTION_CHANGED",
+                                  "CANCELLED",
+                                  "INTERNAL"
+                                ]
+                              },
+                              "errorMessage": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "provider": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "attempts": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "maxAttempts": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "campaignId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "draftId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "finishedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "workspaceId",
+                              "type",
+                              "status",
+                              "input",
+                              "output",
+                              "errorCode",
+                              "errorMessage",
+                              "provider",
+                              "attempts",
+                              "maxAttempts",
+                              "campaignId",
+                              "draftId",
+                              "createdAt",
+                              "startedAt",
+                              "finishedAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -1707,7 +1815,8 @@
                           "status",
                           "version",
                           "createdAt",
-                          "updatedAt"
+                          "updatedAt",
+                          "latestGenerateJob"
                         ],
                         "additionalProperties": false
                       }
@@ -3661,6 +3770,26 @@
             },
             "in": "query",
             "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "campaignId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "draftId",
             "required": false
           },
           {

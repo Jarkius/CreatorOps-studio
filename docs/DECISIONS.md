@@ -41,7 +41,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-014 | No browser automation of consumer AI websites | ACCEPTED |
 | D-015 | Thai is the default content language | ACCEPTED |
 | D-016 | No billing; usage events and budget caps from Phase 4 | ACCEPTED |
-| D-017 | Git: branch `ccr-14958772-bzlatd`; commits when asked; no pull request unless requested | ACCEPTED |
+| D-017 | Git: commits when asked; no pull request unless requested (branch name superseded by D-064) | ACCEPTED |
 | D-018 | Greenfield repository; scaffolding starts at Phase 0 on owner go-ahead | ACCEPTED |
 | D-019 | Extension-first UX with a thin extension shell in Phase 1 | ACCEPTED |
 | D-020 | Phase numbering follows `06` (Phases 0–8) | ACCEPTED |
@@ -88,6 +88,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
+| D-064 | S5.0 (Phase 3 follow-ups): latest generate job on the campaign list, job filters, branch rule, acceptance-tick rule | ACCEPTED |
 | Q-001 | Real text generation provider | ANSWERED in part (D-062); production vendor still open |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -176,7 +177,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 
 ## D-017 — Git policy
 **Status:** ACCEPTED
-**Decision:** Work on branch `ccr-14958772-bzlatd`. Commit and push when the owner asks (a stop-hook request counts). No pull request unless explicitly requested.
+**Decision:** Work on the designated branch (the name was `ccr-14958772-bzlatd`; see D-064). Commit and push when the owner asks (a stop-hook request counts). No pull request unless explicitly requested.
 
 ## D-018 — Greenfield
 **Status:** ACCEPTED
@@ -420,6 +421,17 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 3. **Reconciliation:** S4.3 compares the ledger with `GET /v1/me` and shows both; a gap above 10 percent is shown as a warning.
 The real provider refuses to start without configured prices (no guessed defaults). Generation also needs the user's explicit confirmation of the estimated cost in the UI before a real-provider job is created; mock jobs need none. Usage and cost events never store prompts or outputs.
 **Q-005:** the owner reviews the Thai output. S4.5 drafts about 20 product briefs (three categories, with restricted claims and empty selling points among them) and a score sheet (natural Thai, matches facts, no unsupported claim, tone); the owner scores them. The provider and model pass only if the owner accepts the result.
+
+## D-064 — S5.0: Phase 3 follow-ups from the advisor checkpoint (2026-11-04)
+**Status:** ACCEPTED. Supersedes the branch name in D-017 and the D-061 job-window limit; refines the doc 07 rule in D-045 to D-054.
+**Context:** The advisor reviewed Phase 3 before Phase 5 (export). Findings: the side panel read only the newest 50 generate jobs (D-061), so an older campaign showed no status; "reopen the panel" and "failed job" had no end-to-end proof; the docs named two branches and still said Phase 3 was next; the doc 07 boxes were ticked without a rule.
+**Decision:**
+1. **`GET /campaigns` returns `latestGenerateJob`** on each item (`CampaignListItem`, null when never generated), read in one query (`DISTINCT ON (campaign_id)`) scoped to the workspace. The side panel uses it and polls the campaign list while a listed job is queued or running, so state is exact for any number of jobs. A `campaignId` filter on `GET /jobs` alone was rejected: it would cost one request per campaign on every poll. `GET /campaigns/:id` and create are unchanged.
+2. **`GET /jobs` accepts `campaignId` and `draftId`** (export status needs `draftId`). A malformed or foreign id matches nothing and never reaches a uuid column.
+3. **Branch:** work on the branch the session designates; today that is `ccr-186e9c63-3y215n`. The older `ccr-14958772-bzlatd` is an ancestor and is retired. Update this line when the designated branch changes.
+4. **Acceptance ticks:** a box in `docs/07` or an exit criterion in `docs/06` is ticked only when an automated test or a recorded live run proves it, with the evidence named in `docs/IMPLEMENTATION_STATUS.md`. The release gate still needs every P0 box. The Phase 2 boxes that have evidence from the Phase 2 exit check are reconciled in the Phase 5 exit check (S5.9).
+5. **Evidence added:** side-panel e2e that closes the panel, opens a new one and sees the same queued job, and shows the job was not cancelled; dashboard e2e that runs a refused generation through the real worker, shows the plain message and Try again, and checks one attempt only.
+6. **Known limit:** the mock Thai Script repeats a line; it needs native review (Q-005, D-063), not code.
 
 ## Open questions
 

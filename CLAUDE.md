@@ -7,7 +7,7 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 - Read `docs/README.md` first. It lists every document and which one wins on conflict.
 - Final design choices are in `docs/DECISIONS.md`; the concrete layout is in `docs/ARCHITECTURE.md`; slice-level plans and the definition of done are in `docs/08_PHASE_PLAN.md`.
 - Project skill: `.claude/skills/app-dev-methodology` (session start, slice loop, delegation, verification, and which docs to update at the end; rewritten 2026-11-04). Project rules in this file and `docs/` take precedence over the skill where they differ.
-- Git: work on branch `ccr-14958772-bzlatd`; commit when asked; no pull request unless requested (`docs/DECISIONS.md` D-017).
+- Git: work on the branch the session designates (currently `ccr-186e9c63-3y215n`; D-064); commit when asked; no pull request unless requested (`docs/DECISIONS.md` D-017).
 
 ## Mandatory first actions
 
@@ -74,8 +74,8 @@ Do not silently skip failing tests. Report blockers, assumptions, and anything t
 
 ## Project state and next task
 
-Phases 0, 1 and 2 are built and verified (monorepo, API, dashboard, MV3 side panel, products, uploads). Current state, commands and gotchas: `docs/WORKING_NOTES.md` (read it first when resuming) and `docs/IMPLEMENTATION_STATUS.md`.
+Phases 0 to 3 are built and verified (monorepo, API, dashboard, MV3 side panel, products, uploads, campaigns, drafts, jobs with a worker and Redis, mock text provider). Current state, commands and gotchas: `docs/WORKING_NOTES.md` (read it first when resuming) and `docs/IMPLEMENTATION_STATUS.md`.
 
-The next work is Phase 3 (content generation with a mock provider, job table and worker, Redis and BullMQ per D-006). Before starting it, have the advisor break Phase 3 into slices and record the decisions in `docs/DECISIONS.md`. Then follow `docs/08_PHASE_PLAN.md` one slice at a time.
+The next work is Phase 5 (asset library and export), starting with S5.0 (D-064). Phase 4 (real text provider) is planned in D-062 and D-063 (an OpenAI-compatible gateway, 100-credit cap) and waits for the owner's key; it starts with a verified real call (S4.0).
 
 Do not add paid-provider integrations, publishing connectors, broad browser permissions, or a desktop companion without the gates recorded in `docs/DECISIONS.md` (D-022). Real providers also need the owner's answers to Q-001, Q-002 and Q-005.

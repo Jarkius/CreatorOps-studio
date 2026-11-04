@@ -85,6 +85,8 @@ export async function findJob(
 export interface ListOptions {
   readonly status?: JobRow['status'] | undefined;
   readonly type?: JobRow['type'] | undefined;
+  readonly campaignId?: string | undefined;
+  readonly draftId?: string | undefined;
   readonly limit: number;
   readonly after?: { readonly createdAt: Date; readonly id: string } | undefined;
 }
@@ -95,6 +97,10 @@ export async function listJobs(
   options: ListOptions,
 ): Promise<JobRow[]> {
   const after = options.after;
+  // An id that is not a UUID cannot match any row (and must not reach a uuid column).
+  for (const id of [options.campaignId, options.draftId]) {
+    if (id !== undefined && !UUID.test(id)) return [];
+  }
   return db
     .select()
     .from(jobs)
@@ -103,6 +109,8 @@ export async function listJobs(
         eq(jobs.workspaceId, ctx.workspaceId),
         options.status === undefined ? undefined : eq(jobs.status, options.status),
         options.type === undefined ? undefined : eq(jobs.type, options.type),
+        options.campaignId === undefined ? undefined : eq(jobs.campaignId, options.campaignId),
+        options.draftId === undefined ? undefined : eq(jobs.draftId, options.draftId),
         after === undefined
           ? undefined
           : sql`(${jobs.createdAt}, ${jobs.id}) < (${after.createdAt}, ${after.id}::uuid)`,
@@ -151,4 +159,28 @@ export async function requestCancelRunningJob(
     )
     .returning();
   return rows[0] ?? null;
+}
+
+/**
+ * The newest generate job of each listed campaign, in one query. Always scoped to the workspace;
+ * a campaign id from another workspace never matches.
+ */
+export async function latestGenerateJobsFor(
+  db: DbOrTx,
+  ctx: RequestContext,
+  campaignIds: readonly string[],
+): Promise<JobRow[]> {
+  const ids = campaignIds.filter((id) => UUID.test(id));
+  if (ids.length === 0) return [];
+  return db
+    .selectDistinctOn([jobs.campaignId])
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.workspaceId, ctx.workspaceId),
+        eq(jobs.type, 'generate_brief'),
+        inArray(jobs.campaignId, [...ids]),
+      ),
+    )
+    .orderBy(jobs.campaignId, desc(jobs.createdAt), desc(jobs.id));
 }

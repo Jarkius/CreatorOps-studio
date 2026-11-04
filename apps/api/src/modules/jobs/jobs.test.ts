@@ -1,4 +1,5 @@
 import {
+  CampaignListResponseSchema,
   CampaignSchema,
   ErrorBodySchema,
   JobListResponseSchema,
@@ -470,6 +471,102 @@ describe('reading jobs', () => {
     for (const bad of ['?cursor=not-a-cursor', '?cursor=%00', '?limit=0', '?limit=101', '?x=1']) {
       expect((await call(alice, 'GET', `${url}${bad}`)).statusCode, bad).toBe(400);
     }
+  });
+
+  it('filters by campaign and by draft; a malformed or foreign id matches nothing', async () => {
+    await clearJobs(alice.workspaceId);
+    const first = await makeCampaign(alice, 'First');
+    const second = await makeCampaign(alice, 'Second');
+    const firstJob = JobSchema.parse((await generate(alice, first)).json());
+    const secondJob = JobSchema.parse((await generate(alice, second)).json());
+    const url = `${base(alice.workspaceId)}/jobs`;
+
+    const only = async (query: string) =>
+      JobListResponseSchema.parse((await call(alice, 'GET', `${url}${query}`)).json()).items.map(
+        (job) => job.id,
+      );
+    expect(await only(`?campaignId=${first}`)).toEqual([firstJob.id]);
+    expect(await only(`?campaignId=${second}`)).toEqual([secondJob.id]);
+    expect(await only(`?campaignId=${first.toUpperCase()}`)).toEqual([firstJob.id]);
+    expect(await only('?campaignId=not-a-uuid')).toEqual([]);
+    expect(await only('?draftId=not-a-uuid')).toEqual([]);
+    expect(await only(`?draftId=${first}`)).toEqual([]);
+
+    // A regenerate job carries a draft, not a campaign: the draft filter finds it, the campaign
+    // filter does not, and another draft's job stays out.
+    const [campaignRow] = await testDb.db
+      .select()
+      .from(schema.campaigns)
+      .where(eq(schema.campaigns.id, first));
+    if (campaignRow === undefined) throw new Error('campaign vanished');
+    const draftIds: string[] = [];
+    const regenIds: string[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      const [draft] = await testDb.db
+        .insert(schema.contentDrafts)
+        .values({
+          workspaceId: alice.workspaceId,
+          campaignId: first,
+          productId: campaignRow.productId,
+          variantIndex: i,
+          sections: {},
+          sectionState: {},
+        })
+        .returning();
+      if (draft === undefined) throw new Error('draft seed failed');
+      draftIds.push(draft.id);
+      const [job] = await testDb.db
+        .insert(schema.jobs)
+        .values({
+          workspaceId: alice.workspaceId,
+          type: 'regenerate_section',
+          status: 'queued',
+          input: {},
+          createdBy: alice.userId,
+          idempotencyKey: `regen-filter-${i}-${newKey()}`,
+          requestHash: 'b'.repeat(64),
+          draftId: draft.id,
+          attempts: 0,
+          maxAttempts: 3,
+        })
+        .returning();
+      if (job === undefined) throw new Error('job seed failed');
+      regenIds.push(job.id);
+    }
+    expect(await only(`?draftId=${draftIds[0]}`)).toEqual([regenIds[0]]);
+    expect(await only(`?draftId=${draftIds[1]}`)).toEqual([regenIds[1]]);
+    expect(await only(`?campaignId=${first}`)).toEqual([firstJob.id]);
+
+    // A campaign of another workspace never matches, even with its real id.
+    const foreign = await makeCampaign(bob);
+    expect(await only(`?campaignId=${foreign}`)).toEqual([]);
+  });
+
+  it('lists campaigns with their newest generate job, null when never generated, never from another workspace', async () => {
+    await clearJobs(alice.workspaceId);
+    const generated = await makeCampaign(alice, 'Generated');
+    const untouched = await makeCampaign(alice, 'Untouched');
+    const older = JobSchema.parse((await generate(alice, generated)).json());
+    await call(alice, 'POST', `${base(alice.workspaceId)}/jobs/${older.id}/cancel`);
+    const newer = JobSchema.parse((await generate(alice, generated)).json());
+
+    const latestOf = async (person: Person) => {
+      const response = await call(person, 'GET', `${base(person.workspaceId)}/campaigns?limit=100`);
+      expect(response.statusCode, response.body).toBe(200);
+      return new Map(
+        CampaignListResponseSchema.parse(response.json()).items.map((item) => [
+          item.id,
+          item.latestGenerateJob?.id ?? null,
+        ]),
+      );
+    };
+    const mine = await latestOf(alice);
+    expect(mine.get(generated)).toBe(newer.id);
+    expect(mine.get(untouched)).toBeNull();
+
+    // Bob's list holds none of Alice's campaigns or jobs.
+    const theirs = await latestOf(bob);
+    expect(theirs.has(generated)).toBe(false);
   });
 
   it('answers 404 for a malformed job id', async () => {
