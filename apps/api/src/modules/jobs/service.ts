@@ -160,7 +160,7 @@ export async function createGenerateBriefJob(
   if (outcome.created) {
     // After the commit. If the hand-off fails the job stays queued and the reconciler picks it up.
     try {
-      await queue.enqueue(outcome.row.id);
+      await queue.enqueue(outcome.row.id, { attempt: 1 });
     } catch (error) {
       log.warn(
         { event: 'job.enqueue_failed', jobId: outcome.row.id, error: errorName(error) },

@@ -118,4 +118,18 @@ describe('loadConfig', () => {
     expect(failure(validEnv({ TRUST_PROXY_HOPS: '-1' })).message).toContain('TRUST_PROXY_HOPS');
     expect(failure(validEnv({ TRUST_PROXY_HOPS: '11' })).message).toContain('TRUST_PROXY_HOPS');
   });
+
+  it('treats REDIS_URL as optional and accepts redis and rediss URLs', () => {
+    expect(loadConfig(validEnv()).REDIS_URL).toBeUndefined();
+    const plain = 'redis://default:pw@127.0.0.1:6379';
+    expect(loadConfig(validEnv({ REDIS_URL: plain })).REDIS_URL).toBe(plain);
+    const secure = 'rediss://:pw@cache.internal:6380';
+    expect(loadConfig(validEnv({ REDIS_URL: secure })).REDIS_URL).toBe(secure);
+  });
+
+  it('rejects a REDIS_URL that is not a redis URL without echoing it', () => {
+    const error = failure(validEnv({ REDIS_URL: 'http://user:topsecret@host' }));
+    expect(error.issues.map((issue) => issue.variable)).toContain('REDIS_URL');
+    expect(error.message).not.toContain('topsecret');
+  });
 });

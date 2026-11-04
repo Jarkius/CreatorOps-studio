@@ -3,6 +3,8 @@ import { createDb } from './db/client.js';
 import { createAssetDeps } from './modules/assets/deps.js';
 import { DELETED_RETENTION_SECONDS } from './modules/assets/limits.js';
 import { purgeDeletedAssets, sweepUploads } from './modules/assets/service.js';
+import { BullMqJobQueue } from './modules/jobs/bullmq-queue.js';
+import { NullJobQueue } from './modules/jobs/queue.js';
 import { LocalFsStorage } from './storage/local-fs.js';
 import { prepare } from './startup.js';
 
@@ -17,7 +19,19 @@ if (!prepared.ok) {
   const { config, logger, pool } = prepared;
   const db = createDb(pool);
   const storage = new LocalFsStorage(config.DATA_DIR);
-  const app = await buildApp({ config, logger, db, storage, rateLimitMax: config.RATE_LIMIT_MAX });
+  // With Redis, new jobs are handed to the worker at once. Without it they wait in the database.
+  const bullQueue = config.REDIS_URL === undefined ? null : new BullMqJobQueue(config.REDIS_URL);
+  if (bullQueue === null) {
+    logger.warn({ event: 'queue.disabled' }, 'REDIS_URL is not set: jobs will not run');
+  }
+  const app = await buildApp({
+    config,
+    logger,
+    db,
+    storage,
+    jobQueue: bullQueue ?? new NullJobQueue(),
+    rateLimitMax: config.RATE_LIMIT_MAX,
+  });
 
   // Now and every ten minutes: remove unfinished uploads and purge long-deleted files.
   const assetDeps = createAssetDeps({ db, storage, sessionSecret: config.SESSION_SECRET });
@@ -46,6 +60,7 @@ if (!prepared.ok) {
     logger.info({ event: 'server.stopping', signal }, 'shutting down');
     clearInterval(sweeper);
     await app.close();
+    await bullQueue?.close();
     await pool.end();
   };
   process.once('SIGINT', () => void shutdown('SIGINT'));

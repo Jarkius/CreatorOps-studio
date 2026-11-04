@@ -162,7 +162,7 @@ describe('creating a job', () => {
       durationSeconds: 45,
       variants: 2,
     });
-    expect(queue.enqueued).toEqual([{ jobId: job.id, delayMs: undefined }]);
+    expect(queue.enqueued).toEqual([{ jobId: job.id, delayMs: undefined, attempt: 1 }]);
     const audit = await testDb.pool.query(
       "select metadata from audit_events where action = 'job.create' and resource_id = $1",
       [job.id],

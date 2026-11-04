@@ -20,8 +20,8 @@ const SENSITIVE_KEY =
 const MAX_DEPTH = 8;
 
 const BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi;
-// scheme://user:password@host -> keep user, hide password
-const URL_PASSWORD = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):[^\s@/]+@/gi;
+// scheme://user:password@host -> keep user, hide password (the user may be empty: redis://:pw@host)
+const URL_PASSWORD = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]*):[^\s@/]+@/gi;
 // absolute URL with a query string
 const ABSOLUTE_URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>?#]*)\?[^\s"'<>#]*/gi;
 // path (starting with "/") with a query string

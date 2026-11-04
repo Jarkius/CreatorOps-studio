@@ -51,6 +51,15 @@ export const apiEnvSchema = z
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
+    // Queue for background jobs (D-054). Optional: without it the API still accepts jobs, which
+    // wait in the database until a worker with Redis runs. The password inside is redacted in logs.
+    REDIS_URL: z
+      .string()
+      .refine(
+        (value) => isUrlWithProtocol(value, ['redis:', 'rediss:']),
+        'must be a redis:// or rediss:// URL',
+      )
+      .optional(),
     DATABASE_URL: z
       .string()
       .refine(

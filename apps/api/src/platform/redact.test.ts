@@ -58,6 +58,15 @@ describe('redactString', () => {
     );
   });
 
+  it('hides the password in a Redis URL, with or without a user name', () => {
+    expect(redactString('connect redis://:hunter2@127.0.0.1:6379 failed')).toBe(
+      `connect redis://:${REDACTED}@127.0.0.1:6379 failed`,
+    );
+    expect(redactString('connect rediss://default:hunter2@cache.internal:6380/0 failed')).toBe(
+      `connect rediss://default:${REDACTED}@cache.internal:6380/0 failed`,
+    );
+  });
+
   it('hides the whole query string of absolute URLs (signed media URLs)', () => {
     const out = redactString('GET https://files.example.com/m/abc.jpg?sig=SECRET&exp=99 done');
     expect(out).toBe(`GET https://files.example.com/m/abc.jpg?${REDACTED} done`);
