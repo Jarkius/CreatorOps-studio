@@ -86,11 +86,13 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-059 | S3.7 and S3.8 UI direction from market research (`docs/UI_RESEARCH.md`) | ACCEPTED |
 | D-060 | Publishing plan: assisted posting first, official APIs next; no UI-automation posting | ACCEPTED |
 | D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
-| Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
+| D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
+| D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
+| Q-001 | Real text generation provider | ANSWERED in part (D-062); production vendor still open |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
 | Q-004 | Object storage vendor | OPEN (before any hosted deployment) |
-| Q-005 | Thai copy evaluation set and reviewers | OPEN (before Phase 4) |
+| Q-005 | Thai copy evaluation set and reviewers | ANSWERED in part (D-063): the owner reviews; evaluation set drafted in S4.5 |
 | Q-006 | Extension distribution (Chrome Web Store) and extension id | OPEN (before beta) |
 | Q-007 | Production hosting target | OPEN (before any hosted deployment) |
 
@@ -397,6 +399,27 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 - **Errors.** Every failed request shows the API message and request id where present (`ApiError`), never a raw error; `RATE_LIMITED` (cap of 5 active jobs, or 20 starts a minute) shows its message as is.
 - **Out of scope:** streaming, creating campaigns in the panel, editing or viewing draft sections, claim-warning badges, retry of a single section, product images, notifications.
 **Known limit:** the job list shows only the newest 50 generate jobs of the workspace (one page). A campaign whose latest job is older than that shows no status; the link to the dashboard still works. Fixing it needs a `campaignId` filter on `GET /jobs` (a later slice, if the panel needs it).
+
+## D-062 — Phase 4 text provider (owner answer to Q-001, 2026-11-04)
+**Status:** ACCEPTED. Gate 1 of D-022 is met for development and pilot use only (terms gap noted below).
+**Context:** The owner chose an OpenAI-compatible API from `maxplus-ai.cc` and will review the Thai output. The site's own pages say: it is an "API proxy" with pay-as-you-go pricing; base URL `https://api.maxplus-ai.cc/v1`; Chat Completions and Responses are listed for some pools; keys look like `ccsk-` plus 64 hex characters; `GET /v1/me` returns the balance (`credit_usd`); a key can carry a spend cap (`limit_usd`) and returns 402 at zero balance and 429 at its cap; tasks and files are kept 3 days. The pages do not name an operator, a company or a country, and no terms of service, privacy policy, logging or training policy, or official-reseller statement was found. A model-written summary of the docs said the service may be shut down; that was not confirmed. Text-model rate limits and per-model prices were not readable. Nothing has been called yet.
+**Decision:**
+1. Build one generic **OpenAI-compatible text provider** behind the existing `provider-core` text-provider interface (S3.1): base URL, model, API key, and price per million input and output tokens are server configuration (`TEXT_PROVIDER_*`), never extension or browser settings. It uses Chat Completions with a JSON-schema or JSON-object response, validated by the existing output validation and claim guard. `mock-text` stays the default and the test provider; the real provider turns on only when all settings are present.
+2. The MaxPlus gateway is **development and pilot only**. Because the operator and its data handling are unknown, send only the product text the owner enters; no customer data, no personal data, no unpublished third-party material. Moving to the official provider is a configuration change, not a code change. Record the official vendor as the production choice under Q-001 before any hosted release.
+3. **Verify before trusting:** the first slice (S4.0) makes one real call with the owner's key to `/v1/models`, `/v1/me` and one Chat Completions request with a Thai prompt, and records the observed model names, response shape, latency, usage fields and the price actually charged. Until then nothing in this decision is claimed to work.
+4. Default model: the cheapest listed GPT-class small model that passes the S4.5 Thai evaluation; pick from the real `/v1/models` list, not from the marketing page.
+5. Retry follows D-048: bounded; 429, 5xx and timeouts retry with backoff; 400, 401, 402, 403 and schema failures do not. Stable error codes: `PROVIDER_AUTH`, `PROVIDER_BUDGET`, `PROVIDER_RATE_LIMITED`, `PROVIDER_UNAVAILABLE`, `PROVIDER_BAD_OUTPUT`.
+6. The key lives only in a server environment variable and is added to the redaction list. The key must never be pasted into chat, committed, logged, or sent to the browser. `.env.example` carries a placeholder only.
+
+## D-063 — Phase 4 spend control (owner answer, 2026-11-04)
+**Status:** ACCEPTED.
+**Context:** The owner set a budget of 100 credits. The site states the top-up rate as ฿1 = $3 of credit and bills on actual tokens, so 100 credits is about ฿33; the credit unit equals one US dollar of model price (`credit_usd`).
+**Decision:** The cap is enforced in three layers, and any missing layer fails closed:
+1. **App cap:** a per-workspace usage ledger records every provider call (job, model, input and output tokens, cost in credits from the configured prices). Before a call, the worker refuses with `PROVIDER_BUDGET` if spent plus the call's worst-case cost would pass `TEXT_PROVIDER_BUDGET_CREDITS` (default 100, set to the owner's value). Worst-case cost uses the request's maximum output tokens.
+2. **Key cap:** the owner sets `limit_usd` = 100 on the gateway key, so the gateway refuses even if the app has a bug.
+3. **Reconciliation:** S4.3 compares the ledger with `GET /v1/me` and shows both; a gap above 10 percent is shown as a warning.
+The real provider refuses to start without configured prices (no guessed defaults). Generation also needs the user's explicit confirmation of the estimated cost in the UI before a real-provider job is created; mock jobs need none. Usage and cost events never store prompts or outputs.
+**Q-005:** the owner reviews the Thai output. S4.5 drafts about 20 product briefs (three categories, with restricted claims and empty selling points among them) and a score sheet (natural Thai, matches facts, no unsupported claim, tone); the owner scores them. The provider and model pass only if the owner accepts the result.
 
 ## Open questions
 
