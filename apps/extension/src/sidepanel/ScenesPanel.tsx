@@ -3,16 +3,22 @@ import { Button, EmptyState, ErrorState, LoadingState } from '@creatorops/ui';
 import { useState } from 'react';
 
 import { useCampaignDraft, useDraftAssets } from './sceneHooks.js';
+import { HelperRunPanel } from './metaai/HelperRunPanel.js';
+import { useMetaAiHelper, type HelperDeps } from './metaai/useMetaAi.js';
 import { attachedByScene, scenesFromSections, type SceneItem } from './scenes.js';
 
 export interface ScenesPanelProps {
   readonly api: ApiClient;
   readonly workspaceId: string;
   readonly campaignId: string;
+  /** Owner, admin and editor only; the API still enforces it. */
+  readonly canStart: boolean;
+  /** Replaced in tests; the panel uses the real browser. */
+  readonly helper?: HelperDeps;
 }
 
 /** The scenes of a campaign's finished draft: name, editable prompt, copy, and file status. */
-export function ScenesPanel({ api, workspaceId, campaignId }: ScenesPanelProps) {
+export function ScenesPanel({ api, workspaceId, campaignId, canStart, helper }: ScenesPanelProps) {
   const draft = useCampaignDraft(api, workspaceId, campaignId);
   const error = draft.error instanceof ApiError ? draft.error : null;
 
@@ -35,18 +41,32 @@ export function ScenesPanel({ api, workspaceId, campaignId }: ScenesPanelProps) 
       />
     );
   }
-  return <SceneList api={api} workspaceId={workspaceId} draft={draft.data} />;
+  return (
+    <SceneList
+      api={api}
+      workspaceId={workspaceId}
+      draft={draft.data}
+      canStart={canStart}
+      {...(helper === undefined ? {} : { helper })}
+    />
+  );
 }
 
 function SceneList({
   api,
   workspaceId,
   draft,
+  canStart,
+  helper,
 }: {
   api: ApiClient;
   workspaceId: string;
   draft: Draft;
+  canStart: boolean;
+  helper?: HelperDeps;
 }) {
+  const run = useMetaAiHelper(api, workspaceId, draft, helper);
+  const running = run.state.phase === 'running';
   const assets = useDraftAssets(api, workspaceId, draft.id);
   const attached = attachedByScene(assets.data?.items ?? []);
   const scenes = scenesFromSections(draft.sections);
@@ -63,6 +83,13 @@ function SceneList({
           </button>
         </p>
       ) : null}
+      {canStart ? (
+        <p className="text-sm text-[var(--co-text-muted)]">
+          Generate in Meta AI uses your own signed-in meta.ai tab. Chrome asks once to allow
+          meta.ai; the helper never signs in for you and stops if Meta asks for a check.
+        </p>
+      ) : null}
+      <HelperRunPanel state={run.state} onCancel={run.cancel} onDismiss={run.dismiss} />
       <ol className="space-y-3">
         {scenes.map((scene, index) => (
           <SceneRow
@@ -71,6 +98,12 @@ function SceneList({
             scene={scene}
             fileName={attached.get(scene.scene)?.asset.originalFilename ?? null}
             fileKnown={assets.isSuccess}
+            {...(canStart
+              ? {
+                  onGenerate: (text: string) => void run.start(scene.scene, text),
+                  generateDisabled: running,
+                }
+              : {})}
           />
         ))}
       </ol>
@@ -83,11 +116,15 @@ function SceneRow({
   scene,
   fileName,
   fileKnown,
+  onGenerate,
+  generateDisabled = false,
 }: {
   index: number;
   scene: SceneItem;
   fileName: string | null;
   fileKnown: boolean;
+  onGenerate?: (prompt: string) => void;
+  generateDisabled?: boolean;
 }) {
   const [prompt, setPrompt] = useState(scene.prompt);
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -128,6 +165,15 @@ function SceneRow({
         >
           Copy prompt
         </Button>
+        {onGenerate === undefined ? null : (
+          <Button
+            aria-label={`Generate ${scene.label} in Meta AI`}
+            disabled={generateDisabled || prompt.trim() === ''}
+            onClick={() => onGenerate(prompt)}
+          >
+            Generate in Meta AI
+          </Button>
+        )}
         <Button
           variant="secondary"
           aria-label={`Reset prompt for ${scene.label}`}

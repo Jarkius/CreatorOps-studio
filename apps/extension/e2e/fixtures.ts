@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium, test as base, type BrowserContext } from '@playwright/test';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DIST = path.resolve(here, '..', 'dist');
+const DIST = path.resolve(here, '..', 'dist-e2e');
 
 interface Fixtures {
   /** A fresh Chromium profile with the built extension loaded. */

@@ -15,7 +15,11 @@ const devKey = JSON.parse(
 ) as { key: string };
 
 /** Writes manifest.json into the build output from the typed builder (D-029). */
-function manifestPlugin(apiBaseUrl: string, includeDevKey: boolean): Plugin {
+function manifestPlugin(
+  apiBaseUrl: string,
+  includeDevKey: boolean,
+  grantMetaAiForTests: boolean,
+): Plugin {
   return {
     name: 'creatorops-manifest',
     generateBundle() {
@@ -23,6 +27,7 @@ function manifestPlugin(apiBaseUrl: string, includeDevKey: boolean): Plugin {
         apiBaseUrl,
         version: pkg.version,
         key: includeDevKey ? devKey.key : undefined,
+        grantMetaAiForTests,
       });
       this.emitFile({
         type: 'asset',
@@ -37,9 +42,14 @@ export default defineConfig(({ mode }) => {
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
   return {
     // `--mode store` builds without the development key; the store assigns its own id (Q-006).
-    plugins: [react(), tailwindcss(), manifestPlugin(apiBaseUrl, mode !== 'store')],
+    plugins: [
+      react(),
+      tailwindcss(),
+      manifestPlugin(apiBaseUrl, mode !== 'store', process.env.E2E_GRANT_META_AI === '1'),
+    ],
     build: {
-      outDir: 'dist',
+      // The end-to-end build goes to its own folder so it never replaces the real build.
+      outDir: process.env.E2E_GRANT_META_AI === '1' ? 'dist-e2e' : 'dist',
       emptyOutDir: true,
       sourcemap: false,
       rollupOptions: {

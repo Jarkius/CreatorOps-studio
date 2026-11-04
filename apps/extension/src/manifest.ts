@@ -1,11 +1,17 @@
 /**
  * Builds the Manifest V3 manifest (D-019, D-029, docs/03 section 4, docs/05 section 4).
  *
- * The permission set is deliberately tiny and fixed: `sidePanel` and `storage`, plus host
- * access to the configured API origin only. Adding anything else (activeTab, scripting,
- * <all_urls>, content scripts) needs its own decision entry; a test fails if it appears.
+ * The permission set is deliberately tiny and fixed: `sidePanel`, `storage` and `scripting`, plus
+ * host access to the configured API origin only. `scripting` (D-072) is only usable on hosts the
+ * extension may access, and the only other host is the optional `https://www.meta.ai/*` (D-071),
+ * which the user grants with a Chrome prompt when turning the Meta AI helper on. Adding anything
+ * else (activeTab, tabs, <all_urls>, content scripts) needs its own decision entry; a test fails
+ * if it appears.
  */
-export const EXTENSION_PERMISSIONS = ['sidePanel', 'storage'] as const;
+export const EXTENSION_PERMISSIONS = ['sidePanel', 'storage', 'scripting'] as const;
+
+/** The one other site the extension may ever touch, and only after the user allows it (D-071). */
+export const META_AI_HOST_PATTERN = 'https://www.meta.ai/*';
 
 export interface ManifestInput {
   /** Base URL of the CreatorOps API, for example http://localhost:3000. */
@@ -14,6 +20,11 @@ export interface ManifestInput {
   readonly version: string;
   /** Public key that pins the extension id (development builds only). */
   readonly key?: string | undefined;
+  /**
+   * End-to-end test builds only: lists the Meta AI host as granted at install, because Chrome's
+   * permission prompt cannot be clicked by a test. Never set for a release or demo build.
+   */
+  readonly grantMetaAiForTests?: boolean | undefined;
 }
 
 export interface Manifest {
@@ -27,6 +38,7 @@ export interface Manifest {
   readonly background: { readonly service_worker: string; readonly type: 'module' };
   readonly permissions: readonly string[];
   readonly host_permissions: readonly string[];
+  readonly optional_host_permissions: readonly string[];
   readonly content_security_policy: { readonly extension_pages: string };
   readonly key?: string;
 }
@@ -68,7 +80,11 @@ export function buildManifest(input: ManifestInput): Manifest {
     side_panel: { default_path: 'sidepanel.html' },
     background: { service_worker: 'sw.js', type: 'module' },
     permissions: [...EXTENSION_PERMISSIONS],
-    host_permissions: [`${origin}/*`],
+    host_permissions: [
+      `${origin}/*`,
+      ...(input.grantMetaAiForTests === true ? [META_AI_HOST_PATTERN] : []),
+    ],
+    optional_host_permissions: [META_AI_HOST_PATTERN],
     content_security_policy: {
       // No remote code, no plugins, and everything not listed falls back to the extension itself.
       // Images and media may also load from the API origin (signed media URLs, D-039).

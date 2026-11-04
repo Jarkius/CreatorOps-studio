@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-072 | A3 build choices: `scripting` permission, optional meta.ai host, e2e build grants it, helper structure | ACCEPTED (orchestrator, A3) |
 | D-071 | Meta AI helper: the extension drives the owner's own logged-in meta.ai tab, user-initiated and narrowly scoped (owner decision) | ACCEPTED (owner decision 2026-11-04) |
 | D-070 | Media sourcing: assisted manual path first (prompt pack and import, works with the owner's Meta subscription), API adapters second; no website automation | ACCEPTED (owner request, research 2026-11-04) |
 | D-069 | Media providers: one OpenRouter key for text, image and video; no Meta AI website automation; spend cap optional | ACCEPTED (research 2026-11-04) |
@@ -529,6 +530,16 @@ The real provider refuses to start without configured prices (no guessed default
 5. **Testing:** the helper is built and tested against a local fake meta.ai page in the extension e2e suite; the selector file and the diagnostics make the first real-site fixes small.
 5a. **Where prompt text comes from (owner question 2026-11-04):** one prompt writer behind one interface with three sources that all produce the same scene list: Template (the existing mock text, works now, no key), Meta AI chat through this helper (the helper types a request with the product facts into the owner's meta.ai chat, asks for a fixed layout, reads the text reply, and fills the scenes for the owner to edit before any image is made; no key), and an LLM API (Phase 4, OpenRouter key). The first slices use Template. Unverified: how meta.ai handles Thai and long replies.
 6. **Not changed:** no auto-posting, no fake engagement, no account warming (D-060); no second account or account rotation; generation through the owner's browser stays one scene at a time.
+
+## D-072 — A3 build choices for the Meta AI helper (2026-11-04)
+**Status:** ACCEPTED. Implements D-071; changes the permission list in D-029 and `docs/ARCHITECTURE.md`.
+**Decision:**
+1. **Permissions:** `permissions` gains `scripting` (it shows no install warning and only works on hosts the extension may access). The only other host is `optional_host_permissions: ["https://www.meta.ai/*"]`, asked for by the panel when the owner first presses Generate in Meta AI (Chrome shows its own prompt). No `tabs`, no `activeTab`, no content scripts, no install-time host beyond the API. Tabs are found with a URL pattern query, which the optional host permission allows.
+2. **Where the code runs:** orchestration in the panel page (`sidepanel/metaai/runner.ts`), injected functions in one file (`page.ts`, self-contained, serialised by `chrome.scripting.executeScript`), selectors and timeouts in one file (`selectors.ts`). The runner takes a `MetaAiBrowser` and the page functions as arguments, so tests drive it with fakes.
+3. **Result handling:** the helper waits until the same new media is present on two checks in a row, downloads it inside the page (https and blob addresses only), reads it in 512 KB base64 chunks, checks type and size against the upload limits, then uses the existing upload path (intent, signed PUT without a bearer token, complete) and replaces that scene's attachment through `PUT /drafts/:id/assets` with `aiGenerated: true` and generator "Meta AI". Everything already attached keeps its place.
+4. **Honesty and safety:** every wait is bounded (image 3 min, video 10 min; video is wired in the runner but not offered in the UI yet) and races the Cancel signal, so Cancel works even when the page is stuck. Login, challenge, limit text, a missing prompt box or an unusable page stop the run with a plain message; nothing is solved or bypassed. Diagnostics hold step timings, page title, path (no query), matched selector index and counts; never the prompt, page text, cookies or media.
+5. **Testing:** unit tests with fakes, the injected functions tested in jsdom, and an e2e suite against a fake meta.ai served by Playwright routes. A test cannot click Chrome's permission prompt, so the e2e build (`E2E_GRANT_META_AI=1`, output `dist-e2e`) lists the host as granted at install; release and demo builds never do (manifest and built-manifest tests check it).
+6. **Not verified:** the real meta.ai (selectors, timing, how it names images, whether it serves media to `fetch` with the owner's session), Chrome's real permission prompt, Thai prompts. The owner tests these and sends diagnostics.
 
 ## Open questions
 

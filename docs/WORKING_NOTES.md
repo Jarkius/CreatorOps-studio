@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 to S5.3 and A1 done; A2 done (scene list); next is A3 (Meta AI helper on a fake page), A4 (Full Auto), A5 (results and export).
+**Last updated:** 2026-11-04 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 to S5.3 and A1 done; A2 and A3 done (scene list, Meta AI helper on a fake page; the owner tests the real site); next is A4 (Full Auto), A5 (results and export).
 
 ## Where we are
 
@@ -35,7 +35,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | A1 side panel Create tab (product, mode, checklist, one button; starts campaign and generation) | done |
 | S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (A2): contracts 76, provider-core 95, config 12, ui 43, extension unit 94, web 251, api 437; end-to-end 49 (19 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (A3): contracts 76, provider-core 95, config 12, ui 43, extension unit 139, web 251, api 437; end-to-end 51 (21 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -78,6 +78,7 @@ pnpm e2e                                      # builds, then both suites, each o
 - Scripted edits: assert the old text exists, then `git diff` the file; a silent miss cost a wrong-file edit in S3.5. Lessons per slice are kept in the log at the bottom of `docs/WORKER_BRIEF_TEMPLATE.md`.
 - Playwright cannot click the real extension toolbar or drive the side-panel UI; the panel page is loaded as a tab and the behaviour checked through `chrome.sidePanel.getPanelBehavior()`.
 - A live run of the side panel needs a mock-auth build: `pnpm build` does not set it, and the panel then says "Sign-in is not configured yet". Use `cd apps/extension && VITE_AUTH_MODE=mock VITE_API_BASE_URL=http://localhost:3000 pnpm exec vite build`. Starting the API or worker needs `AUTH_MODE=mock`, `API_BASE_URL`, `WEB_ORIGIN`, `EXTENSION_ORIGIN` and a random `SESSION_SECRET` (keep it out of git).
+- The extension e2e build goes to `apps/extension/dist-e2e` (it grants the meta.ai host at install; D-072) and the suite loads that folder, so `dist` stays the real mock-auth or release build. A seeded finished job needs an `output` (check constraint).
 - Two elements can share one text in a row (the status pill and the status line both say "Cancelled"): scope e2e assertions to the row (`getByRole('listitem').filter({ hasText })`), or Playwright fails on a strict-mode violation.
 - A rule inside a React hook (polling stop, key reuse) cannot be mutation-tested until it is a pure function or a test drives the hook; S3.8 needed a fake-timer test for the polling stop. Extract decisions into functions when they should be tested.
 
@@ -97,8 +98,8 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 **Current plan (owner priority, 2026-11-04): the AutoGenX-style flow, then the rest.** Read D-068 (media generation is in the MVP), D-071 (the Meta AI helper) and D-066/D-069 (keys and providers) in `docs/DECISIONS.md`. D-014, D-069 item 1 and D-070 item 2 are superseded where they say "no browser automation".
 
 1. **A2 (done 2026-11-04):** Scenes button on a finished campaign in the side panel: four scenes with editable prompts (local only), Copy, Reset, file status; client methods `drafts.listAssets` and `drafts.setAssets`. Gaps: no extension e2e (no worker in that suite), mock scene text order does not match the scene names (see `IMPLEMENTATION_STATUS.md`).
-2. **A3 (next):** the Meta AI helper in the extension: optional host permission for `https://www.meta.ai/*` only, click-initiated, `chrome.scripting.executeScript` into the owner's own tab, selectors in one file with fallbacks, bounded waits, visible steps and Cancel, "Copy diagnostics"; built and tested against a local fake meta.ai page (extension e2e). The orchestration runs in the panel page and every finished scene is saved on the server, so closing the panel loses nothing. **The owner tests it on the real meta.ai after A3** and sends diagnostics; if it does not work after two fix rounds the owner may buy AutoGenX instead.
-3. **A4:** Full Auto: run the scenes in sequence with progress, checklist and Cancel. **A5:** results with thumbnails, copy caption, ZIP export (S5.6 to S5.9 of D-067: zip builder, export job, signed download, export UI, exit check).
+2. **A3 (done 2026-11-04, D-072):** Generate in Meta AI per scene in the side panel, built and e2e-tested against a fake meta.ai. **Owner action: test it on the real meta.ai** (load the demo build, press Generate in Meta AI on a scene, allow meta.ai in Chrome's prompt, stay signed in) and send the "Copy diagnostics" text if it fails; two fix rounds, then decide about AutoGenX. Fixes are usually in `sidepanel/metaai/selectors.ts`.
+3. **A4 (next):** Full Auto: run the scenes in sequence with progress, checklist and Cancel. **A5:** results with thumbnails, copy caption, ZIP export (S5.6 to S5.9 of D-067: zip builder, export job, signed download, export UI, exit check).
 4. **After that:** Phase 4 (real text: settings screen with the encrypted key D-066, OpenAI-compatible adapter, usage ledger, usage screen; OpenRouter is the default, D-065; spend cap is optional, D-069), the first real test S6.0, optional API adapters for images and video (Muse Image is offered at about $0.01 per image per OpenRouter's listing; unverified), asset filters (S5.4), reconciling the Phase 2 boxes in `docs/07`.
 5. **Owner actions:** rotate the management token that was pasted in chat once; when ready, create an OpenRouter key (never in chat or git); test the helper on the real meta.ai after A3; check that Meta's paid plan is available in Thailand.
 6. **Quick start for the owner:** `pnpm demo` (see README).

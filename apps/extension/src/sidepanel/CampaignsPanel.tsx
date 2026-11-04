@@ -10,6 +10,7 @@ import {
   jobStatusText,
 } from './campaigns.js';
 import { dashboardHref } from './format.js';
+import type { HelperDeps } from './metaai/useMetaAi.js';
 import { ScenesPanel } from './ScenesPanel.js';
 
 export interface CampaignsPanelProps {
@@ -18,6 +19,8 @@ export interface CampaignsPanelProps {
   readonly dashboardUrl: string;
   /** Owner, admin and editor only; the API still enforces it. */
   readonly canStart: boolean;
+  /** Replaced in tests; the panel uses the real browser. */
+  readonly helper?: HelperDeps;
 }
 
 /**
@@ -25,7 +28,13 @@ export interface CampaignsPanelProps {
  * latest generate job. The panel only starts and watches jobs; drafts are edited in the dashboard.
  * Everything shown comes from the API, so reopening the panel shows the same state.
  */
-export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: CampaignsPanelProps) {
+export function CampaignsPanel({
+  api,
+  workspaceId,
+  dashboardUrl,
+  canStart,
+  helper,
+}: CampaignsPanelProps) {
   const campaigns = usePanelCampaigns(api, workspaceId);
   const start = useStartGeneration(api, workspaceId);
   const cancel = useCancelGeneration(api, workspaceId);
@@ -94,7 +103,13 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
                 dashboardCampaignPath(workspaceId, campaign.id),
               )}
               renderScenes={() => (
-                <ScenesPanel api={api} workspaceId={workspaceId} campaignId={campaign.id} />
+                <ScenesPanel
+                  api={api}
+                  workspaceId={workspaceId}
+                  campaignId={campaign.id}
+                  canStart={canStart}
+                  {...(helper === undefined ? {} : { helper })}
+                />
               )}
             />
           ))}

@@ -16,23 +16,36 @@ describe('buildManifest', () => {
     expect(manifest.background).toEqual({ service_worker: 'sw.js', type: 'module' });
   });
 
-  it('requests exactly sidePanel and storage, and host access to the API origin only', () => {
+  it('requests exactly sidePanel, storage and scripting, and host access to the API origin only', () => {
     const manifest = buildManifest({
       ...base,
       apiBaseUrl: 'https://api.example.com/some/path?x=1',
     });
-    expect([...manifest.permissions]).toEqual(['sidePanel', 'storage']);
+    expect([...manifest.permissions]).toEqual(['sidePanel', 'storage', 'scripting']);
     expect([...manifest.permissions]).toEqual([...EXTENSION_PERMISSIONS]);
     expect([...manifest.host_permissions]).toEqual(['https://api.example.com/*']);
   });
 
-  it('never requests broad access, scripting, tabs, or content scripts', () => {
+  it('offers the Meta AI site as an optional host permission only (D-071)', () => {
+    const manifest = buildManifest(base);
+    expect([...manifest.optional_host_permissions]).toEqual(['https://www.meta.ai/*']);
+    expect(manifest.host_permissions.join(' ')).not.toContain('meta.ai');
+  });
+
+  it('grants the Meta AI host at install only for an end-to-end test build', () => {
+    const manifest = buildManifest({ ...base, grantMetaAiForTests: true });
+    expect([...manifest.host_permissions]).toEqual([
+      'http://localhost:3000/*',
+      'https://www.meta.ai/*',
+    ]);
+  });
+
+  it('never requests broad access, tabs, or content scripts', () => {
     const json = JSON.stringify(buildManifest(base));
     for (const forbidden of [
       '<all_urls>',
       '*://*/*',
       'activeTab',
-      'scripting',
       '"tabs"',
       'webRequest',
       'cookies',
