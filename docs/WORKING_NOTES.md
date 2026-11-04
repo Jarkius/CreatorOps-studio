@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete, Phase 3 not started.
+**Last updated:** 2026-11-04 · **Branch:** `ccr-14958772-bzlatd` · **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.4 done, next S3.5).
 
 ## Where we are
 
@@ -11,10 +11,27 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | 0 Foundation (monorepo, CI, config, redaction, local Postgres) | done |
 | 1 Extension shell + API foundation (mock auth, dashboard shell, MV3 side panel) | done |
 | 2 Workspaces, products, media (API, dashboard, extension product view, uploads, signed media) | done; see the exit check in `docs/IMPLEMENTATION_STATUS.md` |
-| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **next**; needs an advisor slice breakdown first |
+| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.4 done (see below); plan in D-045..D-056 |
 | 4+ real providers, export, publishing | blocked on open questions Q-001, Q-002, Q-005 (see `docs/DECISIONS.md`) |
 
-Tests at the last full run: unit/integration 471+ (api 238, web 102, extension 48, ui 43, contracts 27, config 12, provider-core 1); end-to-end 37 (14 extension, 23 dashboard).
+### Phase 3 progress (plan: D-045..D-054, details D-055/D-056, evidence in `docs/IMPLEMENTATION_STATUS.md`)
+
+| Slice | State |
+|---|---|
+| S3.0 hardening (extension CSP, read-only-member harness, `.env.example`, CI format check) | done |
+| S3.1 contracts + `provider-core` (templates, `MockTextProvider`, claim guard, output validation) | done |
+| S3.2 schema + migration 0005 (`campaigns`, `content_drafts`, `jobs`) | done |
+| S3.3 campaign API + templates list | done |
+| S3.4 jobs API: idempotent create, cancel, caps, `JobQueue` interface (`NullJobQueue` default), transition table | done (commit 798206c) |
+| **S3.5** worker: `processJob`, `decideRetry` (D-048), lease + heartbeat on DB time, reconciler every 30 s, cancel handling, BullMQ adapter (queue id `${jobId}:${attempt}`, `attempts: 1`), `scripts/redis-local.sh`, `REDIS_URL` config (redacted), CI `redis:7`, Redis tests gated on `REDIS_URL` (`SKIP_REDIS_TESTS=1`) | **next; orchestrator writes it** |
+| S3.6 draft get + versioned PATCH, regenerate-section job (`SECTION_CHANGED` guard) | todo |
+| S3.7 dashboard UI (Haiku worker) | todo |
+| S3.8 extension generate action + job status (Haiku worker) | todo |
+| S3.9 exit check against docs/06 Phase 3 and docs/07 | todo |
+
+Tests at the last full run (after S3.4): contracts 60, provider-core 95, config 12, ui 43, extension 48, web 124, api 304; end-to-end 42 (14 extension, 28 dashboard). Lint, typecheck, build, format:check all pass.
+
+Phase 3 gotchas: Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
 ## How to run things
 
