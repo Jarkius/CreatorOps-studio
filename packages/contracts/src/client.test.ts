@@ -334,3 +334,166 @@ describe('workspaces and products', () => {
     expect(error.code).toBe('INVALID_RESPONSE');
   });
 });
+
+describe('content: campaigns, drafts, jobs', () => {
+  const SECTIONS = {
+    title: 'ชื่อ',
+    hook: 'ฮุค',
+    script: 'สคริปต์',
+    storyboard: ['ฉาก'],
+    caption: 'แคปชั่น',
+    hashtags: ['#a'],
+    callToAction: 'สั่งเลย',
+  };
+  const STATE = Object.fromEntries(
+    Object.keys(SECTIONS).map((name) => [name, { rev: 1, origin: 'generated', jobId: null }]),
+  );
+  const DRAFT = {
+    id: 'd1',
+    workspaceId: 'w1',
+    campaignId: 'c1',
+    productId: 'p1',
+    variantIndex: 0,
+    sections: SECTIONS,
+    sectionState: STATE,
+    claimWarnings: [],
+    needsReview: false,
+    status: 'draft',
+    version: 1,
+    createdAt: '2026-11-04T00:00:00.000Z',
+    updatedAt: '2026-11-04T00:00:00.000Z',
+  };
+  const JOB = {
+    id: 'j1',
+    workspaceId: 'w1',
+    type: 'generate_brief',
+    status: 'queued',
+    input: {},
+    output: null,
+    errorCode: null,
+    errorMessage: null,
+    provider: null,
+    attempts: 0,
+    maxAttempts: 3,
+    campaignId: 'c1',
+    draftId: null,
+    createdAt: '2026-11-04T00:00:00.000Z',
+    startedAt: null,
+    finishedAt: null,
+  };
+  const make = (respond: () => Response) => {
+    const { calls, impl } = recordingFetch(respond);
+    return {
+      calls,
+      client: createApiClient({ baseUrl: 'http://x', fetch: impl, getToken: () => 't' }),
+    };
+  };
+
+  it('sends the idempotency key header on generate and regenerate, and nowhere else', async () => {
+    const { calls, client } = make(() => json(JOB, 202));
+    await client.jobs.generateBrief('w/1', { campaignId: 'c1' }, 'key-12345678');
+    await client.jobs.regenerateSection(
+      'w1',
+      { draftId: 'd1', section: 'hook', expectedRev: 1 },
+      'key-87654321',
+    );
+    await client.jobs.get('w1', 'j1');
+    await client.jobs.cancel('w1', 'j 1');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['POST', 'http://x/api/v1/workspaces/w%2F1/jobs/generate-brief'],
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/regenerate-section'],
+      ['GET', 'http://x/api/v1/workspaces/w1/jobs/j1'],
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/j%201/cancel'],
+    ]);
+    expect(calls[0]?.headers['idempotency-key']).toBe('key-12345678');
+    expect(calls[0]?.headers.authorization).toBe('Bearer t');
+    expect(calls[0]?.body).toBe(JSON.stringify({ campaignId: 'c1' }));
+    expect(calls[1]?.headers['idempotency-key']).toBe('key-87654321');
+    expect(calls[2]?.headers['idempotency-key']).toBeUndefined();
+    expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
+  });
+
+  it('accepts both 200 (replay) and 202 (new) job responses', async () => {
+    for (const status of [200, 202]) {
+      const { client } = make(() => json(JOB, status));
+      expect((await client.jobs.generateBrief('w1', { campaignId: 'c1' }, 'key-12345678')).id).toBe(
+        'j1',
+      );
+    }
+  });
+
+  it('reads and edits drafts with the version, and exposes currentVersion on a conflict', async () => {
+    const { calls, client } = make(() =>
+      json(calls.length === 2 ? { items: [DRAFT], nextCursor: null } : DRAFT),
+    );
+    expect((await client.drafts.get('w1', 'd1')).sections.hook).toBe('ฮุค');
+    await client.drafts.list('w1', { campaignId: 'c1', limit: 5 });
+    await client.drafts.update('w1', 'd1', { version: 1, sections: { hook: 'ใหม่' } });
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/drafts/d1'],
+      ['GET', 'http://x/api/v1/workspaces/w1/drafts?campaignId=c1&limit=5'],
+      ['PATCH', 'http://x/api/v1/workspaces/w1/drafts/d1'],
+    ]);
+    expect(calls[2]?.body).toBe(JSON.stringify({ version: 1, sections: { hook: 'ใหม่' } }));
+
+    const conflict = make(() =>
+      json(
+        {
+          error: {
+            code: 'CONFLICT',
+            message: 'changed',
+            requestId: 'r1',
+            details: { currentVersion: 4 },
+          },
+        },
+        409,
+      ),
+    );
+    const error = await failure(
+      conflict.client.drafts.update('w1', 'd1', { version: 1, sections: { hook: 'x' } }),
+    );
+    expect(error).toMatchObject({ code: 'CONFLICT', status: 409, currentVersion: 4 });
+  });
+
+  it('lists templates and campaigns and creates and updates a campaign', async () => {
+    const CAMPAIGN = {
+      id: 'c1',
+      workspaceId: 'w1',
+      productId: 'p1',
+      name: 'C',
+      templateId: 'product-showcase',
+      templateVersion: 1,
+      language: 'th',
+      tone: null,
+      platform: 'generic',
+      durationSeconds: 30,
+      variants: 1,
+      status: 'draft',
+      version: 1,
+      createdAt: '2026-11-04T00:00:00.000Z',
+      updatedAt: '2026-11-04T00:00:00.000Z',
+    };
+    const { calls, client } = make(() => json(calls.length === 1 ? { items: [] } : CAMPAIGN));
+    await client.templates.list('w1');
+    await client.campaigns.get('w1', 'c1');
+    await client.campaigns.create('w1', {
+      productId: 'p1',
+      templateId: 'product-showcase',
+      templateVersion: 1,
+    });
+    await client.campaigns.update('w1', 'c1', { version: 1, name: 'N' });
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/templates'],
+      ['GET', 'http://x/api/v1/workspaces/w1/campaigns/c1'],
+      ['POST', 'http://x/api/v1/workspaces/w1/campaigns'],
+      ['PATCH', 'http://x/api/v1/workspaces/w1/campaigns/c1'],
+    ]);
+  });
+
+  it('rejects a draft response that does not match the contract', async () => {
+    const { client } = make(() => json({ ...DRAFT, sections: { title: 'only' } }));
+    expect(await failure(client.drafts.get('w1', 'd1'))).toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+});

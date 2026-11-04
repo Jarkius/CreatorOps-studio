@@ -84,6 +84,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-057 | S3.5 worker: claim, lease, settle, retry, reconcile, BullMQ adapter | ACCEPTED |
 | D-058 | S3.6 drafts: get, list, versioned PATCH, regenerate-section job | ACCEPTED |
 | D-059 | S3.7 and S3.8 UI direction from market research (`docs/UI_RESEARCH.md`) | ACCEPTED |
+| D-060 | Publishing plan: assisted posting first, official APIs next; no UI-automation posting | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -372,6 +373,15 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 **Status:** ACCEPTED (2026-11-04). Based on `docs/UI_RESEARCH.md`.
 **Decision:** Take design ideas only, no code from other products (Postiz is AGPL-3.0). S3.7 builds: a short "create campaign and generate" path from a product; variants as tabs; section cards with origin badge, edit, regenerate and copy; a status control with the reset-to-draft rule shown; quiet claim-warning badges; a job panel that stays visible with cancel, skeletons, retry as a new request with a new idempotency key, polling 2 s to 10 s (D-053); explicit 409 handling for stale saves and `SECTION_CHANGED`. S3.8 reuses the same states in the side panel with a smaller layout. Out of scope: streaming, calendar and scheduling, diff and undo, visual editor, anything that publishes. AutoGenX (added 2026-11-04) confirms the template-as-mode idea and the hero, detail, usage, final-shot storyboard arc; its account warm-up and browser-automation posting are explicitly not to be copied.
 **Notes:** the research covered open-source READMEs and secondary sources for commercial tools; their own UIs were not inspected. Thai copy needs native review (Q-005).
+
+## D-060 — Publishing plan (owner request 2026-11-04)
+**Status:** ACCEPTED (2026-11-04). Refines D-022 and the compliance boundaries in `CLAUDE.md`; changes neither.
+**Context:** The owner wanted auto-posting through a desktop Chrome program plus an Android phone (as a competitor does), with human-like delays and mouse paths so the platforms would not detect automation, because official APIs are hard to get. The compliance boundaries forbid undocumented posting routes and detection evasion; the owner agreed to the plan below instead.
+**Decision:**
+1. **Assisted posting (first, quick MVP, part of the export phase).** The extension, on a user click on an approved draft, opens the platform's own upload page in a new tab, puts the caption and hashtags on the clipboard, and tells the user which file to attach. The user presses Post. No automation of the target page, no scripted clicks or typing, no extra host permissions beyond opening a tab (the exact permission is checked when the slice is planned).
+2. **Official APIs, one platform at a time (Gate B, D-022).** Order: Facebook Pages (Graph API; needs `pages_manage_posts` and Meta App Review), TikTok "Upload" to the creator's inbox as a draft (lower approval bar than Direct Post; Direct Post only after an audit, until then posts are private), Shopee after its Open Platform documentation is read. Approval times and costs in the research notes come from third-party sources and must be confirmed against each platform's own documentation before a slice is planned. Start the Facebook and TikTok applications early; they take weeks.
+3. **Not built:** posting through desktop or phone UI automation, human-like mouse or timing to avoid detection, account warm-up, fingerprint or proxy tricks. Revisiting this needs the owner to change `CLAUDE.md` and D-022 explicitly, and detection evasion would still not be built.
+**Notes:** Assisted posting needs no platform approval, so it is the only publishing path that can ship before Gate B. Fits `docs/UI_RESEARCH.md` (hand off through the platform's own screens; copy format friendly to LINE and Facebook).
 
 ## Open questions
 

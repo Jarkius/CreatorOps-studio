@@ -16,6 +16,31 @@ import {
 import { MeResponseSchema, MockTokenResponseSchema } from './auth.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
 import {
+  CampaignListResponseSchema,
+  CampaignSchema,
+  DraftListResponseSchema,
+  DraftSchema,
+  IDEMPOTENCY_KEY_HEADER,
+  JobListResponseSchema,
+  JobSchema,
+  TemplateListResponseSchema,
+  type Campaign,
+  type CampaignListQuery,
+  type CampaignListResponse,
+  type CreateCampaignRequest,
+  type Draft,
+  type DraftListQuery,
+  type DraftListResponse,
+  type GenerateBriefJobRequest,
+  type Job,
+  type JobListQuery,
+  type JobListResponse,
+  type RegenerateSectionJobRequest,
+  type TemplateListResponse,
+  type UpdateCampaignRequest,
+  type UpdateDraftRequest,
+} from './content.js';
+import {
   ProductListResponseSchema,
   ProductSchema,
   type CreateProductRequest,
@@ -111,6 +136,44 @@ export interface ApiClient {
     archive(workspaceId: string, productId: string): Promise<Product>;
     unarchive(workspaceId: string, productId: string): Promise<Product>;
   };
+  templates: {
+    list(workspaceId: string): Promise<TemplateListResponse>;
+  };
+  campaigns: {
+    list(workspaceId: string, query?: CampaignListQuery): Promise<CampaignListResponse>;
+    create(workspaceId: string, body: CreateCampaignRequest): Promise<Campaign>;
+    get(workspaceId: string, campaignId: string): Promise<Campaign>;
+    /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
+    update(workspaceId: string, campaignId: string, body: UpdateCampaignRequest): Promise<Campaign>;
+  };
+  drafts: {
+    list(workspaceId: string, query?: DraftListQuery): Promise<DraftListResponse>;
+    get(workspaceId: string, draftId: string): Promise<Draft>;
+    /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
+    update(workspaceId: string, draftId: string, body: UpdateDraftRequest): Promise<Draft>;
+  };
+  jobs: {
+    list(workspaceId: string, query?: JobListQuery): Promise<JobListResponse>;
+    get(workspaceId: string, jobId: string): Promise<Job>;
+    /** A queued job is cancelled at once; a running one is asked to stop. */
+    cancel(workspaceId: string, jobId: string): Promise<Job>;
+    /**
+     * Starts generating a campaign's drafts. Make one `idempotencyKey` per user action (8 to 128
+     * letters, digits, `_` or `-`) and reuse it only to retry that same action: the same key and
+     * request return the original job, a new key starts a new job.
+     */
+    generateBrief(
+      workspaceId: string,
+      body: GenerateBriefJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+    /** Same key rules as `generateBrief`. `expectedRev` is the section revision the user saw. */
+    regenerateSection(
+      workspaceId: string,
+      body: RegenerateSectionJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+  };
   assets: {
     /** Step 1 of an upload: declare the file; then PUT the bytes to `uploadUrl`. */
     createUploadIntent(workspaceId: string, body: CreateUploadIntentRequest): Promise<UploadIntent>;
@@ -130,6 +193,7 @@ interface RequestSpec<S extends z.ZodType> {
   readonly schema: S;
   readonly authenticated: boolean;
   readonly body?: unknown;
+  readonly extraHeaders?: Readonly<Record<string, string>>;
   readonly query?: Readonly<Record<string, string | number | undefined>>;
 }
 
@@ -178,6 +242,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const headers: Record<string, string> = { accept: 'application/json' };
     // Only send a content type when there is a body; an empty JSON body is rejected by the API.
     if (spec.body !== undefined) headers['content-type'] = 'application/json';
+    if (spec.extraHeaders) Object.assign(headers, spec.extraHeaders);
     if (authenticated) {
       const token = await options.getToken?.();
       if (token) headers.authorization = `Bearer ${token}`;
@@ -246,10 +311,24 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
   const get = <S extends z.ZodType>(path: string, schema: S, query?: RequestSpec<S>['query']) =>
     request({ method: 'GET', path, schema, authenticated: true, ...(query ? { query } : {}) });
-  const send = <S extends z.ZodType>(method: Method, path: string, schema: S, body?: unknown) =>
-    request({ method, path, schema, authenticated: true, ...(body === undefined ? {} : { body }) });
+  const send = <S extends z.ZodType>(
+    method: Method,
+    path: string,
+    schema: S,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ) =>
+    request({
+      method,
+      path,
+      schema,
+      authenticated: true,
+      ...(body === undefined ? {} : { body }),
+      ...(extraHeaders === undefined ? {} : { extraHeaders }),
+    });
   const id = encodeURIComponent;
   const products = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}/products`;
+  const base = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}`;
   const assetsPath = (workspaceId: string) => `/api/v1/workspaces/${id(workspaceId)}/assets`;
 
   return {
@@ -286,6 +365,53 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${products(workspaceId)}/${id(productId)}/archive`, ProductSchema),
       unarchive: (workspaceId, productId) =>
         send('POST', `${products(workspaceId)}/${id(productId)}/unarchive`, ProductSchema),
+    },
+    templates: {
+      list: (workspaceId) => get(`${base(workspaceId)}/templates`, TemplateListResponseSchema),
+    },
+    campaigns: {
+      list: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/campaigns`,
+          CampaignListResponseSchema,
+          query as RequestSpec<never>['query'],
+        ),
+      create: (workspaceId, body) =>
+        send('POST', `${base(workspaceId)}/campaigns`, CampaignSchema, body),
+      get: (workspaceId, campaignId) =>
+        get(`${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema),
+      update: (workspaceId, campaignId, body) =>
+        send('PATCH', `${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema, body),
+    },
+    drafts: {
+      list: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/drafts`,
+          DraftListResponseSchema,
+          query as RequestSpec<never>['query'],
+        ),
+      get: (workspaceId, draftId) => get(`${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema),
+      update: (workspaceId, draftId, body) =>
+        send('PATCH', `${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema, body),
+    },
+    jobs: {
+      list: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/jobs`,
+          JobListResponseSchema,
+          query as RequestSpec<never>['query'],
+        ),
+      get: (workspaceId, jobId) => get(`${base(workspaceId)}/jobs/${id(jobId)}`, JobSchema),
+      cancel: (workspaceId, jobId) =>
+        send('POST', `${base(workspaceId)}/jobs/${id(jobId)}/cancel`, JobSchema),
+      generateBrief: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/generate-brief`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+      regenerateSection: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/regenerate-section`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
     },
     assets: {
       createUploadIntent: (workspaceId, body) =>
