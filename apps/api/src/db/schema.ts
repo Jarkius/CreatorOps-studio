@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   char,
   check,
   foreignKey,
@@ -293,5 +294,226 @@ export const uploadIntents = pgTable(
     ),
     index('upload_intents_workspace_status_idx').on(t.workspaceId, t.status),
     index('upload_intents_expires_idx').on(t.expiresAt),
+  ],
+);
+
+export const CAMPAIGN_STATUSES = ['draft', 'active', 'archived'] as const;
+export const PLATFORMS = ['tiktok', 'facebook', 'shopee', 'generic'] as const;
+
+/**
+ * A campaign: one product plus a template and generation settings (docs/04, D-046). The product
+ * link is a composite foreign key, so the database refuses a product from another workspace.
+ * `unique (workspace_id, id, product_id)` lets drafts prove they belong to the campaign's product.
+ */
+export const campaigns = pgTable(
+  'campaigns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    productId: uuid('product_id').notNull(),
+    name: text('name').notNull(),
+    templateId: text('template_id').notNull(),
+    templateVersion: integer('template_version').notNull(),
+    language: text('language').notNull(),
+    tone: text('tone'),
+    platform: text('platform').notNull().default('generic'),
+    durationSeconds: integer('duration_seconds').notNull(),
+    variants: integer('variants').notNull().default(1),
+    status: text('status').notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    unique('campaigns_workspace_id_id_unique').on(t.workspaceId, t.id),
+    unique('campaigns_workspace_id_id_product_unique').on(t.workspaceId, t.id, t.productId),
+    foreignKey({
+      name: 'campaigns_product_fk',
+      columns: [t.workspaceId, t.productId],
+      foreignColumns: [products.workspaceId, products.id],
+    }),
+    check('campaigns_name_length', sql`char_length(${t.name}) between 1 and 120`),
+    check('campaigns_template_id_length', sql`char_length(${t.templateId}) between 1 and 64`),
+    check('campaigns_template_version_positive', sql`${t.templateVersion} >= 1`),
+    check('campaigns_language_check', sql`${t.language} in ('th', 'en')`),
+    check('campaigns_tone_length', sql`char_length(${t.tone}) <= 100`),
+    check(
+      'campaigns_platform_check',
+      sql`${t.platform} in ('tiktok', 'facebook', 'shopee', 'generic')`,
+    ),
+    check('campaigns_duration_check', sql`${t.durationSeconds} between 5 and 180`),
+    check('campaigns_variants_check', sql`${t.variants} between 1 and 3`),
+    check('campaigns_status_check', sql`${t.status} in ('draft', 'active', 'archived')`),
+    check('campaigns_version_positive', sql`${t.version} >= 1`),
+    index('campaigns_workspace_status_created_idx').on(
+      t.workspaceId,
+      t.status,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+    index('campaigns_workspace_product_idx').on(t.workspaceId, t.productId),
+  ],
+);
+
+export const DRAFT_STATUSES = ['draft', 'in_review', 'approved'] as const;
+
+/**
+ * One generated (and later edited) content draft of a campaign (docs/04, D-050). The composite
+ * foreign key (workspace_id, campaign_id, product_id) keeps the draft inside the campaign's own
+ * workspace AND product. `sections` and `section_state` are validated by the application against
+ * the shared contract; the database only guarantees their JSON shape.
+ */
+export const contentDrafts = pgTable(
+  'content_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    campaignId: uuid('campaign_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantIndex: integer('variant_index').notNull().default(0),
+    sections: jsonb('sections').notNull(),
+    sectionState: jsonb('section_state').notNull(),
+    claimWarnings: jsonb('claim_warnings')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    needsReview: boolean('needs_review').notNull().default(false),
+    status: text('status').notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    unique('content_drafts_workspace_id_id_unique').on(t.workspaceId, t.id),
+    foreignKey({
+      name: 'content_drafts_campaign_fk',
+      columns: [t.workspaceId, t.campaignId, t.productId],
+      foreignColumns: [campaigns.workspaceId, campaigns.id, campaigns.productId],
+    }),
+    check('content_drafts_variant_check', sql`${t.variantIndex} between 0 and 2`),
+    check('content_drafts_sections_object', sql`jsonb_typeof(${t.sections}) = 'object'`),
+    check('content_drafts_section_state_object', sql`jsonb_typeof(${t.sectionState}) = 'object'`),
+    check('content_drafts_claim_warnings_array', sql`jsonb_typeof(${t.claimWarnings}) = 'array'`),
+    check('content_drafts_status_check', sql`${t.status} in ('draft', 'in_review', 'approved')`),
+    check('content_drafts_version_positive', sql`${t.version} >= 1`),
+    index('content_drafts_workspace_campaign_idx').on(
+      t.workspaceId,
+      t.campaignId,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+  ],
+);
+
+export const JOB_TYPES = ['generate_brief', 'regenerate_section'] as const;
+export const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
+export const JOB_ERROR_CODES = [
+  'PROVIDER_TIMEOUT',
+  'PROVIDER_UNAVAILABLE',
+  'PROVIDER_RATE_LIMITED',
+  'INVALID_PROVIDER_OUTPUT',
+  'CONTENT_REFUSED',
+  'SECTION_CHANGED',
+  'CANCELLED',
+  'INTERNAL',
+] as const;
+
+/**
+ * Background jobs (docs/04, D-045 to D-048). The row is the source of truth; the queue only
+ * carries the id. `unique (workspace_id, created_by, idempotency_key)` makes job creation
+ * idempotent (D-047). The state checks below make impossible combinations unrepresentable
+ * (a finished job without a finish time, a lease on a job that is not running, and so on).
+ */
+export const jobs = pgTable(
+  'jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    type: text('type').notNull(),
+    status: text('status').notNull().default('queued'),
+    input: jsonb('input').notNull(),
+    output: jsonb('output'),
+    errorCode: text('error_code'),
+    /** Safe to show to a user. Never holds provider payloads, URLs or secrets. */
+    errorMessage: text('error_message'),
+    provider: text('provider'),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    idempotencyKey: text('idempotency_key').notNull(),
+    requestHash: char('request_hash', { length: 64 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    runAfter: timestamp('run_after', { withTimezone: true }).notNull().default(nowMs),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
+    campaignId: uuid('campaign_id'),
+    draftId: uuid('draft_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    unique('jobs_workspace_id_id_unique').on(t.workspaceId, t.id),
+    unique('jobs_idempotency_unique').on(t.workspaceId, t.createdBy, t.idempotencyKey),
+    foreignKey({
+      name: 'jobs_campaign_fk',
+      columns: [t.workspaceId, t.campaignId],
+      foreignColumns: [campaigns.workspaceId, campaigns.id],
+    }),
+    foreignKey({
+      name: 'jobs_draft_fk',
+      columns: [t.workspaceId, t.draftId],
+      foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
+    }),
+    check('jobs_type_check', sql`${t.type} in ('generate_brief', 'regenerate_section')`),
+    check(
+      'jobs_status_check',
+      sql`${t.status} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`,
+    ),
+    check(
+      'jobs_error_code_check',
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'CANCELLED', 'INTERNAL')`,
+    ),
+    check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
+    check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),
+    check('jobs_output_object', sql`${t.output} is null or jsonb_typeof(${t.output}) = 'object'`),
+    check('jobs_idempotency_key_format', sql`${t.idempotencyKey} ~ '^[A-Za-z0-9_-]{8,128}$'`),
+    check('jobs_request_hash_format', sql`${t.requestHash} ~ '^[0-9a-f]{64}$'`),
+    check('jobs_max_attempts_check', sql`${t.maxAttempts} between 1 and 5`),
+    check('jobs_attempts_check', sql`${t.attempts} between 0 and ${t.maxAttempts}`),
+    check(
+      'jobs_finished_consistent',
+      sql`(${t.status} in ('succeeded', 'failed', 'cancelled')) = (${t.finishedAt} is not null)`,
+    ),
+    check('jobs_lease_only_when_running', sql`${t.lockedUntil} is null or ${t.status} = 'running'`),
+    check(
+      'jobs_output_only_when_succeeded',
+      sql`(${t.status} = 'succeeded') = (${t.output} is not null)`,
+    ),
+    check(
+      'jobs_error_only_when_unsuccessful',
+      sql`(${t.errorCode} is null) or ${t.status} in ('failed', 'cancelled')`,
+    ),
+    check(
+      'jobs_failed_has_error',
+      sql`${t.status} <> 'failed' or (${t.errorCode} is not null and ${t.errorMessage} is not null)`,
+    ),
+    check(
+      'jobs_target_matches_type',
+      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null)`,
+    ),
+    index('jobs_claim_idx').on(t.status, t.runAfter),
+    index('jobs_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
+    index('jobs_workspace_status_idx').on(t.workspaceId, t.status),
   ],
 );

@@ -36,6 +36,13 @@
       "when": 1793729463205,
       "tag": "0004_asset_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793757669753,
+      "tag": "0005_content_jobs",
+      "breakpoints": true
     }
   ]
 }

@@ -79,6 +79,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-052 | TextProvider interface and deterministic Thai-first mock | ACCEPTED |
 | D-053 | Polling with backoff; per-workspace active-job and rate caps | ACCEPTED |
 | D-054 | Local Redis without Docker; Redis tests gated on REDIS_URL | ACCEPTED |
+| D-055 | S3.2 schema: campaigns, content_drafts, jobs and their database-level rules | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -328,6 +329,11 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 **Slices:** S3.0 Phase 2 cleanups (Haiku); S3.1 contracts, provider, templates, claim guard (Haiku); S3.2 migration (orchestrator); S3.3 campaign CRUD (Haiku); S3.4 job repo, idempotency, queue, endpoints (orchestrator); S3.5 worker, retry, lease, reconciler, BullMQ, redis script (orchestrator); S3.6 drafts and regenerate (orchestrator + Haiku); S3.7 dashboard (Haiku); S3.8 extension (Haiku); S3.9 exit check (orchestrator).
 **Phase 2 follow-ups from the same review (S3.0 DONE except the second item of the doc list: doc 07 is the MVP acceptance list, so its boxes stay unticked until the MVP is verified):** extension CSP has no `default-src` (set `default-src 'self'; img-src 'self' <api>; media-src <api>` with a manifest test; D-039 wording that images are blocked is wrong); `.env.example` missing `DATA_DIR`, `TRUST_PROXY_HOPS`, `ALLOW_MOCK_AUTH_ON_NETWORK`, `LOG_LEVEL`, `NODE_ENV`; doc 04 asset routes and doc 07 checkboxes stale; add `format:check` to CI; harness lacks a viewer-403 pass on every write route; gate the asset library for zero workspaces.
 **Accepted for now:** signed URLs do not re-check membership (record before Phase 8 member removal); per-user disk is effectively 40 GiB (20 workspaces x 2 GiB); possible orphan thumbnail on refused completion; `POST /workspaces` not idempotent.
+
+## D-055 — S3.2 schema for campaigns, drafts and jobs
+**Status:** ACCEPTED (2026-11-04). Migration `0005_content_jobs`.
+**Decision:** Three tables, all with `unique (workspace_id, id)` and composite foreign keys (D-037). `campaigns` links to `products (workspace_id, id)`. `content_drafts` links to `campaigns (workspace_id, id, product_id)`, so a draft is provably in its campaign's workspace and product. `jobs` links to campaigns and drafts through `(workspace_id, x_id)`. Idempotency is `unique (workspace_id, created_by, idempotency_key)` (D-047), with key and request-hash format checks. The job state machine is enforced by checks so impossible rows cannot exist: finished states have `finished_at` (and only they), a lease only while running, output only when succeeded (and always then), an error code only when failed or cancelled, a failed job has a code and a message, attempts never exceed `max_attempts` (1 to 5), and the target must match the type (`generate_brief` needs a campaign, `regenerate_section` needs a draft). Deletes are refused while rows reference each other (no cascades); campaigns and drafts are archived, not deleted. `sections`, `section_state` and `claim_warnings` are checked only for JSON shape; the application validates their content against the shared contract (D-050).
+**Notes:** the job error-code list and the platform list exist in the schema, the contracts and (for provider errors) provider-core; keep them equal (a cross-check test comes with S3.4). `variant_index` is 0 to 2 and not unique, because generating again creates new drafts (D-050). An unknown job type is also refused by the target rule, so dropping only the type check would not be noticed by tests.
 
 ## Open questions
 

@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 5;
+const MIGRATION_COUNT = 6;
 
 let testDb: TestDb;
 
@@ -29,6 +29,9 @@ describe('database schema', () => {
     expect(tables.rows.map((row) => row.table_name)).toEqual([
       'assets',
       'audit_events',
+      'campaigns',
+      'content_drafts',
+      'jobs',
       'products',
       'upload_intents',
       'users',
@@ -221,5 +224,279 @@ describe('assets and cross-workspace integrity (D-037)', () => {
         [alice.workspaceId, alice.userId],
       ),
     ).rejects.toThrow(/upload_intents_received_size_positive/);
+  });
+});
+
+describe('campaigns, drafts and jobs integrity (S3.2, D-037, D-045, D-047)', () => {
+  const hash = 'b'.repeat(64);
+  const sections = JSON.stringify({ title: 't' });
+  const state = JSON.stringify({});
+
+  async function insert(table: string, row: Record<string, unknown>): Promise<string> {
+    const columns = Object.keys(row);
+    const values = Object.values(row).map((value) =>
+      value !== null && typeof value === 'object' ? JSON.stringify(value) : value,
+    );
+    const result = await testDb.pool.query<{ id: string }>(
+      `insert into ${table} (${columns.join(', ')}) values (${columns
+        .map((_c, i) => `$${i + 1}`)
+        .join(', ')}) returning id`,
+      values,
+    );
+    return result.rows[0]!.id;
+  }
+
+  async function setup() {
+    const tag = Math.random().toString(36).slice(2, 7);
+    const alice = await createPerson(testDb.db, SECRET_FOR_TESTS, `alice-${tag}`);
+    const bob = await createPerson(testDb.db, SECRET_FOR_TESTS, `bob-${tag}`);
+    const product = (workspaceId: string) =>
+      insert('products', { workspace_id: workspaceId, name: 'P' });
+    const campaign = (
+      person: { workspaceId: string; userId: string },
+      productId: string,
+      extra: Record<string, unknown> = {},
+    ) =>
+      insert('campaigns', {
+        workspace_id: person.workspaceId,
+        product_id: productId,
+        name: 'C',
+        template_id: 'product-showcase',
+        template_version: 1,
+        language: 'th',
+        duration_seconds: 30,
+        created_by: person.userId,
+        ...extra,
+      });
+    const draft = (
+      workspaceId: string,
+      campaignId: string,
+      productId: string,
+      extra: Record<string, unknown> = {},
+    ) =>
+      insert('content_drafts', {
+        workspace_id: workspaceId,
+        campaign_id: campaignId,
+        product_id: productId,
+        sections,
+        section_state: state,
+        ...extra,
+      });
+    let counter = 0;
+    const job = (
+      person: { workspaceId: string; userId: string },
+      extra: Record<string, unknown> = {},
+    ) => {
+      counter += 1;
+      return insert('jobs', {
+        workspace_id: person.workspaceId,
+        type: 'generate_brief',
+        input: { campaignId: 'x' },
+        created_by: person.userId,
+        idempotency_key: `key-${tag}-${counter}-abcdef`,
+        request_hash: hash,
+        ...extra,
+      });
+    };
+    return { alice, bob, product, campaign, draft, job, tag };
+  }
+
+  it('refuses a campaign for a product of another workspace', async () => {
+    const { alice, bob, product, campaign } = await setup();
+    const bobsProduct = await product(bob.workspaceId);
+    await expect(campaign(alice, bobsProduct)).rejects.toThrow(/campaigns_product_fk/);
+    await expect(campaign(alice, await product(alice.workspaceId))).resolves.toBeTruthy();
+  });
+
+  it('refuses campaign values outside the allowed ranges and lists', async () => {
+    const { alice, product, campaign } = await setup();
+    const productId = await product(alice.workspaceId);
+    const bad: [Record<string, unknown>, RegExp][] = [
+      [{ duration_seconds: 4 }, /campaigns_duration_check/],
+      [{ duration_seconds: 181 }, /campaigns_duration_check/],
+      [{ variants: 0 }, /campaigns_variants_check/],
+      [{ variants: 4 }, /campaigns_variants_check/],
+      [{ platform: 'myspace' }, /campaigns_platform_check/],
+      [{ language: 'fr' }, /campaigns_language_check/],
+      [{ status: 'deleted' }, /campaigns_status_check/],
+      [{ name: '' }, /campaigns_name_length/],
+      [{ name: 'x'.repeat(121) }, /campaigns_name_length/],
+      [{ template_version: 0 }, /campaigns_template_version_positive/],
+    ];
+    for (const [extra, pattern] of bad) {
+      await expect(campaign(alice, productId, extra)).rejects.toThrow(pattern);
+    }
+    await expect(
+      campaign(alice, productId, { duration_seconds: 5, variants: 3 }),
+    ).resolves.toBeTruthy();
+    await expect(
+      campaign(alice, productId, { duration_seconds: 180, platform: 'shopee' }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("refuses a draft that is not inside its campaign's workspace and product", async () => {
+    const { alice, bob, product, campaign, draft } = await setup();
+    const p1 = await product(alice.workspaceId);
+    const p2 = await product(alice.workspaceId);
+    const c1 = await campaign(alice, p1);
+    await expect(draft(alice.workspaceId, c1, p1)).resolves.toBeTruthy();
+    // Same workspace, but a different product than the campaign's.
+    await expect(draft(alice.workspaceId, c1, p2)).rejects.toThrow(/content_drafts_campaign_fk/);
+    // A campaign of another workspace.
+    await expect(draft(bob.workspaceId, c1, p1)).rejects.toThrow(/content_drafts_campaign_fk/);
+  });
+
+  it('refuses drafts whose JSON has the wrong shape, an unknown status or a bad variant', async () => {
+    const { alice, product, campaign, draft } = await setup();
+    const p = await product(alice.workspaceId);
+    const c = await campaign(alice, p);
+    const w = alice.workspaceId;
+    await expect(draft(w, c, p, { sections: ['a'] })).rejects.toThrow(
+      /content_drafts_sections_object/,
+    );
+    await expect(draft(w, c, p, { section_state: '"x"' })).rejects.toThrow(
+      /content_drafts_section_state_object/,
+    );
+    await expect(draft(w, c, p, { claim_warnings: {} })).rejects.toThrow(
+      /content_drafts_claim_warnings_array/,
+    );
+    await expect(draft(w, c, p, { status: 'published' })).rejects.toThrow(
+      /content_drafts_status_check/,
+    );
+    await expect(draft(w, c, p, { variant_index: 3 })).rejects.toThrow(
+      /content_drafts_variant_check/,
+    );
+    await expect(draft(w, c, p, { variant_index: 2, version: 0 })).rejects.toThrow(
+      /content_drafts_version_positive/,
+    );
+  });
+
+  it('makes job creation idempotent per workspace, user and key', async () => {
+    const { alice, bob, product, campaign, job } = await setup();
+    const c = await campaign(alice, await product(alice.workspaceId));
+    const key = 'same-key-12345678';
+    await job(alice, { campaign_id: c, idempotency_key: key });
+    await expect(job(alice, { campaign_id: c, idempotency_key: key })).rejects.toThrow(
+      /jobs_idempotency_unique/,
+    );
+    // Another user may use the same key string; keys never collide across users.
+    const bobCampaign = await campaign(bob, await product(bob.workspaceId));
+    await expect(
+      job(bob, { campaign_id: bobCampaign, idempotency_key: key }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses malformed idempotency keys and request hashes', async () => {
+    const { alice, product, campaign, job } = await setup();
+    const c = await campaign(alice, await product(alice.workspaceId));
+    for (const key of ['short', 'has space 12345678', '../../etc/passwd', 'a'.repeat(129)]) {
+      await expect(job(alice, { campaign_id: c, idempotency_key: key })).rejects.toThrow(
+        /jobs_idempotency_key_format/,
+      );
+    }
+    for (const bad of ['B'.repeat(64), 'b'.repeat(63), 'g'.repeat(64)]) {
+      await expect(job(alice, { campaign_id: c, request_hash: bad })).rejects.toThrow(
+        /jobs_request_hash_format/,
+      );
+    }
+  });
+
+  it('refuses a job that points at a campaign or draft of another workspace', async () => {
+    const { alice, bob, product, campaign, draft, job } = await setup();
+    const bobProduct = await product(bob.workspaceId);
+    const bobCampaign = await campaign(bob, bobProduct);
+    const bobDraft = await draft(bob.workspaceId, bobCampaign, bobProduct);
+    await expect(job(alice, { campaign_id: bobCampaign })).rejects.toThrow(/jobs_campaign_fk/);
+    await expect(job(alice, { type: 'regenerate_section', draft_id: bobDraft })).rejects.toThrow(
+      /jobs_draft_fk/,
+    );
+  });
+
+  it('refuses job rows that break the state rules, and accepts the real lifecycle', async () => {
+    const { alice, product, campaign, draft, job } = await setup();
+    const p = await product(alice.workspaceId);
+    const c = await campaign(alice, p);
+    const d = await draft(alice.workspaceId, c, p);
+    const finished = { finished_at: new Date().toISOString() };
+    const lease = { locked_until: new Date(Date.now() + 60000).toISOString() };
+
+    const bad: [Record<string, unknown>, RegExp][] = [
+      // An unknown type also fails the target rule, so either constraint may be the one reported.
+      [{ type: 'summon' }, /jobs_(type_check|target_matches_type)/],
+      [{ status: 'paused' }, /jobs_status_check/],
+      [{ input: [1] }, /jobs_input_object/],
+      [{ max_attempts: 6 }, /jobs_max_attempts_check/],
+      [{ attempts: 4 }, /jobs_attempts_check/],
+      [{ error_message: 'x'.repeat(501) }, /jobs_error_message_length/],
+      // finished without a finish time, and a finish time on an unfinished job
+      [{ status: 'cancelled' }, /jobs_finished_consistent/],
+      [{ status: 'queued', ...finished }, /jobs_finished_consistent/],
+      // a lease on a job that is not running
+      [{ status: 'queued', ...lease }, /jobs_lease_only_when_running/],
+      // succeeded needs output; output needs succeeded
+      [{ status: 'succeeded', ...finished }, /jobs_output_only_when_succeeded/],
+      [{ status: 'queued', output: {} }, /jobs_output_only_when_succeeded/],
+      // failed needs a code and a message; a code on a queued job is refused
+      [{ status: 'failed', ...finished }, /jobs_failed_has_error/],
+      [{ status: 'queued', error_code: 'INTERNAL' }, /jobs_error_only_when_unsuccessful/],
+      [
+        { status: 'failed', ...finished, error_code: 'MELTDOWN', error_message: 'x' },
+        /jobs_error_code_check/,
+      ],
+      // the target must match the type
+      [{ type: 'generate_brief', campaign_id: null }, /jobs_target_matches_type/],
+      [{ type: 'regenerate_section', campaign_id: c }, /jobs_target_matches_type/],
+    ];
+    for (const [extra, pattern] of bad) {
+      await expect(job(alice, { campaign_id: c, ...extra }), JSON.stringify(extra)).rejects.toThrow(
+        pattern,
+      );
+    }
+
+    // The real lifecycle is accepted.
+    const queued = await job(alice, { campaign_id: c });
+    await expect(
+      testDb.pool.query(
+        "update jobs set status = 'running', attempts = 1, started_at = now(), locked_until = now() + interval '1 minute' where id = $1",
+        [queued],
+      ),
+    ).resolves.toBeTruthy();
+    await expect(
+      testDb.pool.query(
+        `update jobs set status = 'succeeded', locked_until = null, finished_at = now(), output = '{"draftId":"x"}'::jsonb where id = $1`,
+        [queued],
+      ),
+    ).resolves.toBeTruthy();
+    await expect(
+      job(alice, {
+        type: 'regenerate_section',
+        draft_id: d,
+        status: 'failed',
+        ...finished,
+        error_code: 'SECTION_CHANGED',
+        error_message: 'The section changed while the job was waiting.',
+        attempts: 1,
+      }),
+    ).resolves.toBeTruthy();
+    await expect(
+      job(alice, { campaign_id: c, status: 'cancelled', ...finished, error_code: 'CANCELLED' }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses to delete a product, campaign or draft that jobs or drafts still reference', async () => {
+    const { alice, product, campaign, draft, job } = await setup();
+    const p = await product(alice.workspaceId);
+    const c = await campaign(alice, p);
+    const d = await draft(alice.workspaceId, c, p);
+    await job(alice, { type: 'regenerate_section', draft_id: d });
+    await expect(
+      testDb.pool.query('delete from content_drafts where id = $1', [d]),
+    ).rejects.toThrow(/jobs_draft_fk/);
+    await expect(testDb.pool.query('delete from campaigns where id = $1', [c])).rejects.toThrow(
+      /content_drafts_campaign_fk/,
+    );
+    await expect(testDb.pool.query('delete from products where id = $1', [p])).rejects.toThrow(
+      /campaigns_product_fk/,
+    );
   });
 });
