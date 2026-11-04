@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 to S5.3 and A1 done; A2 and A3 done (scene list, Meta AI helper on a fake page; the owner tests the real site); next is A4 (Full Auto), A5 (results and export).
+**Last updated:** 2026-11-04 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 to S5.3 and A1 done; A2, A3 and A4 done (scene list, Meta AI helper on a fake page with wait-for-sign-in, Full Auto; the owner tests the real site); next is A5 (results and export).
 
 ## Where we are
 
@@ -35,7 +35,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | A1 side panel Create tab (product, mode, checklist, one button; starts campaign and generation) | done |
 | S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (A3): contracts 76, provider-core 95, config 12, ui 43, extension unit 139, web 251, api 437; end-to-end 51 (21 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (A4): contracts 76, provider-core 95, config 12, ui 43, extension unit 157, web 251, api 437; end-to-end 52 (22 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -99,10 +99,11 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 1. **A2 (done 2026-11-04):** Scenes button on a finished campaign in the side panel: four scenes with editable prompts (local only), Copy, Reset, file status; client methods `drafts.listAssets` and `drafts.setAssets`. Gaps: no extension e2e (no worker in that suite), mock scene text order does not match the scene names (see `IMPLEMENTATION_STATUS.md`).
 2. **A3 (done 2026-11-04, D-072):** Generate in Meta AI per scene in the side panel, built and e2e-tested against a fake meta.ai. **Owner action: test it on the real meta.ai** (load the demo build, press Generate in Meta AI on a scene, allow meta.ai in Chrome's prompt, stay signed in) and send the "Copy diagnostics" text if it fails; two fix rounds, then decide about AutoGenX. Fixes are usually in `sidepanel/metaai/selectors.ts`.
-3. **A4 (next):** Full Auto: run the scenes in sequence with progress, checklist and Cancel. **A5:** results with thumbnails, copy caption, ZIP export (S5.6 to S5.9 of D-067: zip builder, export job, signed download, export UI, exit check).
-4. **After that:** Phase 4 (real text: settings screen with the encrypted key D-066, OpenAI-compatible adapter, usage ledger, usage screen; OpenRouter is the default, D-065; spend cap is optional, D-069), the first real test S6.0, optional API adapters for images and video (Muse Image is offered at about $0.01 per image per OpenRouter's listing; unverified), asset filters (S5.4), reconciling the Phase 2 boxes in `docs/07`.
-5. **Owner actions:** rotate the management token that was pasted in chat once; when ready, create an OpenRouter key (never in chat or git); test the helper on the real meta.ai after A3; check that Meta's paid plan is available in Thailand.
-6. **Quick start for the owner:** `pnpm demo` (see README).
+3. **A4 (done 2026-11-04, D-073):** Full Auto tick on the Create tab (script, then the four scene images in order, Cancel, skips scenes that have a file) and **Generate all scenes** in the scene list. Not built: video, fresh chat per scene, resume after the panel closes.
+4. **A5 (next):** results with thumbnails (signed URLs from the attached assets), copy caption, ZIP export (S5.6 to S5.9 of D-067: zip builder, export job, signed download, export UI, exit check).
+5. **After that:** Phase 4 (real text: settings screen with the encrypted key D-066, OpenAI-compatible adapter, usage ledger, usage screen; OpenRouter is the default, D-065; spend cap is optional, D-069), the first real test S6.0, optional API adapters for images and video (Muse Image is offered at about $0.01 per image per OpenRouter's listing; unverified), asset filters (S5.4), reconciling the Phase 2 boxes in `docs/07`.
+6. **Owner actions:** rotate the management token that was pasted in chat once; when ready, create an OpenRouter key (never in chat or git); test the helper on the real meta.ai after A3; check that Meta's paid plan is available in Thailand.
+7. **Quick start for the owner:** `pnpm demo` (see README).
 
 **Routine reminders**
 - The dashboard e2e suite needs Redis and `REDIS_URL`: `pnpm dev:redis`, export `REDIS_URL`, then `pnpm e2e`.

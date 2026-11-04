@@ -178,6 +178,59 @@ describe('Meta AI helper in the scene list (A3)', () => {
     await waitFor(() => expect(api.listAssets.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
+  it('Generate all makes the scenes without a file, with the prompts as the owner edited them', async () => {
+    const user = userEvent.setup();
+    const t = fakeHelper({});
+    const prompts: string[] = [];
+    let n = 0;
+    t.deps.page.submitPrompt = (_sel, prompt) => {
+      prompts.push(prompt);
+      return { ok: true, how: 'button' };
+    };
+    // Every scene gets a new image address after it was sent, as the real chat does.
+    t.deps.page.listMedia = () =>
+      Array.from({ length: prompts.length }, (_v, i) => `https://cdn.test/${i}.png`);
+    t.deps.page.clearStash = () => ((n += 1), true);
+    setup(t.deps);
+    await openScenes(user);
+    const box = screen.getByLabelText('2. Detail');
+    await user.clear(box);
+    await user.type(box, 'my detail');
+    await user.click(screen.getByRole('button', { name: 'Generate all scenes in Meta AI' }));
+    expect(await screen.findByText('Saved 4 scene images.')).toBeInTheDocument();
+    expect(prompts).toEqual(['hero text', 'my detail', 'usage text', 'final text']);
+    expect(n).toBe(4);
+  });
+
+  it('leaves out a scene whose prompt the owner emptied', async () => {
+    const user = userEvent.setup();
+    const t = fakeHelper({});
+    const prompts: string[] = [];
+    t.deps.page.submitPrompt = (_sel, prompt) => {
+      prompts.push(prompt);
+      return { ok: true, how: 'button' };
+    };
+    t.deps.page.listMedia = () =>
+      Array.from({ length: prompts.length }, (_v, i) => `https://cdn.test/${i}.png`);
+    setup(t.deps);
+    await openScenes(user);
+    await user.clear(screen.getByLabelText('3. Usage'));
+    await user.click(
+      screen.getByRole('button', { name: 'Generate the 3 missing scenes in Meta AI' }),
+    );
+    expect(await screen.findByText('Saved 3 scene images.')).toBeInTheDocument();
+    expect(prompts).toEqual(['hero text', 'detail text', 'final text']);
+  });
+
+  it('hides Generate all from people who cannot start work', async () => {
+    const user = userEvent.setup();
+    setup(fakeHelper({}).deps, false);
+    await openScenes(user);
+    expect(
+      screen.queryByRole('button', { name: /Generate all|missing scene/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it('tells the owner it is waiting for sign-in, and can be cancelled meanwhile', async () => {
     const user = userEvent.setup();
     setup(

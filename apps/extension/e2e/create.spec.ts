@@ -55,7 +55,7 @@ test('Create content makes a campaign and starts its job, shown under Campaigns'
   await expect(region.getByRole('button', { name: 'Create content' })).toBeDisabled();
   await region.getByRole('combobox', { name: 'Product' }).selectOption({ label: productName });
   await expect(region.getByRole('radio').first()).toBeChecked();
-  await expect(region.getByText('Scene images in Meta AI (coming next)')).toBeVisible();
+  await expect(region.getByText('Scene images in Meta AI (tick Full Auto)')).toBeVisible();
 
   await region.getByRole('button', { name: 'Create content' }).click();
   await expect(region.getByText(/Started\. Follow it under Campaigns below/)).toBeVisible();

@@ -36,7 +36,11 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
     >
       {state.phase === 'running' ? (
         <>
-          <p className="font-medium">{`Meta AI is working on ${sceneName}`}</p>
+          <p className="font-medium">
+            {state.position === null
+              ? `Meta AI is working on ${sceneName}`
+              : `Scene ${state.position.index} of ${state.position.total}: ${sceneName}`}
+          </p>
           <ol aria-label="Steps" className="mt-2 space-y-1">
             {STEP_ORDER.map((step, index) => {
               const current = STEP_ORDER.indexOf(state.step);
@@ -64,7 +68,11 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
 
       {state.phase === 'done' ? (
         <>
-          <p role="status" className="font-medium">{`Saved the image to ${sceneName}.`}</p>
+          <p role="status" className="font-medium">
+            {state.saved === 1
+              ? `Saved the image to ${sceneName}.`
+              : `Saved ${state.saved} scene images.`}
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button variant="secondary" onClick={onDismiss}>
               Done
@@ -78,6 +86,9 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
           <p role="alert" className="text-[var(--co-danger)] [overflow-wrap:anywhere]">
             {state.message}
           </p>
+          {state.saved > 0 ? (
+            <p className="mt-1">{`${state.saved} scene image${state.saved === 1 ? ' was' : 's were'} saved before it stopped.`}</p>
+          ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={copyDiagnostics}>
               Copy diagnostics

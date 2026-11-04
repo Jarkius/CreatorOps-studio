@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-073 | A4 Full Auto: one tick on Create content runs the script, then the four scene images in order | ACCEPTED (orchestrator, A4) |
 | D-072 | A3 build choices: `scripting` permission, optional meta.ai host, e2e build grants it, helper structure | ACCEPTED (orchestrator, A3) |
 | D-071 | Meta AI helper: the extension drives the owner's own logged-in meta.ai tab, user-initiated and narrowly scoped (owner decision) | ACCEPTED (owner decision 2026-11-04) |
 | D-070 | Media sourcing: assisted manual path first (prompt pack and import, works with the owner's Meta subscription), API adapters second; no website automation | ACCEPTED (owner request, research 2026-11-04) |
@@ -540,6 +541,16 @@ The real provider refuses to start without configured prices (no guessed default
 4. **Honesty and safety:** every wait is bounded (image 3 min, video 10 min; video is wired in the runner but not offered in the UI yet) and races the Cancel signal, so Cancel works even when the page is stuck. A challenge, limit text, a missing prompt box or an unusable page stop the run with a plain message; nothing is solved or bypassed. On a sign-in page the helper brings the Meta AI tab to the front, says "Waiting for you to sign in" with Cancel, checks every 2 s for up to 5 minutes (it tolerates the tab being on another site's sign-in page meanwhile) and carries on by itself once the prompt box shows; it never types credentials (owner request, 2026-11-04). Diagnostics hold step timings, page title, path (no query), matched selector index and counts; never the prompt, page text, cookies or media.
 5. **Testing:** unit tests with fakes, the injected functions tested in jsdom, and an e2e suite against a fake meta.ai served by Playwright routes. A test cannot click Chrome's permission prompt, so the e2e build (`E2E_GRANT_META_AI=1`, output `dist-e2e`) lists the host as granted at install; release and demo builds never do (manifest and built-manifest tests check it).
 6. **Not verified:** the real meta.ai (selectors, timing, how it names images, whether it serves media to `fetch` with the owner's session), Chrome's real permission prompt, Thai prompts. The owner tests these and sends diagnostics.
+
+## D-073 — A4 Full Auto (2026-11-04)
+**Status:** ACCEPTED. Implements the "Full Auto" step of D-068 and D-071; refines D-071 item 2 (user-initiated) as follows.
+**Decision:**
+1. **What starts it:** the owner ticks **Full Auto** on the Create tab and presses Create content. That click is the user action: Chrome's meta.ai prompt (if not yet allowed) is shown right then, and a refusal means only the script is made (with a notice). Full Auto never starts without the tick. The scene list also has **Generate all scenes** (or "the N missing scenes") for a finished draft.
+2. **Order:** the script job runs on the server as before; the panel follows it (D-053 poll steps). Only when it has succeeded does the scene list start the scenes, once, Product Hero, Detail, Usage, Final Shot, one at a time through the same runner as a single scene. A failed or cancelled script job starts nothing.
+3. **Skips and edits:** scenes that already have a file are skipped, scenes with an empty prompt are left out, and the prompts are the ones shown in the panel including the owner's edits (edits live in the panel and are not saved to the draft).
+4. **Stops:** the first problem (sign-in wait timeout, challenge, limit, page not recognised, timeout, upload failure) or Cancel stops the whole run and says how many scenes were saved; nothing restarts by itself. Each scene is on the server before the next starts, so closing the panel loses at most the scene in progress. The run lives in the open panel page; it does not continue if the panel is closed.
+5. **Not built:** video scenes, a fresh Meta AI chat per scene (scenes share the owner's current thread; new images are found by comparing with the page before sending), saving edited prompts, resuming after the panel closes.
+6. **Not verified:** how the real meta.ai orders and addresses several images in one thread, and whether a prompt that follows an earlier one in the same thread behaves as a new request.
 
 ## Open questions
 

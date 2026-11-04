@@ -4,15 +4,15 @@ import { CONTENT_LIMITS, type Product, type Template } from '@creatorops/contrac
 export interface CreateStep {
   readonly id: 'script' | 'images' | 'video';
   readonly label: string;
-  /** `ready` runs when you press the button; `soon` is not built yet and is shown honestly. */
-  readonly state: 'ready' | 'soon';
+  /** `ready` runs when you press the button; `optional` runs only if Full Auto is ticked; `soon` is not built yet and is shown honestly. */
+  readonly state: 'ready' | 'optional' | 'soon';
 }
 
-/** The checklist of the Full Auto flow (A1): only the script step runs today. */
-export function createSteps(): readonly CreateStep[] {
+/** The checklist under the Create button; the image step runs only when Full Auto is ticked (A4). */
+export function createSteps(fullAuto = false): readonly CreateStep[] {
   return [
     { id: 'script', label: 'Script, scenes and caption', state: 'ready' },
-    { id: 'images', label: 'Scene images in Meta AI', state: 'soon' },
+    { id: 'images', label: 'Scene images in Meta AI', state: fullAuto ? 'ready' : 'optional' },
     { id: 'video', label: 'Scene video in Meta AI', state: 'soon' },
   ];
 }

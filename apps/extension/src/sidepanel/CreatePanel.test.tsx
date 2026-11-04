@@ -83,7 +83,7 @@ describe('CreatePanel', () => {
     );
     expect(steps).toHaveLength(3);
     expect(steps[0]).toHaveTextContent('Script, scenes and caption');
-    expect(steps[1]).toHaveTextContent('(coming next)');
+    expect(steps[1]).toHaveTextContent('(tick Full Auto)');
     expect(steps[2]).toHaveTextContent('(coming next)');
   });
 

@@ -16,7 +16,7 @@ describe('createSteps', () => {
   it('runs only the script step today and shows images and video honestly as coming next', () => {
     expect(createSteps().map((step) => [step.id, step.state])).toEqual([
       ['script', 'ready'],
-      ['images', 'soon'],
+      ['images', 'optional'],
       ['video', 'soon'],
     ]);
   });
