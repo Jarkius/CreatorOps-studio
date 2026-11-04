@@ -1,6 +1,6 @@
 # UI research for Phase 3 (2026-11-04)
 
-Purpose: take design ideas and useful functions from the market for the dashboard (S3.7) and extension (S3.8), without copying code. Method: web search plus reading the READMEs of three open-source projects. Many web results were affiliate-style listicles, so only claims backed by a primary page (README, design-system guidance) are used below. Vendor UIs of Jasper, Copy.ai, Predis.ai and Canva were **not** inspected first-hand; treat statements about them as secondary-source and re-check before relying on them. A product named "autogenX" could not be found (closest: AutoBlogX, AutogenAI); no input from it is used.
+Purpose: take design ideas and useful functions from the market for the dashboard (S3.7) and extension (S3.8), without copying code. Method: web search plus reading the READMEs of three open-source projects. Many web results were affiliate-style listicles, so only claims backed by a primary page (README, design-system guidance) are used below. Vendor UIs of Jasper, Copy.ai, Predis.ai and Canva were **not** inspected first-hand; treat statements about them as secondary-source and re-check before relying on them. AutoGenX (https://autogention.com/) was added later from the link the owner gave; only its public landing page was read, because the app itself is behind payment and sign-in.
 
 ## What was looked at
 
@@ -9,6 +9,7 @@ Purpose: take design ideas and useful functions from the market for the dashboar
 | Postiz (gitroomhq/postiz-app) | scheduler, Next.js + NestJS | AGPL-3.0 | Patterns only. Do not copy code (AGPL). Idea: approve posts in the calendar. |
 | Mixpost (inovector/mixpost, Lite) | scheduler, Laravel | MIT | Per-network post versions, reusable templates, hashtag groups, media library, workspaces with roles. Calendar and queue come later (Phase 5+). |
 | AutoShorts (alamshafil/auto-shorts) | script-to-video pipeline | MIT, archived | Shows the gap: no review UI at all (user fixes JSON by hand). Our per-section edit already goes further. Events `log`/`done` are the same idea as our job states. |
+| AutoGenX (autogention.com landing page) | commercial, Thai, Chrome-based desktop program | n/a | Product photo to image and video ads; modes (model, podcast, story, series) from one product; fixed storyboard Product Hero, Detail, Usage, Final Shot; character and scene consistency across series episodes; prices in baht; support through LINE and a Facebook group. |
 | Jasper, Copy.ai, Predis.ai (secondary sources) | commercial | n/a | Several variants per request; approval step before publishing; brand voice as a stored setting; one-prompt start from a product description. |
 | Cloudscape and Telerik loading guidance | design guidance | n/a | Progress and waiting patterns below. |
 
@@ -28,6 +29,12 @@ Purpose: take design ideas and useful functions from the market for the dashboar
 7. **Conflict handling is explicit.** A 409 on save (stale version) opens "This draft changed. Reload / keep my text"; a regenerate refused with 409 or a job that fails `SECTION_CHANGED` says the edit was kept.
 8. **Hashtag editing as chips**, copy-to-clipboard per section and for the whole draft (export is a later phase).
 
+9. **From AutoGenX:** (a) "one product, several content types" suggests offering templates as a visible choice at generation time (our templates already exist, D-049); more modes (story, series) can be added as templates later. (b) A fixed storyboard arc (hero, detail, usage, final shot) is a good default shape for our storyboard section; check the code templates against it when S3.7 copy is reviewed. (c) Consistency across a series is a later feature for image and video, not for text-only Phase 3. (d) Thai sellers use LINE and Facebook groups for support and sharing: plan a copy/export-to-LINE-friendly text format when export is built.
+
+## Things we must not copy (compliance)
+
+AutoGenX also sells "warm-up" apps that automate browsing, likes, comments and live-stream taps so accounts look active, and auto-posts through a desktop Chrome program plus an Android phone. Both are outside our rules: no fake engagement or account warming, no undocumented publishing endpoints (`CLAUDE.md` compliance boundaries, D-022). Publishing stays export or manual handoff until an official API is approved.
+
 ## Ideas we skip for now
 
 - Token streaming with a typing cursor: our jobs are batch and D-053 chose polling, not SSE.
@@ -37,5 +44,6 @@ Purpose: take design ideas and useful functions from the market for the dashboar
 
 ## Open items
 
+- The AutoGenX app screens (job status, editing, review) were not seen; the page names no per-section edit, regenerate, tone controls or review step, so those remain a differentiator for us.
 - Re-check Jasper, Copy.ai and Predis.ai in their own help centres or trial accounts if the owner wants a closer comparison.
 - Thai UX copy (labels, error messages) needs native review (Q-005).
