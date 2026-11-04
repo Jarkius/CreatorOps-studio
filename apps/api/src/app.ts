@@ -19,6 +19,8 @@ import { createAssetDeps } from './modules/assets/deps.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
+import { NullJobQueue, type JobQueue } from './modules/jobs/queue.js';
+import { registerJobRoutes } from './modules/jobs/routes.js';
 import { registerWorkspaceRoutes } from './modules/workspace/routes.js';
 import type { ApiConfig } from './platform/config.js';
 import { AppError, STATUS_BY_CODE, toErrorBody } from './platform/errors.js';
@@ -37,6 +39,10 @@ export interface AppOptions {
   readonly rateLimitMax?: number;
   /** Uploads per minute per client address (the PUT to a signed upload URL). Defaults to 30. */
   readonly uploadRateLimitMax?: number;
+  /** Hands job ids to the worker. Defaults to a queue that does nothing (the reconciler picks jobs up). */
+  readonly jobQueue?: JobQueue;
+  /** Per-client limit on job-creating requests per minute (default 20). */
+  readonly jobCreateRateLimitMax?: number;
   /** Milliseconds without data before an upload is cancelled. Defaults to 30 seconds. */
   readonly uploadIdleMs?: number;
   /** Maximum JSON body size in bytes. Defaults to 1 MiB. */
@@ -211,6 +217,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerWorkspaceRoutes(app, { db: options.db, guard, scope });
   registerProductRoutes(app, { db: options.db, guard, scope });
   registerCampaignRoutes(app, { db: options.db, guard, scope });
+  registerJobRoutes(app, {
+    db: options.db,
+    guard,
+    scope,
+    queue: options.jobQueue ?? new NullJobQueue(),
+    ...(options.jobCreateRateLimitMax === undefined
+      ? {}
+      : { createsPerMinute: options.jobCreateRateLimitMax }),
+  });
   const assetDeps = createAssetDeps({
     db: options.db,
     storage: options.storage,

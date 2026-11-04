@@ -7,6 +7,7 @@ import type {
 } from '@creatorops/contracts';
 
 import type { Db } from '../../db/client.js';
+import { decodeCursor, encodeCursor } from '../../platform/cursor.js';
 import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
@@ -140,37 +141,6 @@ export async function getProduct(db: Db, ctx: RequestContext, productId: string)
   const row = await findProduct(db, ctx, productId);
   if (row === null) throw notFound();
   return toProduct(row);
-}
-
-interface Cursor {
-  readonly createdAt: Date;
-  readonly id: string;
-}
-
-function encodeCursor(row: ProductRow): string {
-  return Buffer.from(JSON.stringify({ t: row.createdAt.toISOString(), i: row.id })).toString(
-    'base64url',
-  );
-}
-
-function decodeCursor(cursor: string): Cursor {
-  const invalid = () =>
-    new AppError('VALIDATION_ERROR', 'The request is not valid.', [
-      { path: 'cursor', message: 'is not a valid cursor' },
-    ]);
-  if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw invalid();
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-      t?: unknown;
-      i?: unknown;
-    };
-    if (typeof parsed.t !== 'string' || typeof parsed.i !== 'string') throw invalid();
-    const createdAt = new Date(parsed.t);
-    if (Number.isNaN(createdAt.getTime()) || !/^[0-9a-f-]{36}$/i.test(parsed.i)) throw invalid();
-    return { createdAt, id: parsed.i };
-  } catch (error) {
-    throw error instanceof AppError ? error : invalid();
-  }
 }
 
 export async function listProducts(

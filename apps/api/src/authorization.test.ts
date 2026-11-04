@@ -25,6 +25,7 @@ let fixtures: HarnessFixtures;
 let victimProductId: string;
 let victimAssetId: string;
 let victimCampaignId: string;
+let victimJobId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -55,12 +56,19 @@ beforeAll(async () => {
     })
     .returning({ id: schema.campaigns.id });
   victimCampaignId = campaign?.id ?? '';
+  const job = await testDb.pool.query<{ id: string }>(
+    `insert into jobs (workspace_id, type, input, created_by, idempotency_key, request_hash, campaign_id)
+     values ($1, 'generate_brief', '{}'::jsonb, $2, 'victim-key-12345678', repeat('d', 64), $3) returning id`,
+    [victim.workspaceId, victim.userId, victimCampaignId],
+  );
+  victimJobId = job.rows[0]?.id ?? '';
   fixtures = {
     foreignParams: {
       workspaceId: victim.workspaceId,
       productId: victimProductId,
       assetId: victimAssetId,
       campaignId: victimCampaignId,
+      jobId: victimJobId,
     },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
@@ -71,6 +79,7 @@ beforeAll(async () => {
         templateId: 'product-showcase',
         templateVersion: 1,
       },
+      'POST /api/v1/workspaces/:workspaceId/jobs/generate-brief': { campaignId: victimCampaignId },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,
         name: 'Pwned',

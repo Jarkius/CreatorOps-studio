@@ -62,4 +62,4 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.3 are done; next is S3.4 (job repository, idempotent creation, JobQueue and fake, generate endpoint, caps; orchestrator writes it). Extract the shared cursor helpers first.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.4 are done; next is S3.5 (worker, processJob, retry, lease, reconciler, BullMQ adapter, scripts/redis-local.sh; orchestrator writes it), then S3.6 onward.

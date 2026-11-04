@@ -12,6 +12,7 @@ import {
 import { getTemplate, listTemplates } from '@creatorops/provider-core';
 
 import type { Db } from '../../db/client.js';
+import { decodeCursor, encodeCursor } from '../../platform/cursor.js';
 import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
@@ -85,34 +86,6 @@ export function defaultCampaignName(productName: string): string {
     out = candidate;
   }
   return normalizeText(out);
-}
-
-function encodeCursor(row: CampaignRow): string {
-  return Buffer.from(JSON.stringify({ t: row.createdAt.toISOString(), i: row.id })).toString(
-    'base64url',
-  );
-}
-
-interface Cursor {
-  readonly createdAt: Date;
-  readonly id: string;
-}
-
-function decodeCursor(cursor: string): Cursor {
-  const bad = () => invalid('cursor', 'is not a valid cursor');
-  if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw bad();
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-      t?: unknown;
-      i?: unknown;
-    };
-    if (typeof parsed.t !== 'string' || typeof parsed.i !== 'string') throw bad();
-    const createdAt = new Date(parsed.t);
-    if (Number.isNaN(createdAt.getTime()) || !/^[0-9a-f-]{36}$/i.test(parsed.i)) throw bad();
-    return { createdAt, id: parsed.i };
-  } catch (error) {
-    throw error instanceof AppError ? error : bad();
-  }
 }
 
 export function listTemplateItems(): TemplateListResponse {
