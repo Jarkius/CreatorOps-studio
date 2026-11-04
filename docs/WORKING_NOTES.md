@@ -40,6 +40,7 @@ Phase 3 gotchas: a section edit always beats a regenerate job (revision checked 
 ## How to run things
 
 ```
+pnpm demo                                     # everything below in one command (API, worker, dashboard, mock sign-in); Ctrl+C stops
 pnpm install
 pnpm dev:db                                   # PostgreSQL 16 without Docker (scripts/pg-local.sh)
 export DATABASE_URL="$(bash scripts/pg-local.sh url)"

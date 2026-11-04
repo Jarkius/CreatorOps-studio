@@ -24,6 +24,16 @@ Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, bu
 
 More: `web-overview.png`, `web-new-workspace.png` in `docs/screenshots/`.
 
+## Try it locally (one command)
+
+Needs Node 22+ and pnpm 10 (run `pnpm install` once). Then:
+
+```
+pnpm demo
+```
+
+It starts PostgreSQL and Redis without Docker, builds the dashboard and the extension, creates a `creatorops_demo` database (kept between runs), and runs the API, the worker and the dashboard at <http://localhost:5173>. Sign-in is a local mock and text generation uses the mock provider (Thai copy from templates), so no account, key or paid service is needed. Press Ctrl+C to stop. To use the side panel, load `apps/extension/dist` as an unpacked extension in Chrome (`chrome://extensions`, Developer mode). `pnpm dev:db:stop` and `pnpm dev:redis:stop` stop the databases.
+
 ## How it works
 
 - **Chrome side panel** (Manifest V3) is the quick-entry surface. It is a thin client.

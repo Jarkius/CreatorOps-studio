@@ -203,3 +203,8 @@ Phase 5, slice S5.1 (contracts for draft assets, export and asset filters), afte
 - Mutation checks on the migration (8 lines or conditions removed, one widened): asset foreign key, draft foreign key, one-cover index, position range (widened to 99), position unique, export job foreign key, export draft foreign key, export job unique: all caught. A first attempt at the position check removed the whole constraint line and broke the SQL syntax (the known false-positive trap); it was redone as a widening.
 - Full chain: lint, format:check, typecheck, unit tests pass (contracts 74, provider-core 95, config 12, ui 43, extension 65, web 251, api 429).
 - Not done: no API route or UI uses these tables yet (S5.3 onward); e2e was not re-run for this slice (no UI or route changed).
+
+## Demo command (2026-11-04)
+- `pnpm demo` (`scripts/demo.mjs`): starts local PostgreSQL and Redis, builds the dashboard and extension with mock sign-in, creates and seeds a persistent `creatorops_demo` database, runs the API, worker and dashboard, prints the URL and the steps to load the extension, and stops everything on Ctrl+C. README has a "Try it locally" section.
+- Verified for real: the command started from a clean environment (no `DATABASE_URL` or `REDIS_URL` set) and printed the guide; against it, a product and campaign were created over HTTP, generation ran through the worker, and the draft opened in headless Chromium; Ctrl+C left no process running and closed the port.
+- Not verified: Windows (the local database scripts are bash); Chrome loading the unpacked extension and the toolbar click; a second `pnpm demo` run on an existing `creatorops_demo` database (the create step is skipped and migrations are idempotent, but this was not run).
