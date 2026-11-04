@@ -114,6 +114,7 @@ beforeAll(async () => {
         version: 1,
         sections: { hook: 'Pwned' },
       },
+      'PUT /api/v1/workspaces/:workspaceId/drafts/:draftId/assets': { assets: [] },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,
         name: 'Pwned',

@@ -20,6 +20,13 @@ export const DRAFT_ASSET_ROLE_VALUES = ['cover', 'media'] as const;
 export const DraftAssetRoleSchema = z.enum(DRAFT_ASSET_ROLE_VALUES);
 export type DraftAssetRole = z.infer<typeof DraftAssetRoleSchema>;
 
+/** The storyboard scenes a file can belong to (D-071). The same four as the default storyboard. */
+export const DRAFT_SCENE_VALUES = ['product_hero', 'detail', 'usage', 'final_shot'] as const;
+export const DraftSceneSchema = z.enum(DRAFT_SCENE_VALUES);
+export type DraftScene = z.infer<typeof DraftSceneSchema>;
+
+export const GENERATOR_NAME_MAX = 60;
+
 const idString = z.string().min(1).max(64);
 
 /** One asset attached to a draft. `sortOrder` is the position in the package (0 first). */
@@ -27,6 +34,11 @@ export const DraftAssetSchema = z.object({
   assetId: z.string(),
   role: DraftAssetRoleSchema,
   sortOrder: z.number().int(),
+  scene: DraftSceneSchema.nullable(),
+  /** True when an AI tool made the file; exports label it. */
+  aiGenerated: z.boolean(),
+  /** The tool, in the owner's words (for example `Meta AI`), or null. */
+  generator: z.string().nullable(),
   asset: AssetSchema,
   createdAt: z.string(),
 });
@@ -45,7 +57,17 @@ export type DraftAssetListResponse = z.infer<typeof DraftAssetListResponseSchema
 export const SetDraftAssetsRequestSchema = z
   .object({
     assets: z
-      .array(z.object({ assetId: idString, role: DraftAssetRoleSchema.default('media') }).strict())
+      .array(
+        z
+          .object({
+            assetId: idString,
+            role: DraftAssetRoleSchema.default('media'),
+            scene: DraftSceneSchema.nullish(),
+            aiGenerated: z.boolean().default(false),
+            generator: z.string().trim().min(1).max(GENERATOR_NAME_MAX).nullish(),
+          })
+          .strict(),
+      )
       .max(EXPORT_LIMITS.maxAssetsPerDraft),
   })
   .strict()
@@ -59,6 +81,7 @@ export const SetDraftAssetsRequestSchema = z
     { message: 'an asset can be attached once', path: ['assets'] },
   );
 export type SetDraftAssetsRequest = z.input<typeof SetDraftAssetsRequestSchema>;
+export type SetDraftAssetsRequestParsed = z.infer<typeof SetDraftAssetsRequestSchema>;
 
 export const DraftAssetsParamsSchema = z.object({ workspaceId: z.string(), draftId: z.string() });
 export type DraftAssetsParams = z.infer<typeof DraftAssetsParamsSchema>;

@@ -19,6 +19,7 @@ import { createAssetDeps } from './modules/assets/deps.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
+import { registerDraftAssetRoutes } from './modules/draft-assets/routes.js';
 import { registerDraftRoutes } from './modules/drafts/routes.js';
 import { NullJobQueue, type JobQueue } from './modules/jobs/queue.js';
 import { registerJobRoutes } from './modules/jobs/routes.js';
@@ -235,6 +236,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     ...(options.uploadIdleMs === undefined ? {} : { uploadIdleMs: options.uploadIdleMs }),
   });
   registerAssetRoutes(app, { deps: assetDeps, guard, scope });
+  registerDraftAssetRoutes(app, { deps: assetDeps, guard, scope });
   registerSignedRoutes(app, assetDeps, {
     ...(options.uploadRateLimitMax === undefined
       ? {}

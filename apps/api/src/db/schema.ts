@@ -541,6 +541,12 @@ export const draftAssets = pgTable(
     assetId: uuid('asset_id').notNull(),
     role: text('role').notNull().default('media'),
     sortOrder: integer('sort_order').notNull(),
+    /** The storyboard scene this file is for (D-071), or null for a general attachment. */
+    scene: text('scene'),
+    /** True when the file was made by an AI tool; exports label it (D-068). */
+    aiGenerated: boolean('ai_generated').notNull().default(false),
+    /** Free text naming the tool, for example `Meta AI`. */
+    generator: text('generator'),
     createdBy: uuid('created_by')
       .notNull()
       .references(() => users.id),
@@ -560,6 +566,11 @@ export const draftAssets = pgTable(
     }),
     unique('draft_assets_order_unique').on(t.draftId, t.sortOrder),
     check('draft_assets_role_check', sql`${t.role} in ('cover', 'media')`),
+    check(
+      'draft_assets_scene_check',
+      sql`${t.scene} is null or ${t.scene} in ('product_hero', 'detail', 'usage', 'final_shot')`,
+    ),
+    check('draft_assets_generator_length', sql`char_length(${t.generator}) <= 60`),
     check('draft_assets_sort_order_check', sql`${t.sortOrder} between 0 and 9`),
     uniqueIndex('draft_assets_one_cover_idx')
       .on(t.draftId)

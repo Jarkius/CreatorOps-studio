@@ -17,6 +17,31 @@ describe('SetDraftAssetsRequestSchema', () => {
     expect(parsed.assets.map((item) => item.role)).toEqual(['cover', 'media']);
   });
 
+  it('accepts a scene, an AI label and a generator name, and refuses an unknown scene or a long name', () => {
+    const parsed = SetDraftAssetsRequestSchema.parse({
+      assets: [{ assetId: id(1), scene: 'final_shot', aiGenerated: true, generator: ' Meta AI ' }],
+    });
+    expect(parsed.assets[0]).toMatchObject({
+      scene: 'final_shot',
+      aiGenerated: true,
+      generator: 'Meta AI',
+    });
+    expect(
+      SetDraftAssetsRequestSchema.parse({ assets: [{ assetId: id(1) }] }).assets[0],
+    ).toMatchObject({
+      aiGenerated: false,
+    });
+    expect(
+      SetDraftAssetsRequestSchema.safeParse({ assets: [{ assetId: id(1), scene: 'intro' }] })
+        .success,
+    ).toBe(false);
+    expect(
+      SetDraftAssetsRequestSchema.safeParse({
+        assets: [{ assetId: id(1), generator: 'x'.repeat(61) }],
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts an empty list (detach everything)', () => {
     expect(SetDraftAssetsRequestSchema.parse({ assets: [] }).assets).toEqual([]);
   });

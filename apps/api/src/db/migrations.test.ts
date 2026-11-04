@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 7;
+const MIGRATION_COUNT = 8;
 
 let testDb: TestDb;
 
@@ -622,6 +622,30 @@ describe('draft assets and exports integrity (S5.2, D-067)', () => {
     await expect(attach(alice, d, c, -1)).rejects.toThrow(/draft_assets_sort_order_check/);
     await expect(attach(alice, d, c, 1, 'poster')).rejects.toThrow(/draft_assets_role_check/);
     await attach(alice, d, c, 9);
+  });
+
+  it('accepts only the four storyboard scenes and a generator name of at most 60 characters', async () => {
+    const { alice, asset, draft } = await setup();
+    const d = await draft(alice);
+    const insert = (
+      assetId: string,
+      order: number,
+      scene: string | null,
+      generator: string | null,
+    ) =>
+      testDb.pool.query(
+        `insert into draft_assets (workspace_id, draft_id, asset_id, sort_order, scene, ai_generated, generator, created_by)
+         values ($1, $2, $3, $4, $5, true, $6, $7)`,
+        [alice.workspaceId, d, assetId, order, scene, generator, alice.userId],
+      );
+    await insert(await asset(alice), 0, 'product_hero', 'Meta AI');
+    await insert(await asset(alice), 1, null, null);
+    await expect(insert(await asset(alice), 2, 'intro', null)).rejects.toThrow(
+      /draft_assets_scene_check/,
+    );
+    await expect(insert(await asset(alice), 3, 'usage', 'x'.repeat(61))).rejects.toThrow(
+      /draft_assets_generator_length/,
+    );
   });
 
   it('refuses to hard-delete an attached asset', async () => {

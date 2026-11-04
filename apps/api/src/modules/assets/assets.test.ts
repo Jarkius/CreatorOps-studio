@@ -860,6 +860,7 @@ describe('cover image', () => {
       .where(eq(schema.auditEvents.resourceId, image.id));
     expect(events.find((e) => e.action === 'asset.deleted')?.metadata).toEqual({
       clearedPrimaryFor: [product.id],
+      detachedFromDrafts: 0,
     });
 
     // A deleted file can no longer be chosen as a cover.
