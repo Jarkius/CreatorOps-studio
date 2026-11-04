@@ -53,6 +53,7 @@ pnpm e2e                                      # builds, then both suites, each o
 ## Working method (this project's rules)
 
 - One vertical slice at a time: contract, backend and tests, UI, states, lint/typecheck/tests, docs and status (`docs/08_PHASE_PLAN.md`, skill `app-dev-methodology`, D-022).
+- The skill `.claude/skills/app-dev-methodology` is the map of this method (what to read, the slice loop, what to update at the end). Keep it short and current: promote any lesson that recurs into it.
 - Delegation (D-031): Haiku workers build mechanical slices from tightly written specs; the orchestrator verifies every slice by running the checks itself and writes the security-sensitive code; the Opus advisor reviews read-only at checkpoints (before each phase, and after each security-relevant phase).
 - Worker specs start from `docs/WORKER_BRIEF_TEMPLATE.md` (mutation list, report format, do-not-add line); add each new failure to its lessons log.
 - Mutation-check security rules: break the code on purpose and confirm a test fails. Verify the edit really applied (Prettier reflows code, so scripted string replacements silently miss).
