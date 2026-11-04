@@ -88,6 +88,8 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
+| D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-067 | Phase 5 plan (draft assets, export as a job, signed download) and the build order to MVP | ACCEPTED (advisor review 2026-11-04) |
 | D-065 | Phase 4 default provider: OpenRouter through the same OpenAI-compatible adapter; MaxPlus stays an optional config | ACCEPTED (advisor recommendation, owner suggested OpenRouter 2026-11-04) |
 | D-064 | S5.0 (Phase 3 follow-ups): latest generate job on the campaign list, job filters, branch rule, acceptance-tick rule | ACCEPTED |
 | Q-001 | Real text generation provider | ANSWERED in part (D-062); production vendor still open |
@@ -447,6 +449,29 @@ The real provider refuses to start without configured prices (no guessed default
 6. **Error mapping:** 401 `PROVIDER_AUTH`; 402 `PROVIDER_BUDGET` (key limit or credits; an in-flight-budget 402 retries after `Retry-After`); 403 moderation or refusal `CONTENT_REFUSED` (permanent); 400 and bad output permanent; 408, 429, 502, 503 and 504 retry within D-048 and respect `Retry-After`.
 7. **Model choice** is made in S4.5 from the owner's Thai scores, among models listed with `structured_outputs` support and a price the owner accepts; S4.0 reads `/models` to shortlist. No model is chosen on marketing claims.
 8. S4.0 stays blocked until the owner sets a capped key in `TEXT_PROVIDER_API_KEY`. Nothing in this entry is claimed to work until a real call succeeds.
+
+## D-066 — Provider key entered in the dashboard (owner request, 2026-11-04)
+**Status:** ACCEPTED. Refines D-062, D-063 and D-065; this is the "server-side secret storage" of docs/06 Phase 4 and the "encrypted at rest" rule of docs/05.
+**Context:** The owner will enter the provider API key later in the product's own settings, not in a server environment file.
+**Decision:**
+1. A **Settings, AI provider** screen in the dashboard (owner and admin only) accepts the provider choice (OpenRouter, custom OpenAI-compatible), base URL, model, prices and the API key. The key is sent once over HTTPS to the API and **never returned**: reads show only the provider, model, the last four characters and the time it was set. There is a Replace and a Remove action, each audited. The extension never shows or sends it, and has no settings screen for it.
+2. **Storage:** AES-256-GCM with a random nonce per value, in a `provider_credentials` table scoped to the workspace (migration). The encryption key is a server secret, `SECRETS_ENCRYPTION_KEY` (32 bytes, base64), required to start when a key is stored; a stored value records its key id so the key can rotate. It is distinct from `SESSION_SECRET`, and `.env.example` carries a placeholder only. Decryption happens only in the worker at call time; the plaintext is never logged, put in a job payload, a queue message, an error, an audit event or a response (redaction list extended; a test greps logs and responses).
+3. **Test button:** "Check connection" makes one cheap read-only call (the provider's key/credits endpoint, or `/models`) and shows plain success or a stable error code. It never sends generation text, so it costs nothing.
+4. **Fallback:** the environment variables of D-062 still work for local development and CI; a workspace key, when present and valid, takes precedence. With no key the product stays on `mock-text` and says so in the UI.
+5. A real-provider job needs an owner-confirmed cost estimate (D-063) and the workspace cap; both live in the same screen.
+6. The pasted management token and any key shown in chat are never stored; the owner rotates them.
+
+## D-067 — Phase 5 plan and build order (advisor review, 2026-11-04)
+**Status:** ACCEPTED. Builds on D-064; defaults below apply unless the owner changes them.
+**Decision:**
+1. **Build order to MVP:** Phase 5 (export) first because it needs no provider; then Phase 4 in this order: provider settings and encrypted key (D-066), the OpenAI-compatible adapter on mock transport, usage ledger and budget cap, usage screen; then the one real call (S4.0) and the Thai evaluation (S4.5) as soon as the owner has entered a key. Phases 6 to 8 stay gated (D-022, D-060).
+2. **Slices:** S5.1 contracts; S5.2 migration 0006 (`draft_assets`, `exports`); S5.3 attach, detach and reorder API; S5.4 asset filters and metadata; S5.5 draft attach UI; S5.6 zip builder (pure); S5.7 export job, routes, signed download and expiry sweeper; S5.8 export UI in the dashboard and the panel; S5.9 exit check, including reconciling the Phase 2 boxes in docs/07.
+3. **Data:** `draft_assets` (workspace, draft, asset, role `cover` or `media`, sort order 0 to 9, creator; primary key draft and asset; composite foreign keys into drafts and assets of the same workspace; at most one cover per draft; at most 10 assets per draft). `exports` (workspace, draft, job, creator, status `ready` or `expired`, storage key, size, sha256, draft version, manifest, expiry). `export_package` joins the job types and needs a draft. No `exported` draft status; "last exported" comes from `exports`.
+4. **Export is a queued job** (D-046 rules: idempotent, bounded retry, cap). At creation it snapshots the text sections and the attached asset ids with their sha256, so retries give the same zip and later edits do not race it. A missing asset at run time fails permanently (`ASSET_UNAVAILABLE`). The zip is written to a temporary key and the `exports` row is inserted in the settling transaction; an orphan file is removed by the sweeper.
+5. **Routes:** `POST /workspaces/:ws/jobs/export-package` (`draftId`, `draftVersion`), `GET /exports`, `GET /exports/:id`, `POST /exports/:id/download-url` (short-lived signed URL). Draft-asset routes under `/drafts/:id/assets`.
+6. **Roles and rules (defaults):** owner, admin and editor create exports and change attachments; reviewer and viewer read and download; any member may download. An unapproved draft may be exported, and the checklist says so. Exports expire after 7 days. Caps: 10 media files and 500 MB per export, 20 live exports per workspace.
+7. **Security:** an attachable asset is `ready`, in the same workspace, and has no product or the draft's product; every scoping condition has a mutation test. The download URL is HMAC-signed with a new key label `export`, 5-minute life, membership re-checked, `Cache-Control: no-store`, ASCII filename plus RFC 5987 `filename*` for Thai names. Zip entry names are server-generated ASCII (`media/01-cover.jpg`); Thai text lives only inside `caption.txt`, `hashtags.txt` and the Thai `publishing-checklist.md`, UTF-8; media is stored without recompression. Logs never carry the signature.
+8. **Tests:** builder unit tests (CRC read back, Thai round trip, each cap), idempotent replay, stranger 404, cross-workspace download 404, expired and tampered URLs refused, purge of an asset with links, a worker killed mid-export (SIGKILL smoke test) and a mutation list per slice.
 
 ## Open questions
 
