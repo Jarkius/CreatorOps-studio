@@ -1,6 +1,6 @@
 import { ApiError, type ApiClient, type CampaignListItem, type Job } from '@creatorops/contracts';
 import { Button, EmptyState, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { useCancelGeneration, usePanelCampaigns, useStartGeneration } from './campaignHooks.js';
 import {
@@ -10,6 +10,7 @@ import {
   jobStatusText,
 } from './campaigns.js';
 import { dashboardHref } from './format.js';
+import { ScenesPanel } from './ScenesPanel.js';
 
 export interface CampaignsPanelProps {
   readonly api: ApiClient;
@@ -92,6 +93,9 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
                 dashboardUrl,
                 dashboardCampaignPath(workspaceId, campaign.id),
               )}
+              renderScenes={() => (
+                <ScenesPanel api={api} workspaceId={workspaceId} campaignId={campaign.id} />
+              )}
             />
           ))}
         </ul>
@@ -124,6 +128,7 @@ interface CampaignRowProps {
   cancelError: unknown;
   onCancel: (job: Job) => void;
   campaignHref: string;
+  renderScenes: () => ReactNode;
 }
 
 function CampaignRow({
@@ -137,7 +142,9 @@ function CampaignRow({
   cancelError,
   onCancel,
   campaignHref,
+  renderScenes,
 }: CampaignRowProps) {
+  const [showScenes, setShowScenes] = useState(false);
   const active = job !== null && (job.status === 'queued' || job.status === 'running');
   const retry = job !== null && (job.status === 'failed' || job.status === 'cancelled');
   const label = starting ? 'Starting…' : active ? 'Generating…' : retry ? 'Try again' : 'Generate';
@@ -183,10 +190,24 @@ function CampaignRow({
             {cancelling ? 'Cancelling…' : 'Cancel'}
           </Button>
         ) : null}
+        {job?.status === 'succeeded' ? (
+          <Button
+            variant="secondary"
+            aria-label={`${showScenes ? 'Hide' : 'Show'} scenes for ${campaign.name}`}
+            aria-expanded={showScenes}
+            onClick={() => setShowScenes((open) => !open)}
+          >
+            {showScenes ? 'Hide scenes' : 'Scenes'}
+          </Button>
+        ) : null}
         <ActionLink href={campaignHref} label={`Open ${campaign.name} in the dashboard`}>
           Open
         </ActionLink>
       </div>
+
+      {showScenes && job?.status === 'succeeded' ? (
+        <div className="mt-3">{renderScenes()}</div>
+      ) : null}
 
       {startError === null || startError === undefined ? null : <RowError error={startError} />}
       {cancelError === null || cancelError === undefined ? null : <RowError error={cancelError} />}

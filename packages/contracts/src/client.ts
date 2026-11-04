@@ -41,6 +41,11 @@ import {
   type UpdateDraftRequest,
 } from './content.js';
 import {
+  DraftAssetListResponseSchema,
+  type DraftAssetListResponse,
+  type SetDraftAssetsRequest,
+} from './export.js';
+import {
   ProductListResponseSchema,
   ProductSchema,
   type CreateProductRequest,
@@ -151,6 +156,14 @@ export interface ApiClient {
     get(workspaceId: string, draftId: string): Promise<Draft>;
     /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
     update(workspaceId: string, draftId: string, body: UpdateDraftRequest): Promise<Draft>;
+    /** The files attached to a draft, in package order, each with its scene and AI label. */
+    listAssets(workspaceId: string, draftId: string): Promise<DraftAssetListResponse>;
+    /** Replaces the whole ordered list of attachments in one call (attach, detach, reorder). */
+    setAssets(
+      workspaceId: string,
+      draftId: string,
+      body: SetDraftAssetsRequest,
+    ): Promise<DraftAssetListResponse>;
   };
   jobs: {
     list(workspaceId: string, query?: JobListQuery): Promise<JobListResponse>;
@@ -185,7 +198,7 @@ export interface ApiClient {
   };
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface RequestSpec<S extends z.ZodType> {
   readonly method: Method;
@@ -393,6 +406,15 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       get: (workspaceId, draftId) => get(`${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema),
       update: (workspaceId, draftId, body) =>
         send('PATCH', `${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema, body),
+      listAssets: (workspaceId, draftId) =>
+        get(`${base(workspaceId)}/drafts/${id(draftId)}/assets`, DraftAssetListResponseSchema),
+      setAssets: (workspaceId, draftId, body) =>
+        send(
+          'PUT',
+          `${base(workspaceId)}/drafts/${id(draftId)}/assets`,
+          DraftAssetListResponseSchema,
+          body,
+        ),
     },
     jobs: {
       list: (workspaceId, query) =>

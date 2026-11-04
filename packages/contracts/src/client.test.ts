@@ -422,6 +422,23 @@ describe('content: campaigns, drafts, jobs', () => {
     }
   });
 
+  it('reads and replaces the files attached to a draft', async () => {
+    const { calls, client } = make(() => json({ items: [] }));
+    expect(await client.drafts.listAssets('w1', 'd 1')).toEqual({ items: [] });
+    await client.drafts.setAssets('w1', 'd1', {
+      assets: [{ assetId: 'a1', scene: 'usage', aiGenerated: true, generator: 'Meta AI' }],
+    });
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/drafts/d%201/assets'],
+      ['PUT', 'http://x/api/v1/workspaces/w1/drafts/d1/assets'],
+    ]);
+    expect(calls[1]?.body).toBe(
+      JSON.stringify({
+        assets: [{ assetId: 'a1', scene: 'usage', aiGenerated: true, generator: 'Meta AI' }],
+      }),
+    );
+  });
+
   it('reads and edits drafts with the version, and exposes currentVersion on a conflict', async () => {
     const { calls, client } = make(() =>
       json(calls.length === 2 ? { items: [DRAFT], nextCursor: null } : DRAFT),
