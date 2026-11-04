@@ -84,7 +84,9 @@ Exit criteria:
 - Export can be downloaded and opened.
 - Draft remains editable after export.
 
-## Phase 6 — Image/video provider (optional)
+## Phase 6 — Image/video generation (in the MVP, mock first; see D-068)
+
+Owner direction 2026-11-04: the pipeline is built now with mock providers; only the real adapters wait for the conditions below.
 
 Only proceed after:
 - Provider API and terms are verified.

@@ -25,7 +25,7 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 - A web dashboard is the full product workspace.
 - Backend API + durable worker queue perform all long-running work.
 - The extension is a thin client. It must not contain provider secrets or orchestrate long jobs.
-- The first release focuses on product information, Thai-first copy/script generation, asset management, review, and export.
+- The first release focuses on product information, Thai-first copy/script generation, image and video generation from a product (mock provider first, real provider by owner key; D-068), asset management, review, and export.
 - Publishing connectors are feature-gated and approval-dependent.
 
 ## Engineering constraints
