@@ -1,30 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
-import { ApiError } from '@creatorops/contracts';
-import type { Job, JobStatus, RegenerateSectionJobRequest } from '@creatorops/contracts';
+import {
+  ApiError,
+  isTerminalJobStatus,
+  pollDelayMs,
+  type Job,
+  type RegenerateSectionJobRequest,
+} from '@creatorops/contracts';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 import { newIdempotencyKey } from './idempotency.js';
+
+// The polling helpers live in @creatorops/contracts (shared with the side panel); re-exported here
+// so existing imports keep working.
+export { isTerminalJobStatus, pollDelayMs };
 
 /** Query keys. Every job key starts with ['jobs', workspaceId]. */
 export const jobKeys = {
   all: (workspaceId: string) => ['jobs', workspaceId] as const,
   detail: (workspaceId: string, jobId: string) => ['jobs', workspaceId, 'detail', jobId] as const,
 };
-
-/** Wait between polls: 2 s, 3 s, 5 s, 8 s, then 10 s for every later poll. */
-const POLL_STEPS_MS = [2000, 3000, 5000, 8000, 10000] as const;
-
-/** The delay before poll number `step` (0 is the first poll after the first fetch). */
-export function pollDelayMs(step: number): number {
-  const index = Math.min(Math.max(0, Math.floor(step)), POLL_STEPS_MS.length - 1);
-  return POLL_STEPS_MS[index] ?? 10000;
-}
-
-export function isTerminalJobStatus(status: JobStatus): boolean {
-  return status === 'succeeded' || status === 'failed' || status === 'cancelled';
-}
 
 export function useJob(workspaceId: string, jobId: string) {
   const { client } = useDashboard();
