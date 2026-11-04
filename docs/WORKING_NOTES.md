@@ -61,4 +61,4 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 (Phase 2 cleanups) is done; next is S3.1 (contracts, TextProvider and mock, templates, claim guard), then S3.2 onward in order.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 and S3.1 are done; next is S3.2 (migration for campaigns, content_drafts, jobs; orchestrator writes it), then S3.3 onward in order.
