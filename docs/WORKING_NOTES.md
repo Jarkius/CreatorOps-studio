@@ -92,6 +92,7 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 
 ## Next steps
 
+0a. **Providers (D-069):** one OpenRouter key for text, image and video; no Meta AI automation; spend cap optional. Next real step is S6.0, a small real test (3 scene images and 1 short clip from one product photo) once the owner sets the key; mock-first slices continue meanwhile.
 0. **Scope change (D-068):** image and video generation are part of the MVP, built mock first like text. Order: S5.3 to S5.5 (attachments), then S6.1 to S6.8 (media pipeline, scene screen, export of generated media), with Phase 4 real text and the real media adapters plugging in after the owner enters keys.
 
 0. **Phase 4 default provider is OpenRouter (D-065, 2026-11-04); MaxPlus is optional via the same adapter.** Earlier note: **Owner chose the Phase 4 provider (2026-11-04):** an OpenAI-compatible gateway (`maxplus-ai.cc`), 100-credit cap, owner reviews Thai output. Plan: D-062 and D-063; slices S4.0 (one real call to verify the gateway, needs the owner's key in `TEXT_PROVIDER_API_KEY`), S4.1 config and redaction, S4.2 adapter, S4.3 usage ledger and budget cap, S4.4 usage screen, S4.5 Thai evaluation. The gateway is development and pilot only, and its docs say no pool is open right now (D-062 item 2a). A management token was pasted in chat once; it is not stored anywhere and must be rotated by the owner. S4.0 needs a new `ccsk-` key capped at 100 credits. Phase 5 (export) is independent and can run first.
