@@ -83,6 +83,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-056 | S3.4 job creation, cancellation and queue hand-off details | ACCEPTED |
 | D-057 | S3.5 worker: claim, lease, settle, retry, reconcile, BullMQ adapter | ACCEPTED |
 | D-058 | S3.6 drafts: get, list, versioned PATCH, regenerate-section job | ACCEPTED |
+| D-059 | S3.7 and S3.8 UI direction from market research (`docs/UI_RESEARCH.md`) | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -366,6 +367,11 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 - **Worker.** The handler re-checks the revision before calling the provider (no provider call for a stale job), then asks for the one section, rejects an answer for another section, validates the value again, and returns it without writing. The settle step runs in the job's transaction: it locks the draft row, checks the revision a second time, then writes the value with `rev + 1`, `origin: generated`, the job id, a recomputed claim guard and version + 1; status goes back to `draft`. A moved revision fails the job `SECTION_CHANGED` (permanent, never retried) and leaves the draft exactly as the edit left it. A cancel request still wins over success. The edit always wins; an equal value succeeds with `changed: false`.
 - **Lock order.** The job settle locks the job row, then the draft row; PATCH locks only the draft row; cancel locks only the job row. No cycle.
 **Notes:** D-050 said a failed job "keeps its output"; the table allows output only on success (D-055), so a `SECTION_CHANGED` job stores no output. The settle-time lock has no deterministic concurrent test (the race test edits while the provider runs, which the second revision check catches; the row lock itself is what makes the check and the write atomic). A regenerated section replaces the old value; there is no history or undo yet.
+
+## D-059 — UI direction for S3.7 and S3.8
+**Status:** ACCEPTED (2026-11-04). Based on `docs/UI_RESEARCH.md`.
+**Decision:** Take design ideas only, no code from other products (Postiz is AGPL-3.0). S3.7 builds: a short "create campaign and generate" path from a product; variants as tabs; section cards with origin badge, edit, regenerate and copy; a status control with the reset-to-draft rule shown; quiet claim-warning badges; a job panel that stays visible with cancel, skeletons, retry as a new request with a new idempotency key, polling 2 s to 10 s (D-053); explicit 409 handling for stale saves and `SECTION_CHANGED`. S3.8 reuses the same states in the side panel with a smaller layout. Out of scope: streaming, calendar and scheduling, diff and undo, visual editor, anything that publishes.
+**Notes:** the research covered open-source READMEs and secondary sources for commercial tools; their own UIs were not inspected. Thai copy needs native review (Q-005).
 
 ## Open questions
 

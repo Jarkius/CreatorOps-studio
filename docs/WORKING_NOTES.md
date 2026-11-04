@@ -85,5 +85,5 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 ## Next steps
 
 1. Workspace-creation screen: done and verified. Asset library now gated.
-2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.6 are done; next is S3.7 (dashboard: Haiku worker from the brief template; API surface is listed in D-046, D-056 and D-058), then S3.8 (extension generate action and job status), then the S3.9 exit check.
+2. Phase 3 plan is recorded as D-045 to D-054 (advisor reviewed). S3.0 to S3.6 are done; next is S3.7 (dashboard: Haiku worker from the brief template; UI direction in D-059 and `docs/UI_RESEARCH.md`; API surface is listed in D-046, D-056 and D-058), then S3.8 (extension generate action and job status), then the S3.9 exit check.
 3. Verified for real in S3.6: generate, regenerate-section, a stale-revision 409 and a stale-version 409 over HTTP with API, worker and Redis. Verified for real in S3.5: API + worker + Redis created drafts from an HTTP request; a transient failure retried 3 times and failed with a stable code; a job whose Redis message was wiped was recovered by the reconciler after about 65 s. Not yet exercised: a worker killed mid-job outside the unit tests.
