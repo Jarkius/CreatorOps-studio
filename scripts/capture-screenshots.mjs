@@ -173,8 +173,18 @@ try {
   const extensionId = new URL(worker.url()).host;
   const panel = await context.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-  await panel.getByText(products[0].name).first().waitFor();
+  await panel.getByRole('region', { name: 'Products' }).getByText(products[0].name).waitFor();
   await panel.screenshot({ path: path.join(OUT, 'extension-side-panel.png') });
+
+  // The Create tab (A1): choose a product, then press the button (no worker runs here, so the
+  // job stays queued and the campaign row shows it).
+  const create = panel.getByRole('region', { name: 'Create content' });
+  await create.getByRole('combobox', { name: 'Product' }).selectOption({ label: products[0].name });
+  await panel.screenshot({ path: path.join(OUT, 'extension-create.png'), fullPage: true });
+  await create.getByRole('button', { name: 'Create content' }).click();
+  await panel.getByText(/Started\. Follow it under Campaigns below/).waitFor();
+  await panel.getByText('Waiting to start').first().waitFor();
+  await panel.screenshot({ path: path.join(OUT, 'extension-create-started.png'), fullPage: true });
   await context.close();
 
   console.log(`Screenshots written to ${OUT}`);
