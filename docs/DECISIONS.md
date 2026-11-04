@@ -88,6 +88,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
+| D-065 | Phase 4 default provider: OpenRouter through the same OpenAI-compatible adapter; MaxPlus stays an optional config | ACCEPTED (advisor recommendation, owner suggested OpenRouter 2026-11-04) |
 | D-064 | S5.0 (Phase 3 follow-ups): latest generate job on the campaign list, job filters, branch rule, acceptance-tick rule | ACCEPTED |
 | Q-001 | Real text generation provider | ANSWERED in part (D-062); production vendor still open |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
@@ -433,6 +434,19 @@ The real provider refuses to start without configured prices (no guessed default
 4. **Acceptance ticks:** a box in `docs/07` or an exit criterion in `docs/06` is ticked only when an automated test or a recorded live run proves it, with the evidence named in `docs/IMPLEMENTATION_STATUS.md`. The release gate still needs every P0 box. The Phase 2 boxes that have evidence from the Phase 2 exit check are reconciled in the Phase 5 exit check (S5.9).
 5. **Evidence added:** side-panel e2e that closes the panel, opens a new one and sees the same queued job, and shows the job was not cancelled; dashboard e2e that runs a refused generation through the real worker, shows the plain message and Try again, and checks one attempt only.
 6. **Known limit:** the mock Thai Script repeats a line; it needs native review (Q-005, D-063), not code.
+
+## D-065 — Phase 4 default provider: OpenRouter (2026-11-04)
+**Status:** ACCEPTED. Refines D-062 and D-063; changes no code plan, because the adapter is generic.
+**Context:** The owner suggested OpenRouter instead of the MaxPlus gateway. The MaxPlus docs say no pool is open (D-062 item 2a), and its operator, terms and data handling are unknown. OpenRouter's own pages (read 2026-11-04; nothing called yet) say: base URL `https://openrouter.ai/api/v1`, Chat Completions "very similar to OpenAI's"; operated by OpenRouter, Inc., New York, USA; "OpenRouter does not store your prompts or responses, unless you opt in" (logging off by default) and "does not use your Inputs or Outputs for model training"; per-request `provider.zdr` and an account setting that avoids providers that train; per-key credit limit through the management API (`limit`, `limit_reset`); `GET /api/v1/key` returns `limit`, `limit_remaining` and usage; responses carry `usage` and, per the schema, `cost`; `/models` lists USD-per-token `pricing.prompt` and `pricing.completion`; structured output with `response_format` `json_schema`, and `require_parameters: true` to route only to endpoints that support it (support is per endpoint, strict compliance not guaranteed); minimum purchase $5; credits may expire after 365 days; a 402 carries `limit_source` (`openrouter_key_limit`, `openrouter_credits`, `openrouter_in_flight_budget`); paid models have no platform request cap. The pages do not name any Thai-strong model.
+**Decision:**
+1. The default real provider is **OpenRouter**; the same adapter serves MaxPlus or any OpenAI-compatible endpoint by configuration (`TEXT_PROVIDER_BASE_URL`, model, key, prices). MaxPlus is only used if it reopens and the owner prefers it.
+2. **Money:** OpenRouter credits are US dollars. The owner sets the real cap; the recommended pilot is **$10 or less**. D-063's `TEXT_PROVIDER_BUDGET_CREDITS` is read as dollars for OpenRouter. The owner creates a key with a credit limit (a management key makes that one call; the app never holds a management key).
+3. **Data:** send `provider: { zdr: true }` when the chosen model has a ZDR endpoint, or at least `data_collection: "deny"` (exact parameter to be read from the provider-selection page in S4.0); set the account to avoid training providers; keep prompt logging off. Only product text the owner enters is sent.
+4. **Structured output:** request `response_format` `json_schema` with `require_parameters: true`; validate every reply with the existing output validation anyway (the docs say strict compliance is not guaranteed).
+5. **Cost source:** use `usage.cost` from the reply when present, and otherwise tokens times the configured prices; reconcile with `GET /api/v1/key` (`usage`, `limit_remaining`) in S4.3.
+6. **Error mapping:** 401 `PROVIDER_AUTH`; 402 `PROVIDER_BUDGET` (key limit or credits; an in-flight-budget 402 retries after `Retry-After`); 403 moderation or refusal `CONTENT_REFUSED` (permanent); 400 and bad output permanent; 408, 429, 502, 503 and 504 retry within D-048 and respect `Retry-After`.
+7. **Model choice** is made in S4.5 from the owner's Thai scores, among models listed with `structured_outputs` support and a price the owner accepts; S4.0 reads `/models` to shortlist. No model is chosen on marketing claims.
+8. S4.0 stays blocked until the owner sets a capped key in `TEXT_PROVIDER_API_KEY`. Nothing in this entry is claimed to work until a real call succeeds.
 
 ## Open questions
 
