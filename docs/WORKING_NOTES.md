@@ -35,7 +35,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | A1 side panel Create tab (product, mode, checklist, one button; starts campaign and generation) | done |
 | S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (S5.0): contracts 75, provider-core 95, config 12, ui 43, extension unit 81, web 251, api 437; end-to-end 51 (21 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (S5.0): contracts 75, provider-core 95, config 12, ui 43, extension unit 81, web 251, api 437; end-to-end 49 (19 extension, 30 dashboard). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
