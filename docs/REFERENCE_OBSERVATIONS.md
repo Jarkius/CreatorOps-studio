@@ -1,5 +1,7 @@
 # Reference Observations — AutoGenX META screenshots
 
+> **Update 2026-11-04:** the owner directed us to follow the reference approach (the extension drives the owner's own signed-in meta.ai tab). D-071 allows it in a narrow form and supersedes D-014; the rows below that say "forbidden" or "APIs or manual import only" are the earlier position.
+
 **Date recorded:** 2026-11-03
 **Status:** Unverified observations from screenshots and a public live stream. Not a technical audit. Do not copy code, layouts verbatim, branding, or private interfaces.
 

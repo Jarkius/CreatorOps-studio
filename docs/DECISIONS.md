@@ -38,7 +38,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-011 | Dev-only mock auth through Phase 5; production auth provider open | ACCEPTED |
 | D-012 | Chrome extension deferred until after Phase 2 | SUPERSEDED by D-019 |
 | D-013 | Phone-farm and device-control features excluded | ACCEPTED |
-| D-014 | No browser automation of consumer AI websites | ACCEPTED |
+| D-014 | No browser automation of consumer AI websites | SUPERSEDED by D-071 (owner decision, 2026-11-04) |
 | D-015 | Thai is the default content language | ACCEPTED |
 | D-016 | No billing; usage events and budget caps from Phase 4 | ACCEPTED |
 | D-017 | Git: commits when asked; no pull request unless requested (branch name superseded by D-064) | ACCEPTED |
@@ -171,7 +171,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 **Decision:** No ADB, device orchestration, or multi-device code. A desktop companion appears only in Phase 8 and only with a validated user need and a written policy review.
 
 ## D-014 — No browser automation of consumer AI sites
-**Status:** ACCEPTED
+**Status:** SUPERSEDED by D-071. This was an early engineering choice that went against the owner's reference (AutoGenX drives Meta AI in the browser); the owner decided on 2026-11-04 to follow the reference approach, narrowly scoped.
 **Decision:** Generation uses provider APIs, mocks, or user-led manual import. No DOM scraping, session reuse, or undocumented endpoints.
 
 ## D-015 — Thai-first
