@@ -126,6 +126,10 @@ beforeAll(async () => {
         templateVersion: 1,
       },
       'POST /api/v1/workspaces/:workspaceId/jobs/generate-brief': { campaignId: victimCampaignId },
+      'POST /api/v1/workspaces/:workspaceId/jobs/generate-video-prompts': {
+        draftId: victimDraftId,
+        draftVersion: 1,
+      },
       'POST /api/v1/workspaces/:workspaceId/jobs/regenerate-section': {
         draftId: victimDraftId,
         section: 'hook',

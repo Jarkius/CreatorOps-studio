@@ -14,6 +14,7 @@ import { findDraftIn, updateDraftRow } from '../drafts/repo.js';
 import { applySectionChanges, readDraftContent } from '../drafts/state.js';
 import { buildExport, type ExportResult } from './export-package.js';
 import { generateBrief, PermanentJobFailure, type GenerationResult } from './generate-brief.js';
+import { generateVideoPrompts, type VideoPromptsResult } from './generate-video-prompts.js';
 import { regenerateSection, type RegenerationResult } from './regenerate-section.js';
 import type { JobQueue } from './queue.js';
 import { decideRetry, FAILURE_MESSAGES } from './retry.js';
@@ -161,6 +162,16 @@ async function run(
         kind: 'regenerate_section',
         ...(await regenerateSection(deps.db, await providerFor(deps, job, attempt), job, signal)),
       };
+    } else if (job.type === 'generate_video_prompts') {
+      result = {
+        kind: 'generate_video_prompts',
+        ...(await generateVideoPrompts(
+          deps.db,
+          await providerFor(deps, job, attempt),
+          job,
+          signal,
+        )),
+      };
     } else if (job.type === 'export_package') {
       if (deps.storage === undefined) {
         throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
@@ -191,6 +202,7 @@ async function run(
 type JobResult =
   | ({ readonly kind: 'generate_brief' } & GenerationResult)
   | ({ readonly kind: 'regenerate_section' } & RegenerationResult)
+  | ({ readonly kind: 'generate_video_prompts' } & VideoPromptsResult)
   | ({ readonly kind: 'export_package' } & ExportResult);
 
 async function settleSuccess(
@@ -212,6 +224,18 @@ async function settleSuccess(
     }
     if (result.kind === 'export_package') {
       return settleExport(tx, job, result);
+    }
+    if (result.kind === 'generate_video_prompts') {
+      await markSucceeded(tx, job.id, {
+        output: {
+          draftId: result.draftId,
+          draftVersion: result.draftVersion,
+          model: result.model,
+          scenes: result.scenes.map((scene) => ({ ...scene })),
+        },
+        provider: result.provider,
+      });
+      return 'succeeded';
     }
     const rows = await tx
       .insert(contentDrafts)

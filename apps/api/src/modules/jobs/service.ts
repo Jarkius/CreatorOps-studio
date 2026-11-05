@@ -9,6 +9,7 @@ import {
   EXPORT_LIMITS,
   type CreateExportRequest,
   type GenerateBriefJobRequest,
+  type GenerateVideoPromptsJobRequest,
   type RegenerateSectionJobRequest,
   type Job,
   type JobListQueryParsed,
@@ -103,7 +104,8 @@ export interface CreateJobResult {
 
 /** What a job type decides itself; everything else about creating a job is shared. */
 interface JobSpec {
-  readonly type: 'generate_brief' | 'regenerate_section' | 'export_package';
+  readonly type:
+    'generate_brief' | 'regenerate_section' | 'export_package' | 'generate_video_prompts';
   /** Identifies the request: the type plus its target, never the key itself. */
   readonly hashTarget: string;
   /** Runs inside the creation transaction, after the replay check; throws to refuse the job. */
@@ -218,6 +220,62 @@ export function createGenerateBriefJob(
           campaignId: campaign.id,
           draftId: null,
           audit: { campaignId: campaign.id },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
+/**
+ * Starts writing video prompts for a draft (D-080). The prompts come from the draft's product, so
+ * the job carries the campaign's language, tone and platform as a snapshot. `draftVersion` is the
+ * version the person was looking at: a newer one is refused, as for an export.
+ */
+export function createVideoPromptsJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: GenerateVideoPromptsJobRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'generate_video_prompts',
+      hashTarget: `${draftId}:${body.draftVersion}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        if (draft.version !== body.draftVersion) {
+          throw new AppError(
+            'CONFLICT',
+            'This draft was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const campaign = await findCampaign(tx, ctx, draft.campaignId);
+        if (campaign === null) throw new Error(`Campaign of draft ${draft.id} is missing`);
+        if (campaign.status === 'archived') {
+          throw new AppError('CONFLICT', 'Archived campaigns cannot be generated.');
+        }
+        return {
+          input: {
+            draftId: draft.id,
+            draftVersion: draft.version,
+            campaignId: campaign.id,
+            language: campaign.language,
+            tone: campaign.tone,
+            platform: campaign.platform,
+            clipSeconds: 8,
+          },
+          campaignId: null,
+          draftId: draft.id,
+          audit: { draftId: draft.id, draftVersion: draft.version },
         };
       },
     },

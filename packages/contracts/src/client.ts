@@ -53,6 +53,7 @@ import {
   type Job,
   type JobListQuery,
   type JobListResponse,
+  type GenerateVideoPromptsJobRequest,
   type RegenerateSectionJobRequest,
   type TemplateListResponse,
   type UpdateCampaignRequest,
@@ -213,6 +214,12 @@ export interface ApiClient {
     generateBrief(
       workspaceId: string,
       body: GenerateBriefJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+    /** Writes four video prompts for a draft. Same key rules as `generateBrief`. */
+    generateVideoPrompts(
+      workspaceId: string,
+      body: GenerateVideoPromptsJobRequest,
       idempotencyKey: string,
     ): Promise<Job>;
     /** Same key rules as `generateBrief`. `expectedRev` is the section revision the user saw. */
@@ -510,6 +517,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${base(workspaceId)}/jobs/${id(jobId)}/cancel`, JobSchema),
       generateBrief: (workspaceId, body, idempotencyKey) =>
         send('POST', `${base(workspaceId)}/jobs/generate-brief`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+      generateVideoPrompts: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/generate-video-prompts`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
       regenerateSection: (workspaceId, body, idempotencyKey) =>

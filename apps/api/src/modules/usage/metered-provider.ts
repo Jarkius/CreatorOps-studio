@@ -8,6 +8,8 @@ import {
   type ProviderUsage,
   type RegenerateSectionRequest,
   type TextProvider,
+  type VideoPromptRequest,
+  type VideoPromptScene,
 } from '@creatorops/provider-core';
 import type { DraftSections, SectionName, SectionValue } from '@creatorops/provider-core';
 
@@ -155,6 +157,15 @@ export class MeteredTextProvider implements TextProvider {
     opts?: ProviderCallOptions,
   ): Promise<{ output: DraftSections; usage: ProviderUsage; model: string }> {
     return this.metered(JSON.stringify(req).length, () => this.inner.generateBrief(req, opts));
+  }
+
+  generateVideoPrompts(
+    req: VideoPromptRequest,
+    opts?: ProviderCallOptions,
+  ): Promise<{ scenes: VideoPromptScene[]; usage: ProviderUsage; model: string }> {
+    return this.metered(JSON.stringify(req).length, () =>
+      this.inner.generateVideoPrompts(req, opts),
+    );
   }
 
   regenerateSection(

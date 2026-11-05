@@ -440,3 +440,72 @@ describe('MockTextProvider regenerateSection', () => {
     expect(result.usage.outputUnits).toBeGreaterThan(0);
   });
 });
+
+describe('MockTextProvider.generateVideoPrompts', () => {
+  const product: ProductFacts = {
+    name: 'เครื่องชงกาแฟพกพา',
+    description: null,
+    priceAmount: null,
+    currency: null,
+    sellingPoints: ['พกพาง่าย', 'ชาร์จ USB-C'],
+    targetAudience: null,
+    brandTone: null,
+    restrictedClaims: ['รักษาโรค'],
+  };
+  const request = { language: 'th' as const, platform: 'tiktok' as const, tone: null, product };
+
+  it('gives four ordered, valid single-shot prompts with no cost and no network', async () => {
+    const result = await new MockTextProvider().generateVideoPrompts(request);
+    expect(result.scenes.map((s) => s.scene)).toEqual([
+      'product_hero',
+      'detail',
+      'usage',
+      'final_shot',
+    ]);
+    for (const scene of result.scenes) {
+      expect(scene.prompt.startsWith('Vertical 9:16 video.')).toBe(true);
+      expect(scene.prompt.endsWith('No on-screen text, no logos, no watermarks.')).toBe(true);
+    }
+    expect(result.scenes[1]?.prompt).toContain('พกพาง่าย');
+    expect(result.usage.costUsd).toBeUndefined();
+    expect(result.model).toBe(MOCK_MODEL_ID);
+  });
+
+  it('is the same output for the same request, and speaks the campaign language', async () => {
+    const mock = new MockTextProvider();
+    expect(await mock.generateVideoPrompts(request)).toEqual(
+      await mock.generateVideoPrompts(request),
+    );
+    const english = await mock.generateVideoPrompts({ ...request, language: 'en', clipSeconds: 6 });
+    expect(english.scenes[3]?.voiceover).toBe('Tap to see the details');
+    expect(english.scenes[0]?.prompt).toContain('6-second');
+  });
+
+  it('keeps fault markers out of the text and still raises the injected fault', async () => {
+    const mock = new MockTextProvider();
+    const marked = {
+      ...request,
+      product: { ...product, name: 'พัดลม [[mock:x]]', sellingPoints: ['[[mock:x]]พกพาง่าย'] },
+    };
+    const result = await mock.generateVideoPrompts(marked);
+    expect(JSON.stringify(result.scenes)).not.toContain('[[mock');
+    expect(result.scenes[0]?.prompt).toContain('the product "พัดลม"');
+    const faulty = { ...request, product: { ...product, name: 'สินค้า [[mock:rate-limited]]' } };
+    await expect(mock.generateVideoPrompts(faulty)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+  });
+
+  it('stops at once when the call was already cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      new MockTextProvider().generateVideoPrompts(request, { signal: controller.signal }),
+    ).rejects.toSatisfy(isProviderError);
+  });
+
+  it('never produces a restricted claim even if the product name contains one', async () => {
+    const claim = { ...request, product: { ...product, name: 'ชาสมุนไพร รักษาโรค' } };
+    await expect(new MockTextProvider().generateVideoPrompts(claim)).rejects.toMatchObject({
+      code: 'INVALID_OUTPUT',
+    });
+  });
+});

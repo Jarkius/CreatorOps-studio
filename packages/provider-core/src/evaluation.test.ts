@@ -41,6 +41,9 @@ class Fixed implements TextProvider {
   regenerateSection(): never {
     throw new Error('unused');
   }
+  generateVideoPrompts(): never {
+    throw new Error('unused');
+  }
 }
 
 const byId = (id: string) => EVAL_BRIEFS.find((b) => b.id === id)!;

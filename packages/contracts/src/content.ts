@@ -31,7 +31,12 @@ export const DRAFT_STATUS_VALUES = ['draft', 'in_review', 'approved'] as const;
 export const DraftStatusSchema = z.enum(DRAFT_STATUS_VALUES);
 export type DraftStatus = z.infer<typeof DraftStatusSchema>;
 
-export const JOB_TYPE_VALUES = ['generate_brief', 'regenerate_section', 'export_package'] as const;
+export const JOB_TYPE_VALUES = [
+  'generate_brief',
+  'regenerate_section',
+  'export_package',
+  'generate_video_prompts',
+] as const;
 export const JobTypeSchema = z.enum(JOB_TYPE_VALUES);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
@@ -339,6 +344,35 @@ export const RegenerateSectionJobRequestSchema = z
   })
   .strict();
 export type RegenerateSectionJobRequest = z.infer<typeof RegenerateSectionJobRequestSchema>;
+
+/**
+ * POST /api/v1/workspaces/:workspaceId/jobs/generate-video-prompts: four single-shot video prompts
+ * (one per scene) plus a voiceover line each, written by the workspace's text provider from the
+ * draft's product (D-080). `draftVersion` is the version the person was looking at.
+ */
+export const GenerateVideoPromptsJobRequestSchema = z
+  .object({ draftId: idString, draftVersion: z.number().int().min(1) })
+  .strict();
+export type GenerateVideoPromptsJobRequest = z.infer<typeof GenerateVideoPromptsJobRequestSchema>;
+
+export const VIDEO_PROMPT_SCENES = ['product_hero', 'detail', 'usage', 'final_shot'] as const;
+
+/** What a succeeded generate_video_prompts job stores in `output`. */
+export const VideoPromptsOutputSchema = z.object({
+  draftId: z.string(),
+  draftVersion: z.number().int(),
+  model: z.string(),
+  scenes: z
+    .array(
+      z.object({
+        scene: z.enum(VIDEO_PROMPT_SCENES),
+        prompt: z.string().min(1).max(2000),
+        voiceover: z.string().min(1).max(400),
+      }),
+    )
+    .length(4),
+});
+export type VideoPromptsOutput = z.infer<typeof VideoPromptsOutputSchema>;
 
 /** GET /api/v1/workspaces/:workspaceId/jobs query string. */
 export const JobListQuerySchema = z

@@ -74,6 +74,9 @@ class ScriptedProvider implements TextProvider {
   regenerateSection(): never {
     throw new Error('not used');
   }
+  generateVideoPrompts(): never {
+    throw new Error('not used');
+  }
 }
 
 /** Rejects when the signal aborts, the way a real HTTP adapter would. */

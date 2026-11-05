@@ -48,7 +48,8 @@ export async function countActiveJobs(db: DbOrTx, ctx: RequestContext): Promise<
 }
 
 export interface NewJob {
-  readonly type: 'generate_brief' | 'regenerate_section' | 'export_package';
+  readonly type:
+    'generate_brief' | 'regenerate_section' | 'export_package' | 'generate_video_prompts';
   readonly input: Record<string, unknown>;
   readonly idempotencyKey: string;
   readonly requestHash: string;

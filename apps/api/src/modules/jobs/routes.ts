@@ -5,6 +5,7 @@ import {
   JobListResponseSchema,
   JobParamsSchema,
   JobSchema,
+  GenerateVideoPromptsJobRequestSchema,
   RegenerateSectionJobRequestSchema,
   WorkspaceParamsSchema,
 } from '@creatorops/contracts';
@@ -26,6 +27,7 @@ import {
   createExportPackageJob,
   createGenerateBriefJob,
   createRegenerateSectionJob,
+  createVideoPromptsJob,
   getJob,
   listJobs,
 } from './service.js';
@@ -101,6 +103,35 @@ export function registerJobRoutes(app: FastifyInstance, options: JobRouteOptions
     },
     async (request, reply) => {
       const { job, created } = await createRegenerateSectionJob(
+        db,
+        queue,
+        request.log,
+        contextOf(request),
+        request.body,
+        request.headers['idempotency-key'],
+      );
+      return reply.code(created ? 202 : 200).send(job);
+    },
+  );
+
+  typed.post(
+    `${base}/generate-video-prompts`,
+    {
+      ...common,
+      config: { rateLimit: { max: options.createsPerMinute ?? 20, timeWindow: '1 minute' } },
+      schema: {
+        tags,
+        summary:
+          'Start writing four video prompts for a draft (requires an Idempotency-Key header)',
+        security,
+        params: WorkspaceParamsSchema,
+        headers: IdempotencyHeaders,
+        body: GenerateVideoPromptsJobRequestSchema,
+        response: { 200: JobSchema, 202: JobSchema },
+      },
+    },
+    async (request, reply) => {
+      const { job, created } = await createVideoPromptsJob(
         db,
         queue,
         request.log,

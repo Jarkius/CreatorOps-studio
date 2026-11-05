@@ -412,7 +412,12 @@ export const contentDrafts = pgTable(
   ],
 );
 
-export const JOB_TYPES = ['generate_brief', 'regenerate_section', 'export_package'] as const;
+export const JOB_TYPES = [
+  'generate_brief',
+  'regenerate_section',
+  'export_package',
+  'generate_video_prompts',
+] as const;
 export const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 export const JOB_ERROR_CODES = [
   'PROVIDER_TIMEOUT',
@@ -482,7 +487,7 @@ export const jobs = pgTable(
     }),
     check(
       'jobs_type_check',
-      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package')`,
+      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts')`,
     ),
     check(
       'jobs_status_check',
@@ -518,7 +523,7 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_target_matches_type',
-      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null)`,
+      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null) or (${t.type} = 'generate_video_prompts' and ${t.draftId} is not null)`,
     ),
     index('jobs_claim_idx').on(t.status, t.runAfter),
     index('jobs_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
