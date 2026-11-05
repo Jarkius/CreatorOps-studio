@@ -20,9 +20,12 @@ const PROVIDER_TO_JOB_ERROR: Readonly<Record<ProviderErrorCode, JobErrorCode>> =
   RATE_LIMITED: 'PROVIDER_RATE_LIMITED',
   INVALID_OUTPUT: 'INVALID_PROVIDER_OUTPUT',
   CONTENT_REFUSED: 'CONTENT_REFUSED',
-  // These two are our bug or our configuration, not something the user can act on.
+  OUTPUT_TRUNCATED: 'INVALID_PROVIDER_OUTPUT',
+  // A rejected key or an empty account is something the owner can fix in the settings.
+  AUTH_FAILED: 'PROVIDER_AUTH',
+  BUDGET_EXCEEDED: 'PROVIDER_BUDGET',
+  // Our own request was malformed: a bug or a configuration error, not for the user to fix.
   INVALID_REQUEST: 'INTERNAL',
-  AUTH_FAILED: 'INTERNAL',
 };
 
 /** What the job row records. Fixed sentences only: they never carry provider or product text. */
@@ -31,6 +34,8 @@ export const FAILURE_MESSAGES: Readonly<Record<JobErrorCode, string>> = {
   PROVIDER_UNAVAILABLE: 'The text provider is unavailable right now.',
   PROVIDER_RATE_LIMITED: 'The text provider rate limit was reached.',
   INVALID_PROVIDER_OUTPUT: 'The text provider returned output that failed validation.',
+  PROVIDER_AUTH: 'The text provider rejected the saved key. Check it in the provider settings.',
+  PROVIDER_BUDGET: 'The text provider account has no credit left or reached its limit.',
   CONTENT_REFUSED: 'The text provider refused to generate this content.',
   SECTION_CHANGED: 'The section was edited while the job was running.',
   ASSET_UNAVAILABLE:

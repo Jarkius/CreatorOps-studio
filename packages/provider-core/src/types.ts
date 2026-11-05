@@ -33,6 +33,10 @@ export interface RegenerateSectionRequest extends GenerateBriefRequest {
 export interface ProviderUsage {
   inputUnits: number;
   outputUnits: number;
+  /** Cost in USD as reported by the provider, when it reports one. */
+  costUsd?: number;
+  /** Calls made for this result (a real provider bills per call as well as per token). */
+  requests?: number;
 }
 
 export interface ProviderCallOptions {

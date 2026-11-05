@@ -487,7 +487,8 @@ describe('processJob: permanent failures end at once', () => {
     [new ProviderError('INVALID_OUTPUT'), 'INVALID_PROVIDER_OUTPUT'],
     [new ProviderError('CONTENT_REFUSED'), 'CONTENT_REFUSED'],
     [new ProviderError('INVALID_REQUEST'), 'INTERNAL'],
-    [new ProviderError('AUTH_FAILED'), 'INTERNAL'],
+    [new ProviderError('AUTH_FAILED'), 'PROVIDER_AUTH'],
+    [new ProviderError('BUDGET_EXCEEDED'), 'PROVIDER_BUDGET'],
     [new Error('db password=hunter2 leaked'), 'INTERNAL'],
   ])('%s becomes %s on the first attempt', async (error, code) => {
     const { job } = await seed();

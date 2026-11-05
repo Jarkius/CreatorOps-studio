@@ -419,6 +419,8 @@ export const JOB_ERROR_CODES = [
   'PROVIDER_UNAVAILABLE',
   'PROVIDER_RATE_LIMITED',
   'INVALID_PROVIDER_OUTPUT',
+  'PROVIDER_AUTH',
+  'PROVIDER_BUDGET',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
   'ASSET_UNAVAILABLE',
@@ -488,7 +490,7 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_error_code_check',
-      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
     ),
     check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
     check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),

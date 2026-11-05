@@ -6,6 +6,10 @@ export const PROVIDER_ERROR_CODES = [
   'INVALID_OUTPUT',
   'CONTENT_REFUSED',
   'AUTH_FAILED',
+  /** The provider says the account has no credit or hit its limit (HTTP 402). Permanent. */
+  'BUDGET_EXCEEDED',
+  /** The reply was cut off by the output limit. Permanent: a retry would be cut off too. */
+  'OUTPUT_TRUNCATED',
 ] as const;
 
 export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES)[number];
@@ -25,6 +29,8 @@ const SAFE_MESSAGES: Record<ProviderErrorCode, string> = {
   INVALID_OUTPUT: 'The text provider returned output that failed validation.',
   CONTENT_REFUSED: 'The text provider refused to generate this content.',
   AUTH_FAILED: 'The text provider rejected the configured credentials.',
+  BUDGET_EXCEEDED: 'The text provider account has no credit left or reached its limit.',
+  OUTPUT_TRUNCATED: 'The text provider reply was cut off before it finished.',
 };
 
 export const MAX_RETRY_AFTER_MS = 60_000;

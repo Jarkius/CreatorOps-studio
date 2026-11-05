@@ -84,7 +84,9 @@ describe('decideRetry: permanent errors fail at once (D-048)', () => {
     ['INVALID_OUTPUT', 'INVALID_PROVIDER_OUTPUT'],
     ['CONTENT_REFUSED', 'CONTENT_REFUSED'],
     ['INVALID_REQUEST', 'INTERNAL'],
-    ['AUTH_FAILED', 'INTERNAL'],
+    ['AUTH_FAILED', 'PROVIDER_AUTH'],
+    ['BUDGET_EXCEEDED', 'PROVIDER_BUDGET'],
+    ['OUTPUT_TRUNCATED', 'INVALID_PROVIDER_OUTPUT'],
   ] as const satisfies readonly (readonly [ProviderErrorCode, string])[])(
     '%s on the first attempt is final and maps to %s',
     (providerCode, jobCode) => {
@@ -117,6 +119,8 @@ describe('decideRetry: permanent errors fail at once (D-048)', () => {
       'INVALID_OUTPUT',
       'CONTENT_REFUSED',
       'AUTH_FAILED',
+      'BUDGET_EXCEEDED',
+      'OUTPUT_TRUNCATED',
     ] as const) {
       expect(jobErrorCodeFor(new ProviderError(code))).toMatch(/^[A-Z_]+$/);
     }
