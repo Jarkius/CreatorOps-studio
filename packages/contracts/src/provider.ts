@@ -90,6 +90,14 @@ export const PutProviderSettingsRequestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    // A limit is checked against a price, so it needs one (otherwise it could never be enforced).
+    if (value.monthlyCapUsd !== undefined && value.monthlyCapUsd !== null && !value.pricing) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pricing'],
+        message: 'enter the prices so the monthly limit can be checked',
+      });
+    }
     if (value.provider === 'custom') {
       if (value.baseUrl === undefined || !isSafeProviderBaseUrl(value.baseUrl)) {
         ctx.addIssue({

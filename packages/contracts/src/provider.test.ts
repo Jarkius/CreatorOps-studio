@@ -92,8 +92,14 @@ describe('PutProviderSettingsRequestSchema', () => {
     expect(
       parse({ pricing: { inputPerMillionUsd: 3, outputPerMillionUsd: 15, multiplier: 0 } }).success,
     ).toBe(false);
-    expect(parse({ monthlyCapUsd: -5 }).success).toBe(false);
-    expect(parse({ monthlyCapUsd: 0 }).success).toBe(true);
+    expect(
+      parse({ monthlyCapUsd: -5, pricing: { inputPerMillionUsd: 3, outputPerMillionUsd: 15 } })
+        .success,
+    ).toBe(false);
+    const prices = { inputPerMillionUsd: 3, outputPerMillionUsd: 15 };
+    expect(parse({ monthlyCapUsd: 0, pricing: prices }).success).toBe(true);
+    expect(parse({ monthlyCapUsd: 10 }).success).toBe(false);
+    expect(parse({ monthlyCapUsd: 10, pricing: null }).success).toBe(false);
     expect(parse({ monthlyCapUsd: null }).success).toBe(true);
     expect(parse({ surprise: 1 }).success).toBe(false);
   });

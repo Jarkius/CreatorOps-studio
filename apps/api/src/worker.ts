@@ -1,5 +1,8 @@
 import { MockTextProvider } from '@creatorops/provider-core';
 
+import { parseSecretsKey } from './platform/secrets.js';
+import { resolveProvider } from './modules/provider-settings/resolver.js';
+
 import { createDb } from './db/client.js';
 import { LocalFsStorage } from './storage/local-fs.js';
 import { BullMqJobQueue, startQueueWorker } from './modules/jobs/bullmq-queue.js';
@@ -30,7 +33,24 @@ if (!prepared.ok) {
   const queue = new BullMqJobQueue(redisUrl);
   // The mock provider is the only one until Q-001 is answered (D-052).
   const storage = new LocalFsStorage(prepared.config.DATA_DIR);
-  const deps = { db, provider: new MockTextProvider(), queue, log: logger, storage };
+  const fallback = new MockTextProvider();
+  const secrets =
+    prepared.config.SECRETS_ENCRYPTION_KEY === undefined
+      ? undefined
+      : parseSecretsKey(
+          prepared.config.SECRETS_ENCRYPTION_KEY,
+          prepared.config.SECRETS_ENCRYPTION_KEY_ID,
+        );
+  const deps = {
+    db,
+    provider: fallback,
+    // A workspace that saved a provider gets it (metered); the others keep the built-in writer.
+    resolveProvider: (job: { id: string; workspaceId: string }, attempt: number) =>
+      resolveProvider({ db, fallback, secrets, log: logger }, job, attempt),
+    queue,
+    log: logger,
+    storage,
+  };
 
   const worker = startQueueWorker({
     redisUrl,

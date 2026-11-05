@@ -33,6 +33,7 @@ import { generateRequestId } from './platform/request-id.js';
 import { installRoutePolicy } from './platform/route-policy.js';
 import type { Storage } from './storage/storage.js';
 import { parseSecretsKey } from './platform/secrets.js';
+import { registerUsageRoutes } from './modules/usage/routes.js';
 import { registerProviderSettingsRoutes } from './modules/provider-settings/routes.js';
 import type { HttpTransport } from '@creatorops/provider-core';
 import { registerHealthRoutes } from './routes/health.js';
@@ -278,6 +279,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
           checksPerMinute: options.providerRateLimitMax,
         }),
   });
+  registerUsageRoutes(app, { db: options.db, guard, scope });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 10;
+const MIGRATION_COUNT = 11;
 
 let testDb: TestDb;
 
@@ -37,6 +37,7 @@ describe('database schema', () => {
       'products',
       'provider_credentials',
       'upload_intents',
+      'usage_events',
       'users',
       'workspace_members',
       'workspaces',

@@ -47,12 +47,22 @@ export interface WorkerSettings {
 export const DEFAULT_WORKER_SETTINGS: WorkerSettings = {
   leaseSeconds: 60,
   heartbeatMs: 20_000,
-  providerTimeoutMs: 30_000,
+  // One generate job may make up to three sequential real calls, so the whole-job limit is longer
+  // than one call is expected to take. The lease is renewed by the heartbeat meanwhile.
+  providerTimeoutMs: 90_000,
 };
 
 export interface WorkerDeps {
   readonly db: Db;
   readonly provider: TextProvider;
+  /**
+   * Picks the provider for one job from its workspace (a saved real provider, metered), and falls
+   * back to `provider`. Without it every job uses `provider`.
+   */
+  readonly resolveProvider?: (
+    job: { id: string; workspaceId: string },
+    attempt: number,
+  ) => Promise<TextProvider>;
   readonly queue: JobQueue;
   readonly log: WorkerLog;
   /** Where export packages are written. Without it an export job fails with a plain message. */
@@ -123,6 +133,12 @@ export async function processJob(deps: WorkerDeps, jobId: string): Promise<Proce
   }
 }
 
+function providerFor(deps: WorkerDeps, job: JobRow, attempt: number): Promise<TextProvider> {
+  return deps.resolveProvider === undefined
+    ? Promise.resolve(deps.provider)
+    : deps.resolveProvider(job, attempt);
+}
+
 async function run(
   deps: WorkerDeps,
   job: JobRow,
@@ -138,12 +154,12 @@ async function run(
     if (job.type === 'generate_brief') {
       result = {
         kind: 'generate_brief',
-        ...(await generateBrief(deps.db, deps.provider, job, signal)),
+        ...(await generateBrief(deps.db, await providerFor(deps, job, attempt), job, signal)),
       };
     } else if (job.type === 'regenerate_section') {
       result = {
         kind: 'regenerate_section',
-        ...(await regenerateSection(deps.db, deps.provider, job, signal)),
+        ...(await regenerateSection(deps.db, await providerFor(deps, job, attempt), job, signal)),
       };
     } else if (job.type === 'export_package') {
       if (deps.storage === undefined) {

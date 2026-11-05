@@ -682,3 +682,60 @@ export const providerCredentials = pgTable(
     ),
   ],
 );
+
+export const USAGE_STATUSES = ['reserved', 'settled', 'released'] as const;
+export const USAGE_COST_SOURCES = ['reported', 'computed', 'reserved'] as const;
+
+/**
+ * One provider call, recorded before it is made (D-077). `reserved_usd` is the worst case that was
+ * set aside under the workspace lock; `cost_usd` is what the call turned out to cost. Nothing here
+ * holds prompts, product text or outputs. A call that crashed before settling stays `reserved` and
+ * keeps counting at its worst case, so the monthly limit fails closed.
+ */
+export const usageEvents = pgTable(
+  'usage_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    jobId: uuid('job_id').notNull(),
+    attempt: integer('attempt').notNull(),
+    callIndex: integer('call_index').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    status: text('status').notNull().default('reserved'),
+    requests: integer('requests').notNull().default(1),
+    inputUnits: integer('input_units').notNull().default(0),
+    outputUnits: integer('output_units').notNull().default(0),
+    reservedUsd: numeric('reserved_usd', { precision: 14, scale: 6 }).notNull().default('0'),
+    costUsd: numeric('cost_usd', { precision: 14, scale: 6 }),
+    costSource: text('cost_source'),
+    /** True when the provider's reported cost was far above what the owner's prices predict. */
+    anomaly: boolean('anomaly').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('usage_events_call_unique').on(t.jobId, t.attempt, t.callIndex),
+    foreignKey({
+      name: 'usage_events_job_fk',
+      columns: [t.workspaceId, t.jobId],
+      foreignColumns: [jobs.workspaceId, jobs.id],
+    }),
+    check('usage_events_status_check', sql`${t.status} in ('reserved', 'settled', 'released')`),
+    check(
+      'usage_events_source_check',
+      sql`${t.costSource} is null or ${t.costSource} in ('reported', 'computed', 'reserved')`,
+    ),
+    check(
+      'usage_events_amounts_check',
+      sql`${t.requests} >= 0 and ${t.inputUnits} >= 0 and ${t.outputUnits} >= 0 and ${t.reservedUsd} >= 0 and (${t.costUsd} is null or ${t.costUsd} >= 0)`,
+    ),
+    check(
+      'usage_events_settled_check',
+      sql`(${t.status} = 'reserved' and ${t.settledAt} is null) or (${t.status} <> 'reserved' and ${t.settledAt} is not null)`,
+    ),
+    index('usage_events_workspace_month_idx').on(t.workspaceId, t.createdAt),
+  ],
+);

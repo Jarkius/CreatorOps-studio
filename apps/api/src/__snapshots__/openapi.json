@@ -6670,6 +6670,121 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspaceId}/usage": {
+      "get": {
+        "summary": "Real-provider usage and cost this month",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "inputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "spentUsd": {
+                      "type": "number"
+                    },
+                    "reservedUsd": {
+                      "type": "number"
+                    },
+                    "capUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "countedUsd": {
+                      "type": "number"
+                    },
+                    "anomalies": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "byModel": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "calls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "costUsd": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "calls",
+                          "costUsd"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "calls",
+                    "inputUnits",
+                    "outputUnits",
+                    "spentUsd",
+                    "reservedUsd",
+                    "capUsd",
+                    "countedUsd",
+                    "anomalies",
+                    "byModel"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/uploads/{intentId}": {
       "put": {
         "summary": "Send the file bytes to a signed upload URL (step 2)",
