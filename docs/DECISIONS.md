@@ -609,7 +609,8 @@ The real provider refuses to start without configured prices (no guessed default
 3. **Storage:** new table `campaign_costs` (migration 0011): workspace, campaign, optional scene, label (80), amount in baht (0.01 to 1,000,000, two decimals), at most 50 lines per campaign. Deleting a campaign cascades.
 4. **API:** `GET .../campaigns/:id/cost` (any member), `POST .../campaigns/:id/costs` and `DELETE .../costs/:costId` (owner, admin, editor). DELETE answers with the new cost summary. Audit events `campaign.cost.added` and `.removed` hold the amount, scene and id, never the label.
 5. **UI:** a Cost section on the campaign page in the dashboard, and a baht rate field in Settings. Not built: the side panel, a per-draft or per-scene breakdown of AI cost, and a workspace-wide cost report.
-6. **Correction:** the note in `MAXPLUS_MODELS.md` that the pool minimum (0.08 USD of credit, about ฿0.027) contradicted the owner's table was wrong; credit USD is divided by 3 to get baht, and the numbers agree.
+6. **Two currencies side by side (owner, same day):** every baht amount on the Cost section has its US dollar reading beside it (`฿12.50 ≈ $0.36`). The dollars use their own setting, `marketThbPerUsd` (baht per real US dollar, default 35), because the billing rate can be a credit rate (MaxPlus 0.3333) and would make the dollars wrong. Below ten cents the dollars show four decimals. A click-to-switch currency toggle was considered and not built: side by side shows both at once.
+7. **Correction:** the note in `MAXPLUS_MODELS.md` that the pool minimum (0.08 USD of credit, about ฿0.027) contradicted the owner's table was wrong; credit USD is divided by 3 to get baht, and the numbers agree.
 
 ## Open questions
 

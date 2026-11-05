@@ -54,7 +54,8 @@ export async function getCampaignCost(
     listManualCosts(db, ctx.workspaceId, campaign.id),
     findCredential(db, ctx),
   ]);
-  const entered = credential === null ? undefined : pricingOf(credential)?.thbPerUsd;
+  const pricing = credential === null ? null : pricingOf(credential);
+  const entered = pricing?.thbPerUsd;
   const thbPerUsd = entered ?? DEFAULT_THB_PER_USD;
   const items = manualRows.map(toManualCost);
   const manualTotal = round2(items.reduce((sum, item) => sum + item.amountThb, 0));
@@ -63,6 +64,7 @@ export async function getCampaignCost(
     currency: 'THB',
     thbPerUsd,
     rateSource: entered === undefined ? 'default' : 'settings',
+    marketThbPerUsd: pricing?.marketThbPerUsd ?? DEFAULT_THB_PER_USD,
     aiText: { calls: ai.calls, costUsd: ai.costUsd, costThb: aiThb, anomalies: ai.anomalies },
     manual: { items, totalThb: manualTotal },
     totalThb: round2(aiThb + manualTotal),

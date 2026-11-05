@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBaht, parseBahtInput } from './costFormat.js';
+import { formatBaht, formatUsdFromBaht, parseBahtInput } from './costFormat.js';
 
 describe('formatBaht', () => {
   it('shows the baht sign and two decimals', () => {
@@ -33,5 +33,16 @@ describe('parseBahtInput', () => {
     ]) {
       expect(parseBahtInput(bad).ok, bad).toBe(false);
     }
+  });
+});
+
+describe('formatUsdFromBaht', () => {
+  it('divides baht by the market rate and keeps up to four decimals for tiny amounts', () => {
+    expect(formatUsdFromBaht(35, 35)).toBe('$1.00');
+    expect(formatUsdFromBaht(12.5, 35)).toBe('$0.36');
+    expect(formatUsdFromBaht(3.5, 40)).toBe('$0.0875');
+    expect(formatUsdFromBaht(43.5, 40)).toBe('$1.09');
+    expect(formatUsdFromBaht(0.03, 35)).toBe('$0.0009');
+    expect(formatUsdFromBaht(0, 35)).toBe('$0.00');
   });
 });

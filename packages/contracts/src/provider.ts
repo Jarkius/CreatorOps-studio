@@ -48,6 +48,8 @@ export const ProviderPricingSchema = z
     minPerRequestUsd: z.number().min(0).max(PROVIDER_LIMITS.maxMinPerRequestUsd).default(0),
     /** Baht per 1 USD of billed cost, for the cost shown in baht (MaxPlus credit: 1 baht buys 3 USD, so 0.3333). */
     thbPerUsd: z.number().min(0.01).max(1000).optional(),
+    /** Baht per real US dollar, only for the US$ shown beside baht (default 35). */
+    marketThbPerUsd: z.number().min(0.01).max(1000).optional(),
   })
   .strict();
 export type ProviderPricing = z.infer<typeof ProviderPricingSchema>;

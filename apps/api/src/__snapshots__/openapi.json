@@ -6227,6 +6227,11 @@
                           "type": "number",
                           "minimum": 0.01,
                           "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
                         }
                       },
                       "required": [
@@ -6335,6 +6340,11 @@
                         "maximum": 10
                       },
                       "thbPerUsd": {
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 1000
+                      },
+                      "marketThbPerUsd": {
                         "type": "number",
                         "minimum": 0.01,
                         "maximum": 1000
@@ -6448,6 +6458,11 @@
                           "maximum": 10
                         },
                         "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
                           "type": "number",
                           "minimum": 0.01,
                           "maximum": 1000
@@ -6585,6 +6600,11 @@
                           "maximum": 10
                         },
                         "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
                           "type": "number",
                           "minimum": 0.01,
                           "maximum": 1000
@@ -6852,6 +6872,9 @@
                         "default"
                       ]
                     },
+                    "marketThbPerUsd": {
+                      "type": "number"
+                    },
                     "aiText": {
                       "type": "object",
                       "properties": {
@@ -6943,6 +6966,7 @@
                     "currency",
                     "thbPerUsd",
                     "rateSource",
+                    "marketThbPerUsd",
                     "aiText",
                     "manual",
                     "totalThb"
@@ -7122,6 +7146,9 @@
                         "default"
                       ]
                     },
+                    "marketThbPerUsd": {
+                      "type": "number"
+                    },
                     "aiText": {
                       "type": "object",
                       "properties": {
@@ -7213,6 +7240,7 @@
                     "currency",
                     "thbPerUsd",
                     "rateSource",
+                    "marketThbPerUsd",
                     "aiText",
                     "manual",
                     "totalThb"

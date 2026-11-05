@@ -58,6 +58,8 @@ export const CampaignCostSchema = z.object({
   thbPerUsd: z.number(),
   /** `settings` when the owner entered it, `default` otherwise. */
   rateSource: z.enum(['settings', 'default']),
+  /** Baht per real US dollar, for the US$ shown beside baht. Not a billing rate. */
+  marketThbPerUsd: z.number(),
   aiText: z.object({
     calls: z.number().int(),
     costUsd: z.number(),

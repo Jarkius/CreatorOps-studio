@@ -223,6 +223,14 @@ function ProviderForm({
             onChange={set('thbPerUsd')}
             {...(errors.thbPerUsd === undefined ? {} : { error: errors.thbPerUsd })}
           />
+          <TextField
+            label="Baht per real US dollar"
+            hint="Only for the US$ shown beside baht. Leave empty for 35."
+            inputMode="decimal"
+            value={values.marketThbPerUsd}
+            onChange={set('marketThbPerUsd')}
+            {...(errors.marketThbPerUsd === undefined ? {} : { error: errors.marketThbPerUsd })}
+          />
         </div>
         <TextField
           label="Monthly limit (USD)"

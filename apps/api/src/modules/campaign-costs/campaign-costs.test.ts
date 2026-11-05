@@ -155,6 +155,21 @@ describe('campaign cost in baht', () => {
     expect(result.aiText.anomalies).toBe(1);
   });
 
+  it('returns the market rate for the US$ display: the saved one, else the default', async () => {
+    const campaign = await newCampaign(alice);
+    await setRate(alice, 0.3333);
+    expect((await cost(alice, campaign)).marketThbPerUsd).toBe(DEFAULT_THB_PER_USD);
+    await testDb.pool.query(
+      `update provider_credentials set pricing = pricing || '{"marketThbPerUsd": 36.5}'::jsonb where workspace_id = $1`,
+      [alice.workspaceId],
+    );
+    const result = await cost(alice, campaign);
+    expect(result.marketThbPerUsd).toBe(36.5);
+    expect(result.thbPerUsd).toBe(0.3333); // the billing rate is separate
+    await setRate(alice, undefined);
+    expect((await cost(alice, campaign)).marketThbPerUsd).toBe(DEFAULT_THB_PER_USD);
+  });
+
   it('uses the default rate when none was entered, and says so', async () => {
     await setRate(alice, undefined);
     const campaign = await newCampaign(alice);

@@ -20,12 +20,14 @@ function setup(
     role?: Workspace['role'];
     aiCost?: { calls: number; costUsd: number; anomalies?: number };
     thbPerUsd?: number;
+    marketThbPerUsd?: number;
   } = {},
 ) {
   const content = createFakeContentApi({
     campaigns: [CAMPAIGN],
     ...(options.aiCost === undefined ? {} : { aiCost: { camp_1: options.aiCost } }),
     ...(options.thbPerUsd === undefined ? {} : { thbPerUsd: options.thbPerUsd }),
+    ...(options.marketThbPerUsd === undefined ? {} : { marketThbPerUsd: options.marketThbPerUsd }),
   });
   const api = createFakeApi({
     workspaces: [{ ...WORKSPACE, role: options.role ?? 'owner' }],
@@ -47,6 +49,24 @@ describe('campaign cost panel', () => {
     expect(cost.getByLabelText('Typed-in cost')).toHaveTextContent('฿0.00');
     expect(cost.getByLabelText('Total cost')).toHaveTextContent('฿0.05');
     expect(cost.getByText(/set in Settings/)).toBeInTheDocument();
+  });
+
+  it('shows US dollars beside every baht amount at the market rate', async () => {
+    const user = userEvent.setup();
+    setup({ aiCost: { calls: 1, costUsd: 0.1 }, thbPerUsd: 35, marketThbPerUsd: 40 });
+    const cost = await section();
+    // 0.1 x 35 = ฿3.50, which is $0.0875 at 40 baht per dollar.
+    expect(await cost.findByLabelText('AI text cost')).toHaveTextContent('฿3.50 ≈ $0.0875');
+    expect(cost.getByLabelText('Total cost')).toHaveTextContent('฿3.50 ≈ $0.0875');
+    expect(cost.getByText(/baht ÷ ฿40 per real US dollar/)).toBeInTheDocument();
+    await user.type(cost.getByLabelText('What for'), 'Tool');
+    await user.type(cost.getByLabelText('Amount (baht)'), '40');
+    await user.click(cost.getByRole('button', { name: 'Add cost' }));
+    const list = await cost.findByRole('list', { name: 'Typed-in costs' });
+    expect(within(list).getByText('≈ $1.00')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(cost.getByLabelText('Total cost')).toHaveTextContent('฿43.50 ≈ $1.09'),
+    );
   });
 
   it('says when the default rate is used, and that no calls were made', async () => {

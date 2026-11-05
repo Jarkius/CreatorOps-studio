@@ -116,6 +116,11 @@ describe('buildProviderRequest', () => {
     );
     expect(typed).toMatchObject({ ok: true });
     if (typed.ok) expect(typed.request.pricing).toMatchObject({ thbPerUsd: 0.3333 });
+    const market = buildProviderRequest(
+      filled({ inputPrice: '3', outputPrice: '15', marketThbPerUsd: '36.5' }),
+      undefined,
+    );
+    if (market.ok) expect(market.request.pricing).toMatchObject({ marketThbPerUsd: 36.5 });
     const none = buildProviderRequest(filled({ inputPrice: '3', outputPrice: '15' }), undefined);
     if (none.ok) expect(none.request.pricing).not.toHaveProperty('thbPerUsd');
     const form = formFromSettings({
@@ -123,6 +128,10 @@ describe('buildProviderRequest', () => {
       pricing: { ...saved.pricing!, thbPerUsd: 0.3333 },
     });
     expect(form.thbPerUsd).toBe('0.3333');
+    expect(
+      formFromSettings({ ...saved, pricing: { ...saved.pricing!, marketThbPerUsd: 36 } })
+        .marketThbPerUsd,
+    ).toBe('36');
     expect(formFromSettings(saved).thbPerUsd).toBe('');
   });
 
@@ -141,6 +150,8 @@ describe('buildProviderRequest', () => {
       ['thbPerUsd', '0'],
       ['thbPerUsd', '1001'],
       ['thbPerUsd', 'abc'],
+      ['marketThbPerUsd', '0'],
+      ['marketThbPerUsd', 'abc'],
       ['monthlyCap', '1e3'],
     ] as const) {
       const extra = { inputPrice: '3', outputPrice: '15', [field]: value };

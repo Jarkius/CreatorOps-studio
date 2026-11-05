@@ -7,7 +7,7 @@ import { Button, ErrorState, LoadingState, SelectField, TextField } from '@creat
 
 import { describeError } from '../errors.js';
 import { useAddCampaignCost, useCampaignCost, useRemoveCampaignCost } from './campaignQueries.js';
-import { formatBaht, parseBahtInput, SCENE_LABELS } from './costFormat.js';
+import { formatBaht, formatUsdFromBaht, parseBahtInput, SCENE_LABELS } from './costFormat.js';
 
 const SCENE_OPTIONS = [
   { value: '', label: 'Whole campaign' },
@@ -86,20 +86,20 @@ export function CampaignCostPanel(props: {
         <div>
           <dt className="text-sm text-[var(--co-text-muted)]">AI text</dt>
           <dd aria-label="AI text cost" className="text-lg font-semibold">
-            {formatBaht(cost.aiText.costThb)}
+            <Money thb={cost.aiText.costThb} rate={cost.marketThbPerUsd} />
           </dd>
           <dd className="text-sm text-[var(--co-text-muted)]">{aiDetail(cost)}</dd>
         </div>
         <div>
           <dt className="text-sm text-[var(--co-text-muted)]">Scenes and tools (typed in)</dt>
           <dd aria-label="Typed-in cost" className="text-lg font-semibold">
-            {formatBaht(cost.manual.totalThb)}
+            <Money thb={cost.manual.totalThb} rate={cost.marketThbPerUsd} />
           </dd>
         </div>
         <div>
           <dt className="text-sm text-[var(--co-text-muted)]">Total</dt>
           <dd aria-label="Total cost" className="text-lg font-semibold">
-            {formatBaht(cost.totalThb)}
+            <Money thb={cost.totalThb} rate={cost.marketThbPerUsd} />
           </dd>
         </div>
       </dl>
@@ -113,7 +113,9 @@ export function CampaignCostPanel(props: {
         {cost.rateSource === 'settings'
           ? `AI cost is converted at ฿${String(cost.thbPerUsd)} per 1 USD of billed cost (set in Settings).`
           : `AI cost is converted at the default ฿${String(cost.thbPerUsd)} per 1 USD. Set your rate in Settings.`}{' '}
-        Meta AI scene images use your own account and cost nothing here; add what you paid.
+        The US$ beside each baht amount is baht ÷ ฿{String(cost.marketThbPerUsd)} per real US dollar
+        (set in Settings). Meta AI scene images use your own account and cost nothing here; add what
+        you paid.
       </p>
 
       {cost.manual.items.length === 0 ? (
@@ -129,6 +131,9 @@ export function CampaignCostPanel(props: {
                 </span>
               </span>
               <span className="font-medium">{formatBaht(item.amountThb)}</span>
+              <span className="text-sm text-[var(--co-text-muted)]">
+                ≈ {formatUsdFromBaht(item.amountThb, cost.marketThbPerUsd)}
+              </span>
               {canWrite ? (
                 <Button
                   variant="secondary"
@@ -181,6 +186,18 @@ export function CampaignCostPanel(props: {
         </p>
       )}
     </div>
+  );
+}
+
+/** Baht and US dollars side by side: the baht amount is the figure, the dollars are a reading aid. */
+function Money(props: { thb: number; rate: number }) {
+  return (
+    <>
+      <span>{formatBaht(props.thb)}</span>{' '}
+      <span className="text-sm font-normal text-[var(--co-text-muted)]">
+        ≈ {formatUsdFromBaht(props.thb, props.rate)}
+      </span>
+    </>
   );
 }
 

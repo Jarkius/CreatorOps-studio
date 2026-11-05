@@ -120,6 +120,8 @@ export interface ContentFakeOptions {
   aiCost?: Record<string, { calls: number; costUsd: number; anomalies?: number }>;
   /** Baht per USD saved in the provider settings; undefined means the default rate. */
   thbPerUsd?: number;
+  /** Baht per real US dollar for the US$ shown beside baht. Defaults to 35. */
+  marketThbPerUsd?: number;
 }
 
 export interface ContentFakeApi {
@@ -264,6 +266,7 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
       currency: 'THB',
       thbPerUsd,
       rateSource: options.thbPerUsd === undefined ? 'default' : 'settings',
+      marketThbPerUsd: options.marketThbPerUsd ?? 35,
       aiText: {
         calls: ai.calls,
         costUsd: ai.costUsd,
