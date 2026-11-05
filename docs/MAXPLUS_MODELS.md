@@ -31,6 +31,15 @@ Owner's table says Chinese Specials has no prompt-cache discount and a per-reque
 
 Listed on 2026-11-05 before the pool change: `claude-haiku-4-5`, `claude-haiku-4-5-20251001`, `claude-sonnet-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-fable-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-opus-5`, `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `codex-auto-review`. Chat answered 503 "disabled by the administrator" that day. Prices per pool: `MAXPLUS_PRICING.md` section 3.
 
+## Real cost measured 2026-11-05 (pool Chinese Specials, `qwen3.8-flash`)
+
+| Call | Tokens (in / out) | Balance change |
+|---|---|---|
+| Tiny ping | 14 / 2 | **0.0801 USD** |
+| Real Thai generate job (one call, full brief) | 370 / 459 | **0.0801 USD** |
+
+The charge is the same for both, so this pool bills a **flat minimum of about 0.08 USD (about 0.24 THB) per request**; the token cost (0.0002 USD at the placeholder prices) is far below it. That is much higher than the "0.0135 to 0.0403 THB" minimum in the owner's table (`MAXPLUS_PRICING.md`), so that table is out of date or describes another pool. Consequences: set `minPerRequestUsd` to 0.08 in Settings so the ledger and the monthly limit count it (with 0 the app showed 0.000221 USD for a call that cost 0.0801); prefer few large calls over many small ones (a 3-variant generate is about 0.24 USD); do not use this pool for agent-style loops.
+
 ## Prices: what is known and what is not
 
 - Billing rule (owner's notes): top-up 1 THB buys 3 USD of credit; token pools cost `base USD per 1M × pool multiplier ÷ 3` THB per 1M tokens.
