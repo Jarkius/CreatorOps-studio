@@ -13,3 +13,7 @@ test-results
 .data/
 *.pid
 *.pem
+
+# Python bytecode
+__pycache__/
+*.pyc
