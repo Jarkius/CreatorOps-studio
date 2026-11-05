@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-078 | Affiliate incubator framework as studio templates (after Phase 4) | PROPOSED |
 | D-077 | Advisor plan for Phase 4 and the reseller gateway (MaxPlus) pricing | PROPOSED |
 | D-076 | S5 leftovers: name search, draft file picker, panel export button | ACCEPTED (orchestrator) |
 | D-075 | S5.7b and S5.8: signed export download bound to the member, sweeper, results screen in the dashboard only | ACCEPTED (orchestrator) |
@@ -589,6 +590,16 @@ The real provider refuses to start without configured prices (no guessed default
 2. **Gateway pricing:** model each pool as base price times multiplier with an optional per-request minimum; store the snapshot with every usage event; the provider-reported cost or the balance change is the truth and the computed cost a cross-check; a ratio above about 1.25 opens a circuit breaker that stops real calls until the owner resets it. Prefer a token pool with a low multiplier for our short Thai requests; avoid Auto pools (multiplier can jump to 24x), the high Max pools, and pools with per-request minimums. The cap is mandatory by default for any reseller gateway and optional for OpenRouter.
 3. **Terms to settle before real use of a reseller:** who operates it, whether it is an authorised reseller, retention and training use, invoices and refunds, and PDPA (send only owner-entered product text). D-062 stays development only; OpenRouter stays the default for anything beyond development.
 4. **Remaining after Phase 4:** a second helper round after the owner's meta.ai run, optional media API adapters, production readiness (auth, object storage, hosting, CI never run, Web Store id), publishing connectors one platform at a time, team features.
+
+## D-078 — Affiliate Product Incubator as studio templates (2026-11-05)
+**Status:** PROPOSED (owner's framework saved in `docs/reference/affiliate-product-incubator.skill.md`; build after Phase 4 text is real).
+**Assessment:** it fits the product (Thai-first, affiliate creators, product to script to assets to export) and fills the gap D-068 left open ("modes beyond the product showcase come from templates"). Map it onto what exists:
+1. **Phase 1 and 2 (Scout, Deconstruct)** become one new job type `analyze_product`: input is the product record (name, selling points, price, owner-pasted review text); output is a Viability card (six scores, total 30, GO or NO-GO, risks) and an Intelligence Sheet (pain, USP, persona, promo hook, objections, review phrases). Stored on the product, editable. Needs a real text model to be worth anything; the mock can return a fixed card for tests. Reviews are pasted by the owner, never scraped.
+2. **Phase 3 (8 angles)** becomes a template family: one template per angle (or one template that fills the eight), each producing the existing seven sections plus the table columns (visual hook, audio, on-screen text, CTA). The current `variants` cap is 3; "one draft per angle" needs a batch campaign (8 drafts) with its own cap and cost estimate.
+3. **Phase 4 (test matrix)** is deterministic: a pure function that crosses the six variables into a plan of 30+ rows and a shooting checklist. No model call, no cost; ship it first as a dashboard page and ZIP file (`batch-plan.md`/CSV) next to the package.
+4. **Phase 5 (scale)** needs performance numbers. Platform analytics are not available (D-060 gate), so the owner enters clicks, orders and GMV by hand per draft; the winner then feeds a "clone" job that keeps the structure and changes about 20%.
+**Cautions:** (a) the framework says to mutate 20% "without triggering duplicate-content suppression"; build it as "five variations of a winner" and do not word or design it as evading a platform's spam detection (CLAUDE.md compliance boundaries); (b) keep the claim guard on every angle, especially urgency and comparison scripts ("limited stock", "better than X" need owner-confirmed facts); (c) volume of near-identical clips can itself be treated as spam by platforms, so show the owner the platform's rules and cap batch size; (d) commission and conversion advice is heuristic, label scores as the owner's judgment aid, not predictions.
+**Order:** Phase 4 text first (a real model is needed for 1, 2 and 5), then the batch-plan generator (3), then angles (2), analysis (1), and the manual results and clone step (5) last.
 
 ## Open questions
 
