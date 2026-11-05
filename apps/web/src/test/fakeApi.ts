@@ -131,10 +131,12 @@ export function createFakeApi(options: FakeApiOptions = {}): FakeApi {
     if (part === undefined && method === 'GET') {
       const productId = url.searchParams.get('productId');
       const type = url.searchParams.get('type');
+      const q = (url.searchParams.get('q') ?? '').toLowerCase();
       const matching = inWorkspace.filter(
         (asset) =>
           (productId === null || asset.productId === productId) &&
-          (type === null || asset.type === type),
+          (type === null || asset.type === type) &&
+          asset.originalFilename.toLowerCase().includes(q),
       );
       const limit = Number(url.searchParams.get('limit') ?? '25');
       const offset = Number(url.searchParams.get('cursor') ?? '0');

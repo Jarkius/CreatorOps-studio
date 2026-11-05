@@ -5,6 +5,7 @@ import type { Draft } from '@creatorops/contracts';
 import { Button, LoadingState } from '@creatorops/ui';
 
 import { useDashboard } from '../../app/dashboard-context.js';
+import { AttachFiles } from './AttachFiles.js';
 import { describeError } from '../errors.js';
 import { isTerminalJobStatus, useJob } from '../jobs/jobQueries.js';
 import { formatDate } from '../products/format.js';
@@ -51,6 +52,7 @@ export function DraftResults({
         Results and export
       </h2>
       <Files workspaceId={workspaceId} draftId={draft.id} />
+      {canWrite ? <AttachPicker workspaceId={workspaceId} draft={draft} /> : null}
       <CaptionCopy draft={draft} />
       <ExportPackage workspaceId={workspaceId} draft={draft} canWrite={canWrite} />
     </section>
@@ -277,5 +279,18 @@ function ExportJobStatus({
     <p role={failed ? 'alert' : 'status'} className={failed ? 'text-[var(--co-danger)]' : ''}>
       {exportJobText(job)}
     </p>
+  );
+}
+
+function AttachPicker({ workspaceId, draft }: { workspaceId: string; draft: Draft }) {
+  const attached = useDraftAssets(workspaceId, draft.id);
+  if (attached.data === undefined) return null;
+  return (
+    <AttachFiles
+      workspaceId={workspaceId}
+      draftId={draft.id}
+      productId={draft.productId}
+      current={attached.data.items}
+    />
   );
 }

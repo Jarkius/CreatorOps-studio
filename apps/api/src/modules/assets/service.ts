@@ -504,6 +504,7 @@ export async function listAssets(
   const rows = await listAssetRows(deps.db, ctx, {
     productId: query.productId,
     type: query.type,
+    q: query.q,
     limit: query.limit + 1,
     after: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
   });

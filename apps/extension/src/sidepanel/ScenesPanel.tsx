@@ -3,6 +3,7 @@ import { Button, EmptyState, ErrorState, LoadingState } from '@creatorops/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { useCampaignDraft, useDraftAssets } from './sceneHooks.js';
+import { ExportPanel, type OpenUrl } from './ExportPanel.js';
 import { HelperRunPanel } from './metaai/HelperRunPanel.js';
 import { useMetaAiHelper, type HelperDeps } from './metaai/useMetaAi.js';
 import { attachedByScene, scenesFromSections, type SceneItem } from './scenes.js';
@@ -17,6 +18,8 @@ export interface ScenesPanelProps {
   readonly helper?: HelperDeps;
   /** Full Auto: start the scenes that have no file as soon as the draft is loaded, once. */
   readonly autoRun?: boolean;
+  /** Replaced in tests; the panel opens the signed download link in a new tab. */
+  readonly openUrl?: OpenUrl;
 }
 
 /** The scenes of a campaign's finished draft: name, editable prompt, copy, and file status. */
@@ -27,6 +30,7 @@ export function ScenesPanel({
   canStart,
   helper,
   autoRun = false,
+  openUrl,
 }: ScenesPanelProps) {
   const draft = useCampaignDraft(api, workspaceId, campaignId);
   const error = draft.error instanceof ApiError ? draft.error : null;
@@ -58,6 +62,7 @@ export function ScenesPanel({
       canStart={canStart}
       autoRun={autoRun}
       {...(helper === undefined ? {} : { helper })}
+      {...(openUrl === undefined ? {} : { openUrl })}
     />
   );
 }
@@ -69,6 +74,7 @@ function SceneList({
   canStart,
   helper,
   autoRun,
+  openUrl,
 }: {
   api: ApiClient;
   workspaceId: string;
@@ -76,6 +82,7 @@ function SceneList({
   canStart: boolean;
   helper?: HelperDeps;
   autoRun: boolean;
+  openUrl?: OpenUrl;
 }) {
   const run = useMetaAiHelper(api, workspaceId, draft, helper);
   const running = run.state.phase === 'running';
@@ -145,6 +152,13 @@ function SceneList({
           />
         ))}
       </ol>
+      <ExportPanel
+        api={api}
+        workspaceId={workspaceId}
+        draft={draft}
+        canStart={canStart}
+        {...(openUrl === undefined ? {} : { openUrl })}
+      />
     </div>
   );
 }

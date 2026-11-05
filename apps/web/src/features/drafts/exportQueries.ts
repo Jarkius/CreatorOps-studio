@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
-import { ApiError, type CreateExportRequest, type Job } from '@creatorops/contracts';
+import {
+  ApiError,
+  type CreateExportRequest,
+  type Job,
+  type SetDraftAssetsRequest,
+} from '@creatorops/contracts';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 import { newIdempotencyKey } from '../jobs/idempotency.js';
@@ -80,4 +85,27 @@ export function useDownloadLink(workspaceId: string) {
 export function useRefreshExports(workspaceId: string) {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: ['exports', workspaceId] });
+}
+
+/** The product's files, offered for attaching to a draft. */
+export function useProductFiles(workspaceId: string, productId: string, enabled: boolean) {
+  const { client } = useDashboard();
+  return useQuery({
+    queryKey: ['assets', workspaceId, 'for-draft', productId] as const,
+    queryFn: () => client.assets.list(workspaceId, { productId, limit: 100 }),
+    enabled,
+  });
+}
+
+/** Replaces the draft's attachments in one call, then reloads the attached list. */
+export function useSaveAttachments(workspaceId: string, draftId: string) {
+  const { client } = useDashboard();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SetDraftAssetsRequest) =>
+      client.drafts.setAssets(workspaceId, draftId, body),
+    onSuccess: (result) => {
+      queryClient.setQueryData(exportKeys.assets(workspaceId, draftId), result);
+    },
+  });
 }

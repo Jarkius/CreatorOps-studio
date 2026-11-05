@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DraftAsset, Export, Job } from '@creatorops/contracts';
+import type { Asset, DraftAsset, Export, Job } from '@creatorops/contracts';
 
 import { json, makeAsset } from '../../test/fakeApi.js';
 import type { RecordedCall } from '../../test/fakeApi.js';
@@ -56,6 +56,10 @@ interface World {
   failLink: boolean;
   /** Fails the next export POST: without any response, or with a 500. */
   failNext: 'network' | 'server' | null;
+  /** The product's library (served for the picker). */
+  library: Asset[];
+  /** Answers the attachments PUT with a 500. */
+  failSave: boolean;
 }
 
 function setup(
@@ -72,6 +76,8 @@ function setup(
     conflict: false,
     failLink: false,
     failNext: null,
+    library: [],
+    failSave: false,
     ...world,
   };
   const view = renderDraft({
@@ -81,6 +87,32 @@ function setup(
       state.calls.push(call);
       const path = call.path.split('?')[0] ?? '';
       if (path === `${API}/drafts/${DRAFT_ID}/assets` && call.method === 'GET') {
+        return json({ items: state.files });
+      }
+      if (path === `${API}/assets` && call.method === 'GET') {
+        return json({ items: state.library, nextCursor: null });
+      }
+      if (path === `${API}/drafts/${DRAFT_ID}/assets` && call.method === 'PUT') {
+        if (state.failSave) {
+          return json(
+            { error: { code: 'INTERNAL_ERROR', message: 'Save is down.', requestId: 'r' } },
+            500,
+          );
+        }
+        const wanted = (call.body as { assets: { assetId: string; role: string }[] }).assets;
+        state.files = wanted
+          .map((item) => {
+            const before = state.files.find((file) => file.assetId === item.assetId);
+            return (
+              before ??
+              attachment(item.assetId, { aiGenerated: false, generator: null, scene: null })
+            );
+          })
+          .map((file, index) => ({
+            ...file,
+            sortOrder: index,
+            role: wanted[index]?.role === 'cover' ? 'cover' : 'media',
+          }));
         return json({ items: state.files });
       }
       if (path === `${API}/exports` && call.method === 'GET') {
@@ -243,6 +275,97 @@ describe('DraftResults: export', () => {
     expect(screen.getByText(/download packages but not create them/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Download' }));
     await waitFor(() => expect(startDownload).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('DraftResults: choosing files', () => {
+  const library = () => [
+    makeAsset({ id: 'p1', originalFilename: 'front.png' }),
+    makeAsset({ id: 'p2', originalFilename: 'side.png' }),
+    makeAsset({ id: 'p3', originalFilename: 'demo.mp4', type: 'video', mimeType: 'video/mp4' }),
+  ];
+
+  it('is offered to editors only', async () => {
+    setup('viewer', { library: library() });
+    await screen.findByText(/No files are attached to this draft yet/);
+    expect(screen.queryByRole('button', { name: 'Choose files' })).toBeNull();
+  });
+
+  it('attaches ticked files with the chosen cover, keeps what was attached, and shows them', async () => {
+    const user = userEvent.setup();
+    const { state } = setup('owner', {
+      library: library(),
+      files: [attachment('p2', { scene: 'detail', aiGenerated: true, generator: 'Meta AI' })],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Choose files' }));
+    const front = await screen.findByRole('checkbox', { name: 'front.png' });
+    expect(screen.getByRole('checkbox', { name: 'side.png' })).toBeChecked();
+    expect(front).not.toBeChecked();
+    await user.click(front);
+    // A cover can only be a picture: the video offers none.
+    await user.click(screen.getByRole('checkbox', { name: 'demo.mp4' }));
+    expect(screen.getAllByRole('radio', { name: 'Cover' })).toHaveLength(2);
+    await user.click(screen.getAllByRole('radio', { name: 'Cover' })[0]!);
+    expect(screen.getByText('3 of 10 files chosen.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save files' }));
+
+    expect(await screen.findByText('Files saved')).toBeInTheDocument();
+    const put = state.calls.find((call) => call.method === 'PUT');
+    expect(put?.body).toEqual({
+      assets: [
+        { assetId: 'p2', role: 'media', aiGenerated: true, scene: 'detail', generator: 'Meta AI' },
+        { assetId: 'p1', role: 'cover', aiGenerated: false },
+        { assetId: 'p3', role: 'media', aiGenerated: false },
+      ],
+    });
+    const list = await screen.findByRole('list', { name: 'Attached files' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(3);
+  });
+
+  it('unticking the cover file clears the cover, and a failed save keeps the picker open with the message', async () => {
+    const user = userEvent.setup();
+    const { state } = setup('owner', {
+      library: library(),
+      failSave: true,
+      files: [attachment('p1', { role: 'cover', scene: null })],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Choose files' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'front.png' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'front.png' }));
+    expect(screen.getByRole('radio', { name: 'Cover' })).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Save files' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Save is down.');
+    expect(screen.getByRole('button', { name: 'Save files' })).toBeInTheDocument();
+    expect(
+      (state.calls.find((c) => c.method === 'PUT')?.body as { assets: { role: string }[] })
+        .assets[0]?.role,
+    ).toBe('media');
+  });
+
+  it('stops offering more files once ten are chosen', async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 11 }, (_, index) =>
+      makeAsset({ id: `m${String(index)}`, originalFilename: `file-${String(index)}.png` }),
+    );
+    setup('owner', { library: many });
+    await user.click(await screen.findByRole('button', { name: 'Choose files' }));
+    for (let index = 0; index < 10; index += 1) {
+      await user.click(await screen.findByRole('checkbox', { name: `file-${String(index)}.png` }));
+    }
+    expect(screen.getByText('10 of 10 files chosen.')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'file-10.png' })).toBeDisabled();
+    // A chosen file can still be unticked.
+    expect(screen.getByRole('checkbox', { name: 'file-0.png' })).toBeEnabled();
+  });
+
+  it('says so when the product has no files, and Cancel closes without saving', async () => {
+    const user = userEvent.setup();
+    const { state } = setup('owner');
+    await user.click(await screen.findByRole('button', { name: 'Choose files' }));
+    expect(await screen.findByText(/This product has no files yet/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Choose files' })).toBeInTheDocument();
+    expect(state.calls.some((call) => call.method === 'PUT')).toBe(false);
   });
 });
 

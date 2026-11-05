@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-076 | S5 leftovers: name search, draft file picker, panel export button | ACCEPTED (orchestrator) |
 | D-075 | S5.7b and S5.8: signed export download bound to the member, sweeper, results screen in the dashboard only | ACCEPTED (orchestrator) |
 | D-074 | S5.7a export job: snapshot at creation, one storage key per job, row written when the job settles, worker gets storage | ACCEPTED (orchestrator, S5.7a) |
 | D-073 | A4 Full Auto: one tick on Create content runs the script, then the four scene images in order | ACCEPTED (orchestrator, A4) |
@@ -571,6 +572,14 @@ The real provider refuses to start without configured prices (no guessed default
 3. **Read-only members** may call the download-link POST; the authorization harness has an explicit allow-list for it (`readOnlyAllowed`).
 4. **Dashboard only for now:** results (thumbnails, labels, copy caption) and ZIP export live on the draft page. The side panel keeps linking to the dashboard; an export button there is a later slice.
 5. **API and worker must share the storage** (`DATA_DIR` locally). The e2e config now sets it for the worker.
+
+## D-076 — S5 leftovers (2026-11-05)
+**Status:** ACCEPTED. Completes D-067 items S5.4, S5.5 and the panel half of S5.8; amends D-075 item 4.
+**Decision:**
+1. **Asset filter** is a case-insensitive name search (`q`), plus the existing product and type filters. No saved filters or tags.
+2. **Picker** offers the draft's product files only (files with no product are not offered; the API still accepts them). One save replaces the whole list.
+3. **Panel export** lives under the scene list. Download opens the signed link in a new browser tab with `window.open`; the extension gains no permission (no `downloads`, no `tabs`).
+4. The worker-death check is a test of the state a SIGKILL leaves (running job, lapsed lease, stray file), not a process kill.
 
 ## Open questions
 

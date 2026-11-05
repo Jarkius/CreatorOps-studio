@@ -4868,6 +4868,15 @@
           },
           {
             "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
               "default": 25,
               "type": "integer",
               "minimum": 1,

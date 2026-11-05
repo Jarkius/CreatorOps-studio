@@ -17,6 +17,7 @@ import { createTestDb, type TestDb } from '../../test/test-db.js';
 import { readZip } from '../../test/zip-reader.js';
 import { processJob, type WorkerDeps } from '../jobs/process.js';
 import { buildExport, exportStorageKey } from '../jobs/export-package.js';
+import { reconcile } from '../jobs/reconcile.js';
 
 const config = loadConfig(validEnv());
 const silent = createLogger({ level: 'silent' });
@@ -507,5 +508,37 @@ describe('building the package', () => {
       (await testDb.pool.query('select 1 from draft_exports where job_id = $1', [jobId])).rowCount,
     ).toBe(0);
     expect(await storage.stat(exportStorageKey(alice.workspaceId, jobId))).toBeNull();
+  });
+});
+
+describe('a worker that dies mid-export', () => {
+  it('is recovered by the reconciler: the stray file is replaced and exactly one package row exists', async () => {
+    const draft = await newDraft(alice);
+    const file = await newFile(alice);
+    await attach(alice, draft, [{ assetId: file.id, role: 'cover' }]);
+    const jobId = await createExport(alice, draft);
+
+    // What a SIGKILL after the file write and before the settle leaves behind: a running job with
+    // a lapsed lease, and a half-trusted file at the job's key.
+    const key = exportStorageKey(alice.workspaceId, jobId);
+    await storage.put(key, Readable.from([Buffer.from('stray bytes from a dead worker')]));
+    await testDb.pool.query(
+      `update jobs set status = 'running', attempts = 1, started_at = now(), locked_until = now() - interval '1 second' where id = $1`,
+      [jobId],
+    );
+
+    const summary = await reconcile({ db: testDb.db, queue, log: quiet });
+    expect(summary.requeued).toBeGreaterThanOrEqual(1);
+    expect((await jobRow(jobId)).status).toBe('queued');
+    expect(await processJob(workerDeps(), jobId)).toBe('succeeded');
+
+    const rows = (await testDb.pool.query('select * from draft_exports where job_id = $1', [jobId]))
+      .rows;
+    expect(rows).toHaveLength(1);
+    const stored = await readAll(await storage.read(key));
+    expect(stored.toString()).not.toContain('stray bytes');
+    expect(createHash('sha256').update(stored).digest('hex')).toBe(rows[0].sha256);
+    expect(Number(rows[0].size_bytes)).toBe(stored.length);
+    expect(readZip(stored).some((entry) => entry.name.startsWith('media/'))).toBe(true);
   });
 });
