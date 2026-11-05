@@ -8,6 +8,7 @@ import { CreatePanel } from './CreatePanel.js';
 import { canStartGeneration } from './campaigns.js';
 import { API_BASE_URL, DASHBOARD_URL, MOCK_AUTH } from './config.js';
 import { ProductsPanel } from './ProductsPanel.js';
+import { ShopeePanel } from './shopee/ShopeePanel.js';
 import { createSessionClient, type SessionClient } from './session.js';
 import { createDefaultTokenStore } from './token-store.js';
 
@@ -119,6 +120,12 @@ export function App({ session }: AppProps) {
               workspaceId={activeWorkspace.id}
               dashboardUrl={DASHBOARD_URL}
               canStart={canStartGeneration(activeWorkspace.role)}
+            />
+            <ShopeePanel
+              api={client.api}
+              workspaceId={activeWorkspace.id}
+              dashboardUrl={DASHBOARD_URL}
+              canCreate={canStartGeneration(activeWorkspace.role)}
             />
             <ProductsPanel
               api={client.api}

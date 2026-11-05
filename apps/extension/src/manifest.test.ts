@@ -31,9 +31,10 @@ describe('buildManifest', () => {
     expect([...manifest.optional_host_permissions]).toEqual([
       'https://www.meta.ai/*',
       'https://flow.google.com/*',
+      'https://affiliate.shopee.co.th/*',
     ]);
     const hosts = manifest.host_permissions.join(' ');
-    for (const site of ['meta.ai', 'flow.google']) expect(hosts).not.toContain(site);
+    for (const site of ['meta.ai', 'flow.google', 'shopee']) expect(hosts).not.toContain(site);
   });
 
   it('grants the helper hosts at install only for an end-to-end test build', () => {
@@ -42,6 +43,7 @@ describe('buildManifest', () => {
       'http://localhost:3000/*',
       'https://www.meta.ai/*',
       'https://flow.google.com/*',
+      'https://affiliate.shopee.co.th/*',
     ]);
   });
 

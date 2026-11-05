@@ -49,7 +49,7 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 - Manifest V3 only.
 - Use `chrome.sidePanel` and least-privilege permissions.
 - Do not request broad host permissions unless a concrete feature requires them.
-- Do not scrape or manipulate arbitrary websites by default. The one owner-approved exception is the Meta AI helper (D-071): `https://www.meta.ai/*` only, optional host permission, user-initiated and visible.
+- Do not scrape or manipulate arbitrary websites by default. Owner-approved exceptions, each an optional host permission, user-initiated and visible, never signing in and never solving or evading a check: the Meta AI helper (D-071, `https://www.meta.ai/*`), the Google Flow helper (D-080, `https://flow.google.com/*`), and the Shopee Affiliate product importer, which only reads the page (D-082, `https://affiliate.shopee.co.th/*`).
 - Page import must be user-initiated, visibly scoped, and limited to supported fields.
 - Do not store long-lived provider secrets in extension storage.
 - Treat service workers as ephemeral; persist state on the backend.

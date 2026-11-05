@@ -6,7 +6,9 @@ import { META_AI_SITE, type HelperSite } from './sites.js';
  * `chrome.scripting`, limited to the one allowed site. The tab is found by its address pattern
  * and opened visibly, never in the background.
  */
-export function createChromeBrowser(site: HelperSite = META_AI_SITE): MetaAiBrowser {
+export function createChromeBrowser(
+  site: Pick<HelperSite, 'name' | 'origins' | 'tabPatterns'> = META_AI_SITE,
+): MetaAiBrowser {
   const origins = [...site.origins];
   return {
     hasPermission: () => chrome.permissions.contains({ origins }),

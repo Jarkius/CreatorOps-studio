@@ -32,6 +32,7 @@ describe('built manifest', () => {
     expect(manifest.optional_host_permissions).toEqual([
       'https://www.meta.ai/*',
       'https://flow.google.com/*',
+      'https://affiliate.shopee.co.th/*',
     ]);
     expect(manifest.host_permissions).toHaveLength(1);
     expect(manifest.host_permissions[0]).toMatch(/^https?:\/\/[^*/]+(:\d+)?\/\*$/);

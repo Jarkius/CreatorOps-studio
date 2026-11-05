@@ -4,7 +4,7 @@
  * The permission set is deliberately tiny and fixed: `sidePanel`, `storage` and `scripting`, plus
  * host access to the configured API origin only. `scripting` (D-072) is only usable on hosts the
  * extension may access, and the only other hosts are the optional `https://www.meta.ai/*` (D-071)
- * and the Google Flow host (D-080), which the user grants with a Chrome prompt when turning
+ * the Google Flow host (D-080) and the Shopee Affiliate site (D-082), which the user grants with a Chrome prompt when turning
  * that helper on. Adding anything
  * else (activeTab, tabs, <all_urls>, content scripts) needs its own decision entry; a test fails
  * if it appears.
@@ -17,8 +17,15 @@ export const META_AI_HOST_PATTERN = 'https://www.meta.ai/*';
 /** Google Flow lives on its own host (the old labs.google address redirects there; D-080). Optional, never at install. */
 export const FLOW_HOST_PATTERNS = ['https://flow.google.com/*'] as const;
 
+/** The Shopee Affiliate site, read (never driven) by the product importer (D-082). Optional. */
+export const SHOPEE_AFFILIATE_HOST_PATTERN = 'https://affiliate.shopee.co.th/*';
+
 /** Every optional host, in one place; a test fails if anything else appears. */
-export const OPTIONAL_HOST_PATTERNS = [META_AI_HOST_PATTERN, ...FLOW_HOST_PATTERNS] as const;
+export const OPTIONAL_HOST_PATTERNS = [
+  META_AI_HOST_PATTERN,
+  ...FLOW_HOST_PATTERNS,
+  SHOPEE_AFFILIATE_HOST_PATTERN,
+] as const;
 
 export interface ManifestInput {
   /** Base URL of the CreatorOps API, for example http://localhost:3000. */
