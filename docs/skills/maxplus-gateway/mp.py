@@ -76,10 +76,20 @@ def read_secret(env_name, file_env, file_arg, prefix, what):
     return raw
 
 
+POOL_PATH = None  # set from --pool-path: a pool's own address, e.g. chinese-specials
+
+
+def base_url():
+    """The gateway address; a pool path gives that pool's own route (/<pool>/v1)."""
+    if POOL_PATH is None:
+        return BASE
+    return f"https://api.maxplus-ai.cc/{POOL_PATH}/v1"
+
+
 def call(method, path, token, body=None):
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(
-        BASE + path,
+        base_url() + path,
         data=data,
         method=method,
         headers={
@@ -277,6 +287,7 @@ def main(argv=None):
     ):
         command = sub.add_parser(name, help=helptext)
         command.add_argument("--key-file")
+        command.add_argument("--pool-path", help="use a pool's own address, e.g. chinese-specials")
         if name == "ping":
             command.add_argument("--model", default="claude-haiku-4-5")
             command.add_argument("--yes", action="store_true")
@@ -284,6 +295,13 @@ def main(argv=None):
         command.set_defaults(run=run)
 
     args = parser.parse_args(argv)
+    global POOL_PATH
+    pool_path = getattr(args, "pool_path", None)
+    if pool_path is not None:
+        if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", pool_path):
+            print("error: --pool-path must be lowercase letters, digits and dashes", file=sys.stderr)
+            return 1
+        POOL_PATH = pool_path
     try:
         args.run(args)
     except Fail as error:

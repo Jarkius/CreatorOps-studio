@@ -49,6 +49,7 @@ All commands print `HTTP <status>` and a redacted summary. Exit code 1 means the
 | Check balance and models | `mp.py check --key-file <file>` | inference | free |
 | Prove the pool answers chat | `mp.py ping --key-file <file> --yes` (model default `claude-haiku-4-5`, 16 tokens) | inference | a few cents |
 | Same, on the Anthropic-style route Claude Code uses | add `--route messages` (calls `/v1/messages`) | inference | a few cents |
+| Use a pool's own address (`/chinese-specials/v1`) | add `--pool-path chinese-specials` to `check` or `ping` (`/me` exists only on the main address) | inference | as above |
 
 Rules the helper enforces: a limit above 0 on every key; no duplicate names (use `reroll`); `--out` must be outside the repo; `delete` and `ping` need `--yes`.
 
@@ -80,6 +81,13 @@ Rules the helper enforces: a limit above 0 on every key; no duplicate names (use
 | 402 | balance empty or key limit reached | `PROVIDER_BUDGET` | no | top up, or raise the key limit with `patch` |
 | 429 | rate limit | `PROVIDER_RATE_LIMITED` | yes, after Retry-After | wait |
 | 5xx / network | gateway trouble, or pools closed by the operator | `PROVIDER_UNAVAILABLE` | yes, bounded | try `check`; MaxPlus closed all pools on 2026-11-04 and again on 2026-11-05: `check` was 200 while chat answered 503 "This endpoint is currently disabled by the administrator" for every model. That is MaxPlus's side, not our code. Both routes (`chat`, `messages`) failed alike while `/v1/me` showed the key on pool `native`: a 503 like this is per pool, so other users on other pools still get answers. Fix: move the key to an open pool (MaxPlus dashboard, or a new key with `create --pool <name>`), not a top-up |
+
+## Working setup (verified 2026-11-05, later)
+
+- The owner moved `creatorops-dev` to pool **Chinese Specials** (×0.993; Chat Completions, Messages and Responses). The main address `https://api.maxplus-ai.cc/v1` and the pool address `https://api.maxplus-ai.cc/chinese-specials/v1` both answered.
+- `qwen3.8-flash`: 200, `finish=stop`, Thai reply, `usage.cost` not reported. `deepseek-v4.1-flash` and `glm-5.3-flash` spend 16 tokens on hidden reasoning (`finish=length`, empty reply), so give them a larger `max_tokens`; deepseek reported `usage.cost` 0.00001.
+- Balance 301.93 USD after the owner's top-up; the key limit (100 USD lifetime) is now the real cap.
+- These are Chinese model providers behind a third-party proxy: development and pilot only, owner-written product text only (D-062).
 
 ## Unverified (say so if asked)
 
