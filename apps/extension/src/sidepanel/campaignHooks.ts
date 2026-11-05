@@ -24,6 +24,9 @@ export function usePanelCampaignCost(
   return useQuery({
     queryKey: panelKeys.cost(workspaceId, campaignId, jobKey),
     queryFn: () => api.campaigns.cost(workspaceId, campaignId),
+    // One read per campaign row is enough between job changes; focus changes must not re-read it.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 
