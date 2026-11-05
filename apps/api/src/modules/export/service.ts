@@ -164,7 +164,9 @@ export async function readExport(
       'cache-control': 'no-store',
       'cross-origin-resource-policy': 'cross-origin',
     },
-    stream: await deps.storage.read(row.storageKey),
+    stream: await deps.storage.read(row.storageKey).catch(() => {
+      throw notFound();
+    }),
   };
 }
 

@@ -219,7 +219,7 @@ describe('signed download', () => {
     // The same signature on another member (even a real one) or another export does not work.
     expect((await get(link.replace(`u=${u}`, `u=${viewer.userId}`))).statusCode).toBe(404);
     expect((await get(link.replace(`/${made.id}/`, `/${other.id}/`))).statusCode).toBe(404);
-    expect((await get(link.replace(`u=${u}`, 'u=junk'))).statusCode).toBe(404);
+    expect((await get(link.replace(`u=${u}`, 'u=junk'))).statusCode).toBe(400);
     expect(
       (await get(`/api/v1/exports/${made.id}/download?u=${u}&exp=${exp}&sig=short`)).statusCode,
     ).toBe(404);
@@ -236,6 +236,24 @@ describe('signed download', () => {
       (await get(`/api/v1/exports/${made.id}/download?u=${u}&exp=${exp}&sig=${mediaSig}`))
         .statusCode,
     ).toBe(404);
+  });
+
+  it('answers 404 or 400, never 500, for odd member ids and for a file removed after the check', async () => {
+    const made = await seedExport(alice, draftId);
+    const link = await downloadLink(alice, made.id);
+    const url = new URL(link, 'http://x');
+    const exp = url.searchParams.get('exp')!;
+    const sig = url.searchParams.get('sig')!;
+    for (const u of ['a|b', '%7C', 'x'.repeat(63), '']) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/exports/${made.id}/download?u=${u}&exp=${exp}&sig=${sig}`,
+      });
+      expect([400, 404]).toContain(response.statusCode);
+    }
+    // The sweeper removes the file between the check and the read: still a plain 404.
+    await storage.delete(made.key);
+    expect((await app.inject({ method: 'GET', url: link })).statusCode).toBe(404);
   });
 
   it('refuses an expired link (clock past the five minutes)', async () => {

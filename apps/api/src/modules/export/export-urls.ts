@@ -36,7 +36,12 @@ export function createExportSigner(sessionSecret: string): ExportSigner {
     },
     check(subject, exp, signature, nowSeconds) {
       if (exp <= nowSeconds) return false;
-      return verify(key, 'export', parts(subject, exp), signature);
+      try {
+        return verify(key, 'export', parts(subject, exp), signature);
+      } catch {
+        // A part that cannot be signed (for example one containing "|") is simply not valid.
+        return false;
+      }
     },
   };
 }

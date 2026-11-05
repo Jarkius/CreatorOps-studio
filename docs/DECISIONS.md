@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-077 | Advisor plan for Phase 4 and the reseller gateway (MaxPlus) pricing | PROPOSED |
 | D-076 | S5 leftovers: name search, draft file picker, panel export button | ACCEPTED (orchestrator) |
 | D-075 | S5.7b and S5.8: signed export download bound to the member, sweeper, results screen in the dashboard only | ACCEPTED (orchestrator) |
 | D-074 | S5.7a export job: snapshot at creation, one storage key per job, row written when the job settles, worker gets storage | ACCEPTED (orchestrator, S5.7a) |
@@ -580,6 +581,14 @@ The real provider refuses to start without configured prices (no guessed default
 2. **Picker** offers the draft's product files only (files with no product are not offered; the API still accepts them). One save replaces the whole list.
 3. **Panel export** lives under the scene list. Download opens the signed link in a new browser tab with `window.open`; the extension gains no permission (no `downloads`, no `tabs`).
 4. The worker-death check is a test of the state a SIGKILL leaves (running job, lapsed lease, stray file), not a process kill.
+
+## D-077 — Phase 4 plan and reseller-gateway pricing (advisor, 2026-11-05)
+**Status:** PROPOSED. Refines D-062, D-063, D-065, D-066, D-069. Pricing numbers come from the owner's message about the MaxPlus AI gateway and are unverified claims.
+**Proposal:**
+1. **Slices (mock transport first, no key needed):** S4.1 contracts and error classes (`PROVIDER_AUTH`, `PROVIDER_BUDGET`, `PROVIDER_BAD_REQUEST`; 401 auth, 402 budget, 400 and refusals permanent, 408/429/5xx/timeout transient; a reply cut off by the token limit is its own case; usage gets optional cost, request count and finish reason); S4.2 OpenAI-compatible adapter on an injected transport (json_schema output, Retry-After, abort signal, raw bodies never logged); S4.3 encrypted credentials table and routes (AES-256-GCM, `SECRETS_ENCRYPTION_KEY`, key id, owner and admin only, last 4 only on read, decrypt only in the worker); S4.4 usage ledger (reserve the worst case under a per-workspace lock, settle after, idempotent per job, attempt and call; no prompts stored) and an optional cap; S4.5 worker uses a provider per job, per-call timeouts, one variant per call saved as it completes; S4.6 settings and usage screens; S4.7 Thai evaluation (about 20 briefs, owner scores); S4.0 the first real call once the owner supplies a capped key.
+2. **Gateway pricing:** model each pool as base price times multiplier with an optional per-request minimum; store the snapshot with every usage event; the provider-reported cost or the balance change is the truth and the computed cost a cross-check; a ratio above about 1.25 opens a circuit breaker that stops real calls until the owner resets it. Prefer a token pool with a low multiplier for our short Thai requests; avoid Auto pools (multiplier can jump to 24x), the high Max pools, and pools with per-request minimums. The cap is mandatory by default for any reseller gateway and optional for OpenRouter.
+3. **Terms to settle before real use of a reseller:** who operates it, whether it is an authorised reseller, retention and training use, invoices and refunds, and PDPA (send only owner-entered product text). D-062 stays development only; OpenRouter stays the default for anything beyond development.
+4. **Remaining after Phase 4:** a second helper round after the owner's meta.ai run, optional media API adapters, production readiness (auth, object storage, hosting, CI never run, Web Store id), publishing connectors one platform at a time, team features.
 
 ## Open questions
 

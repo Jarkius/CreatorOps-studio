@@ -92,7 +92,7 @@ export function registerExportRoutes(app: FastifyInstance, options: ExportRouteO
 }
 
 const SignedQuery = z
-  .object({ u: z.string().max(64), exp: z.string().max(20), sig: z.string().max(100) })
+  .object({ u: z.string().uuid(), exp: z.string().max(20), sig: z.string().max(100) })
   .strict();
 
 /** Authorised by the signed URL (PUBLIC_ROUTES), with its own tampered, expired and replay tests. */

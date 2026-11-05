@@ -288,3 +288,6 @@ Phase 5, slice S5.1 (contracts for draft assets, export and asset filters), afte
 - **Worker death mid-export (api test):** a running job with a lapsed lease plus a stray file at its key (what a SIGKILL after the file write leaves) is requeued by `reconcile`, rebuilt by the next attempt, and ends with one package row whose hash matches the stored file. Mutation: removing the pre-write delete fails two tests. A real SIGKILL of the worker process was not done (the build step is too short to hit reliably); this test recreates the state it leaves.
 - Counts at this point: contracts 77, provider-core 95, config 12, ui 43, extension unit 166, web 279, api 502.
 
+
+## Advisor review after Phase 5 (2026-11-05)
+- A read-only advisor reviewed Phase 5 and the owner flow, listed what is likely to break in a real run, the remaining phases and a Phase 4 plan. Fixed at once: the signed download `u` is now a UUID (a `|` in it could make the signer throw and answer 500; `check` also never throws), and a file removed between the check and the read answers 404 (the race itself has no test: it needs a storage that fails after `stat`). Everything else is listed in `docs/WORKING_NOTES.md` under "Advisor findings to act on" and was not changed.

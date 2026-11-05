@@ -92,6 +92,19 @@ pnpm e2e                                      # builds, then both suites, each o
 - Extension does not show product images yet (the CSP already allows them since S3.0); current-page import deferred (D-019).
 - Pin GitHub Actions to commit SHAs before the first release.
 
+## Advisor findings to act on (2026-11-05, not yet fixed)
+
+From the owner-test review; the Meta AI items are inference (no real meta.ai here), fix them after the owner's first run and diagnostics.
+1. High: `metaai/page.ts` `stashMedia` fetches with `credentials:'include'`; a CDN answering `Access-Control-Allow-Origin: *` rejects that. Try `omit` first, then `include`, or read the bytes from the `<img>`.
+2. High: prompts go as plain chat text; meta.ai may answer in text. Prefix "Imagine ", re-probe for a login modal after sending, and make the timeout message say what was seen. A logged-out page can still show a prompt box (`probePage` returns ready).
+3. Medium: image pick takes `fresh[0]` of any image 256 px or wider; prefer the largest new image that is `complete` and stable.
+4. Medium: `DATA_DIR` defaults to a relative path; API and worker started from different folders disagree. Resolve against the repo root or refuse a relative path; log the absolute path in both.
+5. Medium: the worker's 30 s timeout covers every job type, including export and multi-variant real text. Use per-call and per-job-type timeouts (needed before Phase 4).
+6. Medium: the export zip holds all media in memory (500 MB cap, worker concurrency 2). Lower the cap to about 100 MB until streaming.
+7. Misleading: attaching files does not bump the draft version, so Results can show an old package as the latest; the idempotency hash is draft id and version only. Hash the attached asset ids and sha256 too and show "out of date".
+8. Check in Chrome: `chrome.permissions.request` must run in the click handler before any `await`; closing the panel aborts a run; `window.open` after an async call may lose its user gesture.
+9. Phase 4 plan and the reseller-gateway pricing advice: see D-077.
+
 ## Open questions that need the owner
 
 Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai evaluation reviewers (before Phase 4); Q-003/Q-004/Q-007 hosting, auth provider and storage vendor (before any hosted deployment); Q-006 extension distribution (before a beta). Defaults are listed in `docs/DECISIONS.md`.
