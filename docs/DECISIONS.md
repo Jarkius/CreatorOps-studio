@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-075 | S5.7b and S5.8: signed export download bound to the member, sweeper, results screen in the dashboard only | ACCEPTED (orchestrator) |
 | D-074 | S5.7a export job: snapshot at creation, one storage key per job, row written when the job settles, worker gets storage | ACCEPTED (orchestrator, S5.7a) |
 | D-073 | A4 Full Auto: one tick on Create content runs the script, then the four scene images in order | ACCEPTED (orchestrator, A4) |
 | D-072 | A3 build choices: `scripting` permission, optional meta.ai host, e2e build grants it, helper structure | ACCEPTED (orchestrator, A3) |
@@ -561,6 +562,15 @@ The real provider refuses to start without configured prices (no guessed default
 3. **Storage and row:** the package is written to `exports/<workspace>/<job>.zip`, one key per job, so a retry deletes and replaces its own earlier file. The `draft_exports` row (expiry 7 days on the database clock) and the job's success are one transaction. If the job ends cancelled or lost, the file is deleted at once; a file left by a crash between the write and the settle has no row and is for the sweeper (S5.7b).
 4. **Package contents:** `media/NN-<cover|scene|media>.<ext>`, `draft.txt`, `caption.txt`, `hashtags.txt`, `publishing-checklist.md` (Thai; says posting is manual; adds lines for an unapproved draft, claim warnings and AI-made files by tool name), `manifest.json` (paths, roles, scenes, hashes, AI label; no user file names, no URLs). The zip builder is S5.6 (stored entries, ASCII names only).
 5. **Known limit:** the media of one package are held in memory while it is built (at most 500 MB by the cap); streaming from disk is a later change if the cap is raised.
+
+## D-075 — S5.7b and S5.8 export download and results screen (2026-11-05)
+**Status:** ACCEPTED. Completes D-067 items 5 and 7 and the sweeper of D-074.
+**Decision:**
+1. **Signed download:** `POST /exports/:id/download-url` (any member; audit event without the URL) returns a link valid 5 minutes. The link is `GET /api/v1/exports/:id/download?u=<member>&exp&sig`; the signature (HKDF key label `export`) covers the export id, workspace id, member id and expiry. At download the member's membership is checked again, so a member removed after getting a link is refused. A bad signature, expired link, expired package, missing file and unknown id all answer the same 404. Headers: `application/zip`, ASCII `Content-Disposition` plus RFC 5987 `filename*`, `Cache-Control: no-store`.
+2. **Expiry:** a row past `expires_at` reads as `expired` immediately; the sweeper (every 10 minutes, in the API process) marks it `expired` and deletes the file. It also deletes the file of any export job that failed or was cancelled 10 minutes to 2 days ago, since a crash between the file write and the settle leaves a file without a row (the key is deterministic).
+3. **Read-only members** may call the download-link POST; the authorization harness has an explicit allow-list for it (`readOnlyAllowed`).
+4. **Dashboard only for now:** results (thumbnails, labels, copy caption) and ZIP export live on the draft page. The side panel keeps linking to the dashboard; an export button there is a later slice.
+5. **API and worker must share the storage** (`DATA_DIR` locally). The e2e config now sets it for the worker.
 
 ## Open questions
 

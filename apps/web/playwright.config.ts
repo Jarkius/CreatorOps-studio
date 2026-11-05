@@ -80,6 +80,8 @@ export default defineConfig({
         REDIS_URL,
         LOG_LEVEL: 'warn',
         WORKER_PORT: String(WORKER_PORT),
+        // The worker writes export packages that the API serves, so both use one directory.
+        DATA_DIR: path.join(os.tmpdir(), 'creatorops-web-e2e-media'),
       },
     },
     {

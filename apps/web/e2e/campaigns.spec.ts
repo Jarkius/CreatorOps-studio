@@ -142,4 +142,45 @@ test.describe('campaigns and drafts (real API, worker and Redis)', () => {
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ status: 'failed', attempts: 1 });
   });
+
+  test('Export ZIP runs through the worker and the package downloads with the draft text', async ({
+    page,
+    request,
+  }) => {
+    const auth = await authFor(request);
+    const workspaceId = await firstWorkspaceId(request, auth);
+    const campaign = await createCampaign(request, auth, workspaceId, `e2e export ${Date.now()}`);
+
+    await page.goto(`/w/${workspaceId}/campaigns/${campaign.id}`);
+    await page.getByRole('button', { name: 'Generate content' }).click();
+    const drafts = page.getByRole('list', { name: 'Drafts' });
+    await expect(drafts).toBeVisible({ timeout: 30_000 });
+    await drafts.getByRole('link', { name: 'Variant 1' }).click();
+
+    await expect(page.getByText('No files are attached to this draft yet')).toBeVisible();
+    await expect(page.getByText(/This draft is not approved yet/)).toBeVisible();
+    await page.getByRole('button', { name: 'Export ZIP package' }).click();
+    await expect(page.getByText('Package ready')).toBeVisible({ timeout: 30_000 });
+
+    const packages = page.getByRole('list', { name: 'Packages' });
+    await expect(packages.getByRole('listitem')).toHaveCount(1);
+    const downloadPromise = page.waitForEvent('download');
+    await packages.getByRole('button', { name: 'Download' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^creatorops-\d{8}-[0-9a-f]{8}\.zip$/);
+    const path = await download.path();
+    const { readFileSync } = await import('node:fs');
+    const bytes = readFileSync(path);
+    expect(bytes.subarray(0, 2).toString('latin1')).toBe('PK');
+    // Names are stored uncompressed, so they can be read straight from the archive.
+    const text = bytes.toString('latin1');
+    for (const name of [
+      'caption.txt',
+      'hashtags.txt',
+      'publishing-checklist.md',
+      'manifest.json',
+    ]) {
+      expect(text).toContain(name);
+    }
+  });
 });
