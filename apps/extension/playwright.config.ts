@@ -45,6 +45,9 @@ export default defineConfig({
       SESSION_SECRET: 'a-long-e2e-only-secret-0123456789abcdef',
       PORT: '3000',
       LOG_LEVEL: 'warn',
+      // The suite signs in and polls many times a minute from one address; the limiter itself is
+      // tested in the API package.
+      RATE_LIMIT_MAX: '5000',
     },
   },
 });
