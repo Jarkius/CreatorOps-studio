@@ -25,7 +25,16 @@ Never put either one in the repo, a commit, a log, a doc, a job payload, the ext
 2. If it is not in the conversation, ask the owner for it. Do not search files for it unless the owner says it was pasted earlier in this same session.
 3. After the work, tell the owner to **reroll the management token**, because it now sits in the transcript.
 
-## Commands
+## Step 0b: find the inference key (do this before saying it is missing)
+
+The helper reads the key from `MAXPLUS_KEY`, from the file named in `MAXPLUS_KEY_FILE`, or from `--key-file`. Check them in this order:
+
+1. `env | grep -E '^MAXPLUS_KEY' | sed 's/=.*/=<set>/'` (names only, never values).
+2. Key files left by earlier sessions. The scratchpad folder changes after every restart, so search by name and **do not cut the output** with `head` (on 2026-11-05 a `| head` hid the file, and the owner was asked for a key that was already there): `find / -xdev -name 'maxplus*.key' -not -path '/proc/*' 2>/dev/null`.
+3. Only if both come back empty, ask the owner. The durable fix is for the owner to add `MAXPLUS_KEY` as an environment variable or secret in the cloud environment's settings, so every new session has it. Do not ask for the key to be pasted in chat when that option exists.
+
+Then run `check` with that file. `ping` costs cents: run it when the owner asked to test.
+
 
 All commands print `HTTP <status>` and a redacted summary. Exit code 1 means the helper refused or failed; read the `error:` line.
 
@@ -69,7 +78,7 @@ Rules the helper enforces: a limit above 0 on every key; no duplicate names (use
 | 401 / 403 | key wrong, rerolled or deleted | `PROVIDER_AUTH` | no | enter the key again in Settings |
 | 402 | balance empty or key limit reached | `PROVIDER_BUDGET` | no | top up, or raise the key limit with `patch` |
 | 429 | rate limit | `PROVIDER_RATE_LIMITED` | yes, after Retry-After | wait |
-| 5xx / network | gateway trouble, or pools closed by the operator | `PROVIDER_UNAVAILABLE` | yes, bounded | try `check`; MaxPlus closed all pools once (2026-11-04) |
+| 5xx / network | gateway trouble, or pools closed by the operator | `PROVIDER_UNAVAILABLE` | yes, bounded | try `check`; MaxPlus closed all pools on 2026-11-04 and again on 2026-11-05: `check` was 200 while chat answered 503 "This endpoint is currently disabled by the administrator" for every model. That is MaxPlus's side, not our code |
 
 ## Unverified (say so if asked)
 
