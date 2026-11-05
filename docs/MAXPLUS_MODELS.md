@@ -38,7 +38,9 @@ Listed on 2026-11-05 before the pool change: `claude-haiku-4-5`, `claude-haiku-4
 | Tiny ping | 14 / 2 | **0.0801 USD** |
 | Real Thai generate job (one call, full brief) | 370 / 459 | **0.0801 USD** |
 
-The charge is the same for both, so this pool bills a **flat minimum of about 0.08 USD (about 0.24 THB) per request**; the token cost (0.0002 USD at the placeholder prices) is far below it. That is much higher than the "0.0135 to 0.0403 THB" minimum in the owner's table (`MAXPLUS_PRICING.md`), so that table is out of date or describes another pool. Consequences: set `minPerRequestUsd` to 0.08 in Settings so the ledger and the monthly limit count it (with 0 the app showed 0.000221 USD for a call that cost 0.0801); prefer few large calls over many small ones (a 3-variant generate is about 0.24 USD); do not use this pool for agent-style loops.
+The charge is the same for both, so this pool bills a **flat minimum of about 0.08 USD of credit per request**; the token cost (0.0002 USD at placeholder prices) is far below it. Credit USD is cheap: 1 baht buys 3 USD of credit, so 0.08 USD of credit is about **฿0.027** per call. That matches the "0.0135 to 0.0403 baht" minimum in the owner's table (`MAXPLUS_PRICING.md`). An earlier version of this note multiplied by 3 instead of dividing and called the table out of date; that was wrong.
+
+What to enter in Settings for this pool: per-request minimum **0.08** (in the provider's own USD credit, as billed), baht per USD **0.3333**. Then a campaign's AI text cost shows in baht (see D-079). A 3-variant generate is three calls, about ฿0.08. Prefer few large calls over many small ones; do not use this pool for agent-style loops.
 
 ## Prices: what is known and what is not
 

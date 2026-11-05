@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 11;
+const MIGRATION_COUNT = 12;
 
 let testDb: TestDb;
 
@@ -29,6 +29,7 @@ describe('database schema', () => {
     expect(tables.rows.map((row) => row.table_name)).toEqual([
       'assets',
       'audit_events',
+      'campaign_costs',
       'campaigns',
       'content_drafts',
       'draft_assets',

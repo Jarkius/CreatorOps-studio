@@ -28,6 +28,7 @@ let victimCampaignId: string;
 let victimJobId: string;
 let victimDraftId: string;
 let victimExportId: string;
+let victimCostId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -98,6 +99,12 @@ beforeAll(async () => {
     [victim.workspaceId, victimDraftId, exportJob.rows[0]?.id, victim.userId],
   );
   victimExportId = exportRow.rows[0]?.id ?? '';
+  const costRow = await testDb.pool.query<{ id: string }>(
+    `insert into campaign_costs (workspace_id, campaign_id, label, amount_thb, created_by)
+     values ($1, $2, 'Victim cost', 10, $3) returning id`,
+    [victim.workspaceId, victimCampaignId, victim.userId],
+  );
+  victimCostId = costRow.rows[0]?.id ?? '';
   fixtures = {
     foreignParams: {
       workspaceId: victim.workspaceId,
@@ -107,6 +114,7 @@ beforeAll(async () => {
       jobId: victimJobId,
       draftId: victimDraftId,
       exportId: victimExportId,
+      costId: victimCostId,
     },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
@@ -136,6 +144,10 @@ beforeAll(async () => {
         provider: 'openrouter',
         model: 'vendor/model-x',
         apiKey: 'sk-or-v1-0123456789abcdef',
+      },
+      'POST /api/v1/workspaces/:workspaceId/campaigns/:campaignId/costs': {
+        label: 'Planted',
+        amountThb: 5,
       },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,

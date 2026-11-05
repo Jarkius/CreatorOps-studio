@@ -215,6 +215,14 @@ function ProviderForm({
             onChange={set('minPerRequest')}
             {...(errors.minPerRequest === undefined ? {} : { error: errors.minPerRequest })}
           />
+          <TextField
+            label="Baht per 1 USD of billed cost"
+            hint="Shows costs in Thai baht. Leave empty for 35. A MaxPlus credit: 1 baht buys 3 USD, so enter 0.3333."
+            inputMode="decimal"
+            value={values.thbPerUsd}
+            onChange={set('thbPerUsd')}
+            {...(errors.thbPerUsd === undefined ? {} : { error: errors.thbPerUsd })}
+          />
         </div>
         <TextField
           label="Monthly limit (USD)"

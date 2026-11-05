@@ -116,6 +116,21 @@ describe('CampaignPage', () => {
     expect(router.state.location.search).toBe('?job=job_1');
   });
 
+  it('updates the cost panel when the generate job finishes', async () => {
+    const user = userEvent.setup();
+    const { content } = setup();
+    const cost = within(await screen.findByRole('region', { name: 'Cost' }));
+    expect(await cost.findByText('No AI calls yet')).toBeInTheDocument();
+    await generate(user);
+    await screen.findByText('Waiting to start');
+    // The worker made one paid call: the ledger now has it.
+    content.aiCost.camp_1 = { calls: 1, costUsd: 0.08 };
+    content.advanceJob('job_1', 'succeeded');
+    await waitFor(() => expect(jobSentence()).toHaveTextContent(/^Done$/), { timeout: 4000 });
+    expect(await cost.findByText('1 call, $0.0800 billed')).toBeInTheDocument();
+    expect(cost.getByLabelText('AI text cost')).toHaveTextContent('฿2.80');
+  });
+
   it('cannot start a second job while the first one is queued or running', async () => {
     const user = userEvent.setup();
     const { briefPosts, content } = setup();

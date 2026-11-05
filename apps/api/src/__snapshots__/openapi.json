@@ -6222,6 +6222,11 @@
                           "type": "number",
                           "minimum": 0,
                           "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
                         }
                       },
                       "required": [
@@ -6328,6 +6333,11 @@
                         "type": "number",
                         "minimum": 0,
                         "maximum": 10
+                      },
+                      "thbPerUsd": {
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 1000
                       }
                     },
                     "required": [
@@ -6436,6 +6446,11 @@
                           "type": "number",
                           "minimum": 0,
                           "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
                         }
                       },
                       "required": [
@@ -6568,6 +6583,11 @@
                           "type": "number",
                           "minimum": 0,
                           "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
                         }
                       },
                       "required": [
@@ -6776,6 +6796,426 @@
                     "countedUsd",
                     "anomalies",
                     "byModel"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/cost": {
+      "get": {
+        "summary": "What a campaign cost in baht: AI text from the usage ledger plus hand-typed costs",
+        "tags": [
+          "campaigns"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "THB"
+                      ]
+                    },
+                    "thbPerUsd": {
+                      "type": "number"
+                    },
+                    "rateSource": {
+                      "type": "string",
+                      "enum": [
+                        "settings",
+                        "default"
+                      ]
+                    },
+                    "aiText": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "costUsd": {
+                          "type": "number"
+                        },
+                        "costThb": {
+                          "type": "number"
+                        },
+                        "anomalies": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "costUsd",
+                        "costThb",
+                        "anomalies"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "manual": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "scene": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "product_hero",
+                                  "detail",
+                                  "usage",
+                                  "final_shot"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "amountThb": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "scene",
+                              "label",
+                              "amountThb",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "totalThb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "totalThb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "totalThb": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "thbPerUsd",
+                    "rateSource",
+                    "aiText",
+                    "manual",
+                    "totalThb"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/costs": {
+      "post": {
+        "summary": "Add a hand-typed cost line (a scene or tool cost) in baht",
+        "tags": [
+          "campaigns"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "scene": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "product_hero",
+                      "detail",
+                      "usage",
+                      "final_shot"
+                    ]
+                  },
+                  "amountThb": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "label",
+                  "amountThb"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "campaignId": {
+                      "type": "string"
+                    },
+                    "scene": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "product_hero",
+                        "detail",
+                        "usage",
+                        "final_shot"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "amountThb": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "campaignId",
+                    "scene",
+                    "label",
+                    "amountThb",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/costs/{costId}": {
+      "delete": {
+        "summary": "Remove a hand-typed cost line; answers with the campaign cost that is left",
+        "tags": [
+          "campaigns"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "costId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "THB"
+                      ]
+                    },
+                    "thbPerUsd": {
+                      "type": "number"
+                    },
+                    "rateSource": {
+                      "type": "string",
+                      "enum": [
+                        "settings",
+                        "default"
+                      ]
+                    },
+                    "aiText": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "costUsd": {
+                          "type": "number"
+                        },
+                        "costThb": {
+                          "type": "number"
+                        },
+                        "anomalies": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "costUsd",
+                        "costThb",
+                        "anomalies"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "manual": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "scene": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "product_hero",
+                                  "detail",
+                                  "usage",
+                                  "final_shot"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "amountThb": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "scene",
+                              "label",
+                              "amountThb",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "totalThb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "totalThb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "totalThb": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "thbPerUsd",
+                    "rateSource",
+                    "aiText",
+                    "manual",
+                    "totalThb"
                   ],
                   "additionalProperties": false
                 }

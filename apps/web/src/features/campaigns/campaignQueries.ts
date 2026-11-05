@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { CreateCampaignRequest } from '@creatorops/contracts';
+import type { CreateCampaignRequest, CreateManualCostRequest } from '@creatorops/contracts';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 
@@ -58,5 +58,39 @@ export function useCreateCampaign(workspaceId: string) {
       queryClient.setQueryData(campaignKeys.detail(workspaceId, campaign.id), campaign);
       void queryClient.invalidateQueries({ queryKey: campaignKeys.lists(workspaceId) });
     },
+  });
+}
+
+export const costKeys = {
+  detail: (workspaceId: string, campaignId: string) =>
+    ['campaigns', workspaceId, 'cost', campaignId] as const,
+};
+
+/** What the campaign cost in baht. The server computes it, so it is refetched after a job ends. */
+export function useCampaignCost(workspaceId: string, campaignId: string) {
+  const { client } = useDashboard();
+  return useQuery({
+    queryKey: costKeys.detail(workspaceId, campaignId),
+    queryFn: () => client.campaigns.cost(workspaceId, campaignId),
+  });
+}
+
+export function useAddCampaignCost(workspaceId: string, campaignId: string) {
+  const { client } = useDashboard();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateManualCostRequest) =>
+      client.campaigns.addCost(workspaceId, campaignId, body),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: costKeys.detail(workspaceId, campaignId) }),
+  });
+}
+
+export function useRemoveCampaignCost(workspaceId: string, campaignId: string) {
+  const { client } = useDashboard();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (costId: string) => client.campaigns.removeCost(workspaceId, campaignId, costId),
+    onSuccess: (cost) => queryClient.setQueryData(costKeys.detail(workspaceId, campaignId), cost),
   });
 }

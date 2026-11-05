@@ -739,3 +739,40 @@ export const usageEvents = pgTable(
     index('usage_events_workspace_month_idx').on(t.workspaceId, t.createdAt),
   ],
 );
+
+/**
+ * A cost the owner typed in by hand for a campaign (a paid image tool, a freelancer), in Thai baht.
+ * AI text cost is never stored here: it comes from `usage_events`. The composite foreign key keeps
+ * a line inside its campaign's workspace; a deleted line is gone (nothing else refers to it).
+ */
+export const campaignCosts = pgTable(
+  'campaign_costs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    campaignId: uuid('campaign_id').notNull(),
+    scene: text('scene'),
+    label: text('label').notNull(),
+    amountThb: numeric('amount_thb', { precision: 12, scale: 2 }).notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    foreignKey({
+      name: 'campaign_costs_campaign_fk',
+      columns: [t.workspaceId, t.campaignId],
+      foreignColumns: [campaigns.workspaceId, campaigns.id],
+    }).onDelete('cascade'),
+    check(
+      'campaign_costs_scene_check',
+      sql`${t.scene} is null or ${t.scene} in ('product_hero', 'detail', 'usage', 'final_shot')`,
+    ),
+    check('campaign_costs_label_length', sql`char_length(${t.label}) between 1 and 80`),
+    check('campaign_costs_amount_range', sql`${t.amountThb} > 0 and ${t.amountThb} <= 1000000`),
+    index('campaign_costs_campaign_idx').on(t.workspaceId, t.campaignId, t.createdAt),
+  ],
+);

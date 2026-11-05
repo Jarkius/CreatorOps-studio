@@ -301,3 +301,11 @@ Phase 5, slice S5.1 (contracts for draft assets, export and asset filters), afte
 - **S4.7** library only: 20 Thai evaluation briefs, automated checks (language, scenes, hashtags, restricted claims, planted-instruction canary, invented price) and a score sheet for native reviewers. The runnable script is not built yet.
 - Counts: contracts 83, provider-core 133, config 12, ui 43, extension 166, web 296, api 544. Mutation checks on every slice (survivors fixed with tests). e2e not re-run for this slice.
 - **Not done / unverified:** the first real call (S4.0) needs the owner's key; OpenRouter's `usage: {include: true}` request field and its reported `usage.cost` are unverified; no automatic stop when a reported cost runs far over the entered prices (flag and display only); a retried generate job re-pays variants already generated; the evaluation script and its docs.
+
+## Per-campaign cost in baht (2026-11-05, D-079)
+- Built by the orchestrator: contract `campaign-cost.ts`, `thbPerUsd` in provider pricing, migration 0011 `campaign_costs`, module `campaign-costs` (cost summary, add and remove lines), client methods, dashboard Cost section on the campaign page, baht rate field in Settings, OpenAPI snapshot (only additions).
+- Tests added: api 11 integration (empty, per-campaign scoping, settled only, rate conversion, default rate, manual total without float drift, audit without the label, validation, 50-line cap, viewer 403, editor allowed, 401, stranger 404 on all three routes, line of another campaign, malformed id); web 10 (cost format and parsing, panel states, add and remove, field errors, viewer view, refresh when the job ends, rate field).
+- Mutation checks: api 9 of 9 killed; web 7 of 7 killed (the refetch-after-job survivor got its own test).
+- Live run on the real MaxPlus (pool Chinese Specials, `qwen3.8-flash`): one generate job billed 0.08 USD of credit and the campaign showed ฿0.03 at 0.3333 baht per USD; a typed-in ฿12.50 line raised the total to ฿12.53 and removing it brought it back; no key in the logs.
+- Not done: side panel cost line, per-scene AI breakdown, workspace cost report, an automatic stop when cost runs away (D-077), e2e not re-run.
+

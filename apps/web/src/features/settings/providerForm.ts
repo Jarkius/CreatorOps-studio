@@ -16,6 +16,7 @@ export interface ProviderFormValues {
   outputPrice: string;
   multiplier: string;
   minPerRequest: string;
+  thbPerUsd: string;
   monthlyCap: string;
 }
 
@@ -30,6 +31,7 @@ export const EMPTY_FORM: ProviderFormValues = {
   outputPrice: '',
   multiplier: '',
   minPerRequest: '',
+  thbPerUsd: '',
   monthlyCap: '',
 };
 
@@ -47,6 +49,7 @@ export function formFromSettings(settings: ProviderSettings | undefined): Provid
     outputPrice: text(settings.pricing?.outputPerMillionUsd),
     multiplier: settings.pricing === null ? '' : text(settings.pricing?.multiplier),
     minPerRequest: settings.pricing === null ? '' : text(settings.pricing?.minPerRequestUsd),
+    thbPerUsd: text(settings.pricing?.thbPerUsd),
     monthlyCap: text(settings.monthlyCapUsd),
   };
 }
@@ -109,6 +112,15 @@ export function buildProviderRequest(
     errors.minPerRequest = 'Use a number from 0 to 10.';
   }
 
+  const rate = values.thbPerUsd.trim() === '' ? undefined : number(values.thbPerUsd);
+  if (
+    anyPrice &&
+    rate !== undefined &&
+    (rate === null || Number.isNaN(rate) || rate < 0.01 || rate > 1000)
+  ) {
+    errors.thbPerUsd = 'Use a number from 0.01 to 1000, for example 35 or 0.3333.';
+  }
+
   const cap = values.monthlyCap.trim() === '' ? null : number(values.monthlyCap);
   if (cap !== null && (Number.isNaN(cap) || cap > PROVIDER_LIMITS.maxMonthlyCapUsd)) {
     errors.monthlyCap = 'Enter an amount in US dollars, for example 20.';
@@ -132,6 +144,7 @@ export function buildProviderRequest(
           outputPerMillionUsd: output ?? 0,
           multiplier: multiplier ?? 1,
           minPerRequestUsd: minimum ?? 0,
+          ...(rate === undefined || rate === null ? {} : { thbPerUsd: rate }),
         }
       : null,
     monthlyCapUsd: cap,

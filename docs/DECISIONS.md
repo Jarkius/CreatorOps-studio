@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-079 | Per-campaign cost in Thai baht: AI text from the ledger plus hand-typed scene costs | ACCEPTED (orchestrator) |
 | D-078 | Affiliate incubator framework as studio templates (after Phase 4) | PROPOSED |
 | D-077 | Advisor plan for Phase 4 and the reseller gateway (MaxPlus) pricing | PROPOSED |
 | D-076 | S5 leftovers: name search, draft file picker, panel export button | ACCEPTED (orchestrator) |
@@ -600,6 +601,15 @@ The real provider refuses to start without configured prices (no guessed default
 4. **Phase 5 (scale)** needs performance numbers. Platform analytics are not available (D-060 gate), so the owner enters clicks, orders and GMV by hand per draft; the winner then feeds a "clone" job that keeps the structure and changes about 20%.
 **Cautions:** (a) the framework says to mutate 20% "without triggering duplicate-content suppression"; build it as "five variations of a winner" and do not word or design it as evading a platform's spam detection (CLAUDE.md compliance boundaries); (b) keep the claim guard on every angle, especially urgency and comparison scripts ("limited stock", "better than X" need owner-confirmed facts); (c) volume of near-identical clips can itself be treated as spam by platforms, so show the owner the platform's rules and cap batch size; (d) commission and conversion advice is heuristic, label scores as the owner's judgment aid, not predictions.
 **Order:** Phase 4 text first (a real model is needed for 1, 2 and 5), then the batch-plan generator (3), then angles (2), analysis (1), and the manual results and clone step (5) last.
+
+## D-079 — Per-campaign cost in Thai baht (2026-11-05)
+**Status:** ACCEPTED (owner asked: show AI text cost only, with manual scene cost entry, in baht).
+1. **What is shown:** AI text cost (settled calls of the jobs that belong to the campaign: generate, regenerate, export) plus hand-typed lines, in baht. Scene images made through Meta AI cost nothing through the API, so the owner types in what they paid. Unsettled reservations are not costs and are not counted.
+2. **Conversion:** the ledger stores billed USD. `thbPerUsd` is an optional field inside the saved provider pricing (no migration; JSON). Empty means the default 35. For a MaxPlus credit (1 baht buys 3 USD) enter 0.3333. The amount converts at today's saved rate, not the rate when the call was made; a rate change moves old campaigns. Each part is rounded to satang once.
+3. **Storage:** new table `campaign_costs` (migration 0011): workspace, campaign, optional scene, label (80), amount in baht (0.01 to 1,000,000, two decimals), at most 50 lines per campaign. Deleting a campaign cascades.
+4. **API:** `GET .../campaigns/:id/cost` (any member), `POST .../campaigns/:id/costs` and `DELETE .../costs/:costId` (owner, admin, editor). DELETE answers with the new cost summary. Audit events `campaign.cost.added` and `.removed` hold the amount, scene and id, never the label.
+5. **UI:** a Cost section on the campaign page in the dashboard, and a baht rate field in Settings. Not built: the side panel, a per-draft or per-scene breakdown of AI cost, and a workspace-wide cost report.
+6. **Correction:** the note in `MAXPLUS_MODELS.md` that the pool minimum (0.08 USD of credit, about ฿0.027) contradicted the owner's table was wrong; credit USD is divided by 3 to get baht, and the numbers agree.
 
 ## Open questions
 

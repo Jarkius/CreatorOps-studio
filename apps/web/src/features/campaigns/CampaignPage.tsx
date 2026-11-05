@@ -13,7 +13,8 @@ import { NotFoundNotice } from '../products/ProductStates.js';
 import { JobPanel } from '../jobs/JobPanel.js';
 import { useGenerateBrief, useJobReader } from '../jobs/jobQueries.js';
 import { Button, EmptyState, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
-import { useCampaign } from './campaignQueries.js';
+import { CampaignCostPanel } from './CampaignCostPanel.js';
+import { costKeys, useCampaign } from './campaignQueries.js';
 import { campaignsPath } from './paths.js';
 import { useCanWrite } from './useCanWrite.js';
 
@@ -48,6 +49,7 @@ export function CampaignPage() {
 
   const handleFinished = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: draftKeys.list(workspaceId, campaignId) });
+    void queryClient.invalidateQueries({ queryKey: costKeys.detail(workspaceId, campaignId) });
   }, [queryClient, workspaceId, campaignId]);
 
   const startGeneration = async () => {
@@ -241,6 +243,13 @@ export function CampaignPage() {
             onRetry={() => void startGeneration()}
           />
         )}
+      </section>
+
+      <section aria-labelledby="cost-heading" className="space-y-3">
+        <h2 id="cost-heading" className="text-base font-semibold">
+          Cost
+        </h2>
+        <CampaignCostPanel workspaceId={workspaceId} campaignId={campaignId} canWrite={canWrite} />
       </section>
 
       <section aria-labelledby="drafts-heading" className="space-y-3">

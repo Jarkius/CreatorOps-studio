@@ -46,6 +46,8 @@ export const ProviderPricingSchema = z
     multiplier: z.number().min(0.1).max(PROVIDER_LIMITS.maxMultiplier).default(1),
     /** A fee per request below which a call is never billed. */
     minPerRequestUsd: z.number().min(0).max(PROVIDER_LIMITS.maxMinPerRequestUsd).default(0),
+    /** Baht per 1 USD of billed cost, for the cost shown in baht (MaxPlus credit: 1 baht buys 3 USD, so 0.3333). */
+    thbPerUsd: z.number().min(0.01).max(1000).optional(),
   })
   .strict();
 export type ProviderPricing = z.infer<typeof ProviderPricingSchema>;

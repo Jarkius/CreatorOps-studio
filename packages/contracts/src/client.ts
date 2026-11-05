@@ -21,6 +21,13 @@ import {
   type ProviderSettings,
   type PutProviderSettingsRequest,
 } from './provider.js';
+import {
+  CampaignCostSchema,
+  ManualCostSchema,
+  type CampaignCost,
+  type CreateManualCostRequest,
+  type ManualCost,
+} from './campaign-cost.js';
 import { UsageSummarySchema, type UsageSummary } from './usage.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
 import {
@@ -166,6 +173,15 @@ export interface ApiClient {
     get(workspaceId: string, campaignId: string): Promise<Campaign>;
     /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
     update(workspaceId: string, campaignId: string, body: UpdateCampaignRequest): Promise<Campaign>;
+    /** What the campaign cost in baht: AI text from the ledger plus hand-typed lines. */
+    cost(workspaceId: string, campaignId: string): Promise<CampaignCost>;
+    addCost(
+      workspaceId: string,
+      campaignId: string,
+      body: CreateManualCostRequest,
+    ): Promise<ManualCost>;
+    /** Answers with the campaign cost that is left. */
+    removeCost(workspaceId: string, campaignId: string, costId: string): Promise<CampaignCost>;
   };
   drafts: {
     list(workspaceId: string, query?: DraftListQuery): Promise<DraftListResponse>;
@@ -439,6 +455,21 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         get(`${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema),
       update: (workspaceId, campaignId, body) =>
         send('PATCH', `${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema, body),
+      cost: (workspaceId, campaignId) =>
+        get(`${base(workspaceId)}/campaigns/${id(campaignId)}/cost`, CampaignCostSchema),
+      addCost: (workspaceId, campaignId, body) =>
+        send(
+          'POST',
+          `${base(workspaceId)}/campaigns/${id(campaignId)}/costs`,
+          ManualCostSchema,
+          body,
+        ),
+      removeCost: (workspaceId, campaignId, costId) =>
+        send(
+          'DELETE',
+          `${base(workspaceId)}/campaigns/${id(campaignId)}/costs/${id(costId)}`,
+          CampaignCostSchema,
+        ),
     },
     drafts: {
       list: (workspaceId, query) =>
