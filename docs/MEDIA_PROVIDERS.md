@@ -8,6 +8,7 @@ Companion to D-080. Read from Google's own pages by a fetch agent on 2026-11-05;
 |---|---|---|
 | No public API found in the Flow Help Center pages read | support.google.com/flow (credits, availability, models) | absence only; not proof none exists |
 | Terms text not readable: `flow.google.com/terms` returned a sign-in shell | fetch | the automation clauses are **unread** |
+| `https://labs.google/fx/tools/flow` redirects (308) to `https://flow.google.com/`; signed out it shows a Sign in link and no prompt box | checked with a headless browser on 2026-11-05 | observed |
 | Prohibited Use Policy bans "interference with Google's services" and "circumvention of abuse protections or safety filters" (applies to products that refer to it; not shown for Flow) | policies.google.com/terms/generative-ai/use-policy | the helper does neither |
 | Non-subscribers: 50 credits a day; extras per month: AI Plus 200, Pro 1,000, Ultra $100 10,000, Ultra $200 25,000 | support.google.com/flow/answer/16526234 | read |
 | Veo 3.1 Fast 20 credits (10 for Ultra), Veo 3.1 Quality 100, Gemini Omni Flash 7 to 15 credits (4 to 10 s, 720p) | same | read |

@@ -4,7 +4,7 @@
  * The permission set is deliberately tiny and fixed: `sidePanel`, `storage` and `scripting`, plus
  * host access to the configured API origin only. `scripting` (D-072) is only usable on hosts the
  * extension may access, and the only other hosts are the optional `https://www.meta.ai/*` (D-071)
- * and the two Google Flow addresses (D-080), which the user grants with a Chrome prompt when turning
+ * and the Google Flow host (D-080), which the user grants with a Chrome prompt when turning
  * that helper on. Adding anything
  * else (activeTab, tabs, <all_urls>, content scripts) needs its own decision entry; a test fails
  * if it appears.
@@ -14,11 +14,8 @@ export const EXTENSION_PERMISSIONS = ['sidePanel', 'storage', 'scripting'] as co
 /** A site the extension may touch, and only after the user allows it (D-071). */
 export const META_AI_HOST_PATTERN = 'https://www.meta.ai/*';
 
-/** Google Flow, narrowed to its tool path and its own host (D-080). Optional, never at install. */
-export const FLOW_HOST_PATTERNS = [
-  'https://labs.google/fx/tools/flow*',
-  'https://flow.google.com/*',
-] as const;
+/** Google Flow lives on its own host (the old labs.google address redirects there; D-080). Optional, never at install. */
+export const FLOW_HOST_PATTERNS = ['https://flow.google.com/*'] as const;
 
 /** Every optional host, in one place; a test fails if anything else appears. */
 export const OPTIONAL_HOST_PATTERNS = [META_AI_HOST_PATTERN, ...FLOW_HOST_PATTERNS] as const;

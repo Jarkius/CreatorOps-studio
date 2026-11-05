@@ -67,9 +67,9 @@ export const META_AI_SITE: HelperSite = {
  * is a small edit to this block. Flow's own controls (model, aspect ratio, how many clips) are
  * whatever the owner left selected in the tab: the helper does not touch them.
  */
-// The first pattern has no slash before the star on purpose: the tool lives at `/fx/tools/flow`, and a
-// Chrome match pattern is exact about paths, so `/fx/tools/flow/*` would not match that address.
-export const FLOW_ORIGINS = ['https://labs.google/fx/tools/flow*', 'https://flow.google.com/*'];
+// Checked on 2026-11-05 over the real network: `https://labs.google/fx/tools/flow` answers 308 to
+// `https://flow.google.com/`, so the tab always ends on that one host and it is the only one asked for.
+export const FLOW_ORIGINS = ['https://flow.google.com/*'];
 
 export const FLOW_SELECTORS: SelectorSet = {
   promptBox: [
@@ -117,7 +117,7 @@ export const FLOW_SITE: HelperSite = {
   filePrefix: 'flow',
   origins: FLOW_ORIGINS,
   tabPatterns: FLOW_ORIGINS,
-  startUrl: 'https://labs.google/fx/tools/flow',
+  startUrl: 'https://flow.google.com/',
   selectors: FLOW_SELECTORS,
   // A clip takes minutes; images are not offered, but the bound stays for completeness.
   timeoutMs: { image: 3 * 60_000, video: 10 * 60_000 },

@@ -182,7 +182,7 @@ describe('runMetaAiScene on Google Flow (D-080)', () => {
   it("opens Flow's own address when no tab is open, and Meta AI's for the default site", async () => {
     const flow = setup({ site: FLOW_SITE, kind: 'video', tab: null, type: 'video/mp4' });
     await flow.run();
-    expect(flow.calls.openedUrl).toBe('https://labs.google/fx/tools/flow');
+    expect(flow.calls.openedUrl).toBe('https://flow.google.com/');
     const meta = setup({ tab: null });
     await meta.run();
     expect(meta.calls.openedUrl).toBe('https://www.meta.ai/');

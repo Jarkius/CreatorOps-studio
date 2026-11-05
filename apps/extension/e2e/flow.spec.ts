@@ -18,7 +18,7 @@ document.querySelector('button').addEventListener('click', function () {
   if (!document.querySelector('textarea').value) return;
   setTimeout(function () {
     var video = document.createElement('video');
-    video.src = 'https://labs.google/fx/tools/flow/generated/' + (++window.__n) + '.mp4';
+    video.src = 'https://flow.google.com/generated/' + (++window.__n) + '.mp4';
     document.getElementById('out').appendChild(video);
   }, 600);
 });
@@ -29,7 +29,7 @@ const FLOW_LIMIT = `<!doctype html><html><head><title>Flow</title></head><body>
 
 /** Serves a fake Google Flow: no network, no real site. */
 async function fakeFlow(context: BrowserContext, html: string) {
-  await context.route(/^https:\/\/labs\.google\/fx\/tools\/flow/, async (route) => {
+  await context.route('https://flow.google.com/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('.mp4')) {
       await route.fulfill({ status: 200, contentType: 'video/mp4', body: MP4_BYTES });
@@ -75,7 +75,7 @@ test('Make video in Flow types the prompt into the owner tab and saves the clip 
   ).toBeVisible({ timeout: 30_000 });
   await expect(panel.getByText(/Video: flow-usage-\d{8}T\d{6}\.mp4/)).toBeVisible();
 
-  const site = context.pages().find((page) => page.url().startsWith('https://labs.google/'));
+  const site = context.pages().find((page) => page.url().startsWith('https://flow.google.com/'));
   expect(site).toBeDefined();
   await expect(site?.locator('textarea')).toHaveValue('my own usage prompt');
 
@@ -113,6 +113,6 @@ test('Flow stops with a plain message when it is out of credits, and types nothi
     timeout: 30_000,
   });
   await expect(panel.getByRole('button', { name: 'Copy diagnostics' })).toBeVisible();
-  const site = context.pages().find((page) => page.url().startsWith('https://labs.google/'));
+  const site = context.pages().find((page) => page.url().startsWith('https://flow.google.com/'));
   await expect(site?.locator('textarea')).toHaveValue('');
 });

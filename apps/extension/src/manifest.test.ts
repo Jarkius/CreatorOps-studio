@@ -30,11 +30,10 @@ describe('buildManifest', () => {
     const manifest = buildManifest(base);
     expect([...manifest.optional_host_permissions]).toEqual([
       'https://www.meta.ai/*',
-      'https://labs.google/fx/tools/flow*',
       'https://flow.google.com/*',
     ]);
     const hosts = manifest.host_permissions.join(' ');
-    for (const site of ['meta.ai', 'labs.google', 'flow.google']) expect(hosts).not.toContain(site);
+    for (const site of ['meta.ai', 'flow.google']) expect(hosts).not.toContain(site);
   });
 
   it('grants the helper hosts at install only for an end-to-end test build', () => {
@@ -42,7 +41,6 @@ describe('buildManifest', () => {
     expect([...manifest.host_permissions]).toEqual([
       'http://localhost:3000/*',
       'https://www.meta.ai/*',
-      'https://labs.google/fx/tools/flow*',
       'https://flow.google.com/*',
     ]);
   });
