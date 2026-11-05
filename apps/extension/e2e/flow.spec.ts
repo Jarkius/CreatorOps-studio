@@ -39,6 +39,18 @@ async function fakeFlow(context: BrowserContext, html: string) {
   });
 }
 
+/**
+ * The owner's own Flow tab, already open. The helper finds it by address. (A tab the helper opens
+ * itself is covered by the runner unit tests: a tab created by the extension can start loading
+ * before the test browser's request routing is attached to it.)
+ */
+async function ownerFlowTab(context: BrowserContext): Promise<Page> {
+  const tab = await context.newPage();
+  await tab.goto('https://flow.google.com/');
+  await expect(tab.locator('textarea')).toBeVisible();
+  return tab;
+}
+
 async function openScenes(page: Page, extensionId: string, name: string) {
   await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   const region = page.getByRole('region', { name: 'Campaigns' });
@@ -64,6 +76,7 @@ test('Make video in Flow types the prompt into the owner tab and saves the clip 
   const name = `E2E Flow ${Date.now()}`;
   const seeded = await finishedCampaign(request, name);
   await fakeFlow(context, FAKE_FLOW);
+  await ownerFlowTab(context);
 
   const panel = await context.newPage();
   await openScenes(panel, extensionId, name);
@@ -102,6 +115,7 @@ test('Flow stops with a plain message when it is out of credits, and types nothi
   const name = `E2E Flow limit ${Date.now()}`;
   await finishedCampaign(request, name);
   await fakeFlow(context, FLOW_LIMIT);
+  await ownerFlowTab(context);
 
   const panel = await context.newPage();
   await openScenes(panel, extensionId, name);
