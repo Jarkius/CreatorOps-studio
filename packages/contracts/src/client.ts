@@ -14,6 +14,14 @@ import {
   type UploadIntent,
 } from './asset.js';
 import { MeResponseSchema, MockTokenResponseSchema } from './auth.js';
+import {
+  ProviderCheckResponseSchema,
+  ProviderSettingsSchema,
+  type ProviderCheckResponse,
+  type ProviderSettings,
+  type PutProviderSettingsRequest,
+} from './provider.js';
+import { UsageSummarySchema, type UsageSummary } from './usage.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
 import {
   CampaignListResponseSchema,
@@ -203,6 +211,19 @@ export interface ApiClient {
       body: CreateExportRequest,
       idempotencyKey: string,
     ): Promise<Job>;
+  };
+  providerSettings: {
+    /** The key is never returned, only its last four characters. */
+    get(workspaceId: string): Promise<ProviderSettings>;
+    /** Owner or admin. Send `version` when changing saved settings; leave `apiKey` out to keep the key. */
+    save(workspaceId: string, body: PutProviderSettingsRequest): Promise<ProviderSettings>;
+    remove(workspaceId: string): Promise<ProviderSettings>;
+    /** One free read-only call to the provider; never generates anything. */
+    check(workspaceId: string): Promise<ProviderCheckResponse>;
+  };
+  usage: {
+    /** Real-provider calls and cost for the current calendar month (UTC). */
+    get(workspaceId: string): Promise<UsageSummary>;
   };
   exports: {
     list(workspaceId: string, query?: ExportListQuery): Promise<ExportListResponse>;
@@ -461,6 +482,18 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${base(workspaceId)}/jobs/export-package`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
+    },
+    providerSettings: {
+      get: (workspaceId) => get(`${base(workspaceId)}/provider-settings`, ProviderSettingsSchema),
+      save: (workspaceId, body) =>
+        send('PUT', `${base(workspaceId)}/provider-settings`, ProviderSettingsSchema, body),
+      remove: (workspaceId) =>
+        send('DELETE', `${base(workspaceId)}/provider-settings`, ProviderSettingsSchema),
+      check: (workspaceId) =>
+        send('POST', `${base(workspaceId)}/provider-settings/check`, ProviderCheckResponseSchema),
+    },
+    usage: {
+      get: (workspaceId) => get(`${base(workspaceId)}/usage`, UsageSummarySchema),
     },
     exports: {
       list: (workspaceId, query) =>

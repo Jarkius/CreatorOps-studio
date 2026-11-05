@@ -451,6 +451,58 @@ describe('content: campaigns, drafts, jobs', () => {
     expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
   });
 
+  it('calls the provider settings and usage routes, and sends the key only in the save body', async () => {
+    const settings = {
+      configured: true,
+      source: 'workspace',
+      provider: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'm',
+      keyLast4: 'ABCD',
+      pricing: null,
+      monthlyCapUsd: null,
+      canStoreKey: true,
+      version: 1,
+      updatedAt: '2026-11-05T00:00:00.000Z',
+    };
+    const { calls, client } = make((url) =>
+      url.endsWith('/check')
+        ? json({ ok: true, code: null, message: 'Connected.' })
+        : url.endsWith('/usage')
+          ? json({
+              month: '2026-11',
+              calls: 0,
+              inputUnits: 0,
+              outputUnits: 0,
+              spentUsd: 0,
+              reservedUsd: 0,
+              capUsd: null,
+              countedUsd: 0,
+              anomalies: 0,
+              byModel: [],
+            })
+          : json(settings),
+    );
+    expect((await client.providerSettings.get('w1')).keyLast4).toBe('ABCD');
+    await client.providerSettings.save('w1', {
+      provider: 'openrouter',
+      model: 'm',
+      apiKey: 'sk-test-12345678',
+    });
+    await client.providerSettings.remove('w1');
+    expect((await client.providerSettings.check('w1')).ok).toBe(true);
+    expect((await client.usage.get('w1')).month).toBe('2026-11');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['PUT', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['DELETE', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['POST', 'http://x/api/v1/workspaces/w1/provider-settings/check'],
+      ['GET', 'http://x/api/v1/workspaces/w1/usage'],
+    ]);
+    expect(calls[1]?.body).toContain('sk-test-12345678');
+    expect(calls.filter((call) => call.body?.includes('sk-test')).length).toBe(1);
+  });
+
   it('accepts both 200 (replay) and 202 (new) job responses', async () => {
     for (const status of [200, 202]) {
       const { client } = make(() => json(JOB, status));

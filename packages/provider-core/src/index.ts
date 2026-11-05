@@ -2,6 +2,7 @@ export const PACKAGE_NAME = '@creatorops/provider-core';
 
 export * from './claim-guard.js';
 export * from './errors.js';
+export * from './evaluation.js';
 export * from './mock.js';
 export * from './openai-compatible.js';
 export * from './sections.js';

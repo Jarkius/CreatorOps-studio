@@ -105,6 +105,10 @@ From the owner-test review; the Meta AI items are inference (no real meta.ai her
 8. Check in Chrome: `chrome.permissions.request` must run in the click handler before any `await`; closing the panel aborts a run; `window.open` after an async call may lose its user gesture.
 9. Phase 4 plan and the reseller-gateway pricing advice: see D-077.
 
+## Phase 4 state (2026-11-05)
+
+S4.1 to S4.6 are built on a mock transport (D-077; details in IMPLEMENTATION_STATUS). To try it: set `SECRETS_ENCRYPTION_KEY` (`openssl rand -base64 32`) for the API and the worker, open Settings in the dashboard, save OpenRouter with a capped key and the prices, press Check connection, then generate. Send back the job error code and the Usage numbers if anything looks wrong. Next: S4.7 evaluation script (`pnpm eval:text`), S4.0 first real call with the owner's key, then the affiliate templates (D-078).
+
 ## Open questions that need the owner
 
 Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai evaluation reviewers (before Phase 4); Q-003/Q-004/Q-007 hosting, auth provider and storage vendor (before any hosted deployment); Q-006 extension distribution (before a beta). Defaults are listed in `docs/DECISIONS.md`.

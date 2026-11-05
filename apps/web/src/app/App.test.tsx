@@ -130,12 +130,14 @@ describe('Overview page', () => {
       'Products',
       'Campaigns',
       'Asset library',
+      'Settings',
     ]);
     expect(links[1]).toHaveAttribute('href', '/w/ws_1/products');
     expect(links[2]).toHaveAttribute('href', '/w/ws_1/campaigns');
     expect(links[3]).toHaveAttribute('href', '/w/ws_1/assets');
+    expect(links[4]).toHaveAttribute('href', '/w/ws_1/settings');
 
-    for (const label of ['Content drafts', 'Calendar', 'Publishing', 'Usage', 'Settings']) {
+    for (const label of ['Content drafts', 'Calendar', 'Publishing']) {
       const item = within(nav).getByText(label).closest('[aria-disabled="true"]');
       expect(item).not.toBeNull();
       expect(item).toHaveTextContent('Soon');

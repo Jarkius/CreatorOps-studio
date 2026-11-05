@@ -12,6 +12,7 @@ import { ProductsPage } from '../features/products/ProductsPage.js';
 import { NewWorkspacePage } from '../features/workspaces/NewWorkspacePage.js';
 import { WorkspaceRequired } from '../features/workspaces/WorkspaceRequired.js';
 import { Layout } from './Layout.js';
+import { SettingsPage } from '../features/settings/SettingsPage.js';
 import { NotFoundPage } from './NotFoundPage.js';
 import { SessionGate } from './SessionGate.js';
 
@@ -27,6 +28,16 @@ export const routes: RouteObject[] = [
           <SessionGate>
             <WorkspaceRequired>
               <AssetLibraryPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/settings',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <SettingsPage />
             </WorkspaceRequired>
           </SessionGate>
         ),
