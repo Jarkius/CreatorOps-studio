@@ -7,7 +7,7 @@ import { crc32 } from 'node:zlib';
  * - Entry names are server-generated ASCII; the builder refuses anything else, so a name can never
  *   carry a path traversal, a drive letter or a Thai byte that readers decode differently.
  * - UTF-8 text goes inside the files, not into the names.
- * - No ZIP64: the whole archive must stay under 4 GiB (the export cap is 500 MB).
+ * - No ZIP64: the whole archive must stay under 4 GiB (the export cap is 100 MB).
  * - The archive is produced as a sequence of chunks, so only one file is in memory at a time.
  */
 

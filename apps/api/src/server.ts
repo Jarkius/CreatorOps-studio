@@ -21,6 +21,7 @@ if (!prepared.ok) {
   const { config, logger, pool } = prepared;
   const db = createDb(pool);
   const storage = new LocalFsStorage(config.DATA_DIR);
+  logger.info({ event: 'storage.dir', dataDir: config.DATA_DIR }, 'media directory');
   // With Redis, new jobs are handed to the worker at once. Without it they wait in the database.
   const bullQueue = config.REDIS_URL === undefined ? null : new BullMqJobQueue(config.REDIS_URL);
   if (bullQueue === null) {

@@ -1,5 +1,18 @@
 import { parseEnv, type EnvSource } from '@creatorops/config';
 import { z } from 'zod';
+import { existsSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
+
+/** Repo root: the nearest parent holding pnpm-workspace.yaml (falls back to the working directory). */
+function repoRoot(start: string): string {
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(resolve(dir, 'pnpm-workspace.yaml'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(start);
+    dir = parent;
+  }
+}
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
 
@@ -38,9 +51,13 @@ export const apiEnvSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     // Loopback by default; set HOST=0.0.0.0 deliberately when running in a container.
     HOST: z.string().min(1).default('127.0.0.1'),
-    // Where uploaded files are stored (local filesystem adapter). Relative paths resolve against the
-    // working directory of the API process.
-    DATA_DIR: z.string().min(1).default('.data/media'),
+    // Where uploaded files are stored (local filesystem adapter). A relative path resolves against
+    // the repo root, so the API and the worker agree whatever folder each one starts from.
+    DATA_DIR: z
+      .string()
+      .min(1)
+      .default('.data/media')
+      .transform((value) => (isAbsolute(value) ? value : resolve(repoRoot(process.cwd()), value))),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
     // Reverse-proxy hops to trust for the client address (X-Forwarded-For). 0 trusts none, so a
     // client cannot spoof its address. Set it to the number of proxies in front of the API.

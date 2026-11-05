@@ -9,7 +9,7 @@ export const EXPORT_LIMITS = {
   /** Media files in one package. */
   maxMediaFiles: 10,
   /** Total media bytes in one package. */
-  maxPackageBytes: 500 * 1024 * 1024,
+  maxPackageBytes: 100 * 1024 * 1024,
   /** Ready exports a workspace may hold at once. */
   maxLivePerWorkspace: 20,
   /** Days a package stays downloadable. */

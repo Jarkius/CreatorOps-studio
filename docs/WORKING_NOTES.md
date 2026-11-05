@@ -100,10 +100,10 @@ From the owner-test review; the Meta AI items are inference (no real meta.ai her
 1. High: `metaai/page.ts` `stashMedia` fetches with `credentials:'include'`; a CDN answering `Access-Control-Allow-Origin: *` rejects that. Try `omit` first, then `include`, or read the bytes from the `<img>`.
 2. High: prompts go as plain chat text; meta.ai may answer in text. Prefix "Imagine ", re-probe for a login modal after sending, and make the timeout message say what was seen. A logged-out page can still show a prompt box (`probePage` returns ready).
 3. Medium: image pick takes `fresh[0]` of any image 256 px or wider; prefer the largest new image that is `complete` and stable.
-4. Medium: `DATA_DIR` defaults to a relative path; API and worker started from different folders disagree. Resolve against the repo root or refuse a relative path; log the absolute path in both.
-5. Medium: the worker's 30 s timeout covers every job type, including export and multi-variant real text. Use per-call and per-job-type timeouts (needed before Phase 4).
-6. Medium: the export zip holds all media in memory (500 MB cap, worker concurrency 2). Lower the cap to about 100 MB until streaming.
-7. Misleading: attaching files does not bump the draft version, so Results can show an old package as the latest; the idempotency hash is draft id and version only. Hash the attached asset ids and sha256 too and show "out of date".
+4. ~~Medium: `DATA_DIR` relative path~~ Fixed 2026-11-05: a relative `DATA_DIR` resolves against the repo root (config test) and both processes log the absolute path (`storage.dir`).
+5. Checked 2026-11-05: the provider call already has its own 90 s timeout (`providerTimeoutMs` in `process.ts`); per-job-type timeouts for export are still open.
+6. ~~Export cap~~ Fixed 2026-11-05: `EXPORT_LIMITS.maxPackageBytes` is now 100 MB (zip held in memory).
+7. Still open (deliberately not fixed by bumping the version: that would cause edit conflicts for editors). Plan: store the attached asset ids and sha256 in the export row and show "out of date" in the UI. Misleading: attaching files does not bump the draft version, so Results can show an old package as the latest; the idempotency hash is draft id and version only. Hash the attached asset ids and sha256 too and show "out of date".
 8. Check in Chrome: `chrome.permissions.request` must run in the click handler before any `await`; closing the panel aborts a run; `window.open` after an async call may lose its user gesture.
 9. Phase 4 plan and the reseller-gateway pricing advice: see D-077.
 

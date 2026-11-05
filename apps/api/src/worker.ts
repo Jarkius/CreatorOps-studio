@@ -33,6 +33,7 @@ if (!prepared.ok) {
   const queue = new BullMqJobQueue(redisUrl);
   // The mock provider is the only one until Q-001 is answered (D-052).
   const storage = new LocalFsStorage(prepared.config.DATA_DIR);
+  logger.info({ event: 'storage.dir', dataDir: prepared.config.DATA_DIR }, 'media directory');
   const fallback = new MockTextProvider();
   const secrets =
     prepared.config.SECRETS_ENCRYPTION_KEY === undefined

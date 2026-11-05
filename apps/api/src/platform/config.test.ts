@@ -1,4 +1,7 @@
 import { ConfigError } from '@creatorops/config';
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { validEnv } from '../test/db-url.js';
@@ -21,6 +24,13 @@ describe('loadConfig', () => {
     expect(config.LOG_LEVEL).toBe('info');
     expect(config.AUTH_MODE).toBe('mock');
     expect(config.EXTENSION_ORIGIN).toBeUndefined();
+  });
+
+  it('resolves a relative DATA_DIR against the repo root, whatever the working directory', () => {
+    const fromDefault = loadConfig(validEnv()).DATA_DIR;
+    expect(isAbsolute(fromDefault)).toBe(true);
+    expect(existsSync(resolve(fromDefault, '..', '..', 'pnpm-workspace.yaml'))).toBe(true);
+    expect(loadConfig({ ...validEnv(), DATA_DIR: '/var/media' }).DATA_DIR).toBe('/var/media');
   });
 
   it('returns a frozen object', () => {
