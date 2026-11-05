@@ -104,7 +104,7 @@ describe('MockVideoProvider', () => {
 
 describe('GeminiOmniVideoProvider request', () => {
   it('sends the documented text-to-video body with the key in a header, not the address', async () => {
-    const transport = vi.fn((_r: HttpRequest) =>
+    const transport = vi.fn<HttpTransport>(() =>
       Promise.resolve(reply(200, videoReply(fakeMp4(8)))),
     );
     await provider(transport).generateVideo(REQUEST);
@@ -123,7 +123,7 @@ describe('GeminiOmniVideoProvider request', () => {
   });
 
   it('sends the scene image first for image-to-video, with the task set', async () => {
-    const transport = vi.fn((_r: HttpRequest) =>
+    const transport = vi.fn<HttpTransport>(() =>
       Promise.resolve(reply(200, videoReply(fakeMp4(8)))),
     );
     await provider(transport).generateVideo({
