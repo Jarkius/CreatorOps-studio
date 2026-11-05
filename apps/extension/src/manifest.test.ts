@@ -30,7 +30,7 @@ describe('buildManifest', () => {
     const manifest = buildManifest(base);
     expect([...manifest.optional_host_permissions]).toEqual([
       'https://www.meta.ai/*',
-      'https://labs.google/fx/tools/flow/*',
+      'https://labs.google/fx/tools/flow*',
       'https://flow.google.com/*',
     ]);
     const hosts = manifest.host_permissions.join(' ');
@@ -42,7 +42,7 @@ describe('buildManifest', () => {
     expect([...manifest.host_permissions]).toEqual([
       'http://localhost:3000/*',
       'https://www.meta.ai/*',
-      'https://labs.google/fx/tools/flow/*',
+      'https://labs.google/fx/tools/flow*',
       'https://flow.google.com/*',
     ]);
   });

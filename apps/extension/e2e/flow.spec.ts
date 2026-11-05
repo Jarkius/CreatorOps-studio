@@ -29,7 +29,7 @@ const FLOW_LIMIT = `<!doctype html><html><head><title>Flow</title></head><body>
 
 /** Serves a fake Google Flow: no network, no real site. */
 async function fakeFlow(context: BrowserContext, html: string) {
-  await context.route('https://labs.google/fx/tools/flow/**', async (route) => {
+  await context.route(/^https:\/\/labs\.google\/fx\/tools\/flow/, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('.mp4')) {
       await route.fulfill({ status: 200, contentType: 'video/mp4', body: MP4_BYTES });

@@ -67,7 +67,9 @@ export const META_AI_SITE: HelperSite = {
  * is a small edit to this block. Flow's own controls (model, aspect ratio, how many clips) are
  * whatever the owner left selected in the tab: the helper does not touch them.
  */
-export const FLOW_ORIGINS = ['https://labs.google/fx/tools/flow/*', 'https://flow.google.com/*'];
+// The first pattern has no slash before the star on purpose: the tool lives at `/fx/tools/flow`, and a
+// Chrome match pattern is exact about paths, so `/fx/tools/flow/*` would not match that address.
+export const FLOW_ORIGINS = ['https://labs.google/fx/tools/flow*', 'https://flow.google.com/*'];
 
 export const FLOW_SELECTORS: SelectorSet = {
   promptBox: [

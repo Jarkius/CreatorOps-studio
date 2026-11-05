@@ -16,7 +16,7 @@ export const META_AI_HOST_PATTERN = 'https://www.meta.ai/*';
 
 /** Google Flow, narrowed to its tool path and its own host (D-080). Optional, never at install. */
 export const FLOW_HOST_PATTERNS = [
-  'https://labs.google/fx/tools/flow/*',
+  'https://labs.google/fx/tools/flow*',
   'https://flow.google.com/*',
 ] as const;
 

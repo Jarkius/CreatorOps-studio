@@ -3,7 +3,7 @@ import { deflateSync } from 'node:zlib';
 import type { BrowserContext, Page } from '@playwright/test';
 
 import { expect, test } from './fixtures.js';
-import { api, API_URL, finishedCampaign } from './seed.js';
+import { api, API_URL, finishedCampaign, finishGeneration } from './seed.js';
 
 /** A real 300x300 PNG with correct checksums (a hand-made one with a bad CRC is rejected). */
 function pngBytes(): Buffer {

@@ -27,11 +27,16 @@ test('loads with the pinned development id and exactly the allowed permissions',
   await openPanel(page, extensionId);
   const manifest = await page.evaluate(() => chrome.runtime.getManifest());
   expect([...(manifest.permissions ?? [])].sort()).toEqual(['scripting', 'sidePanel', 'storage']);
-  // This build is the end-to-end build, which grants the Meta AI host at install because a test
+  // This build is the end-to-end build, which grants the helper hosts at install because a test
   // cannot click Chrome's prompt; a release build lists it only as an optional host permission
   // (manifest tests and the built-manifest test check that).
-  expect(manifest.host_permissions).toEqual(['http://localhost:3000/*', 'https://www.meta.ai/*']);
-  expect(manifest.optional_host_permissions).toEqual(['https://www.meta.ai/*']);
+  const helperHosts = [
+    'https://www.meta.ai/*',
+    'https://labs.google/fx/tools/flow*',
+    'https://flow.google.com/*',
+  ];
+  expect(manifest.host_permissions).toEqual(['http://localhost:3000/*', ...helperHosts]);
+  expect(manifest.optional_host_permissions).toEqual(helperHosts);
   expect(manifest).not.toHaveProperty('content_scripts');
   expect(manifest.manifest_version).toBe(3);
 });
