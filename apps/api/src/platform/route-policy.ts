@@ -16,6 +16,7 @@ export const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
   // Authorised by a signed URL (D-038, D-039), each with its own signature tests.
   'PUT /api/v1/uploads/:intentId',
   'GET /api/v1/media/:assetId/:variant',
+  'GET /api/v1/exports/:exportId/download',
 ]);
 
 export interface RegisteredRoute {

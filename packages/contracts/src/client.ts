@@ -42,7 +42,15 @@ import {
 } from './content.js';
 import {
   DraftAssetListResponseSchema,
+  ExportDownloadSchema,
+  ExportListResponseSchema,
+  ExportSchema,
+  type CreateExportRequest,
   type DraftAssetListResponse,
+  type Export,
+  type ExportDownload,
+  type ExportListQuery,
+  type ExportListResponse,
   type SetDraftAssetsRequest,
 } from './export.js';
 import {
@@ -186,6 +194,21 @@ export interface ApiClient {
       body: RegenerateSectionJobRequest,
       idempotencyKey: string,
     ): Promise<Job>;
+    /**
+     * Builds a ZIP package of a draft (text, checklist and attached files). Same key rules as
+     * `generateBrief`. `draftVersion` is the version the user saw; a newer one fails with CONFLICT.
+     */
+    exportPackage(
+      workspaceId: string,
+      body: CreateExportRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+  };
+  exports: {
+    list(workspaceId: string, query?: ExportListQuery): Promise<ExportListResponse>;
+    get(workspaceId: string, exportId: string): Promise<Export>;
+    /** A signed URL (relative to the API origin) that works for five minutes. */
+    downloadUrl(workspaceId: string, exportId: string): Promise<ExportDownload>;
   };
   assets: {
     /** Step 1 of an upload: declare the file; then PUT the bytes to `uploadUrl`. */
@@ -434,6 +457,26 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${base(workspaceId)}/jobs/regenerate-section`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
+      exportPackage: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/export-package`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+    },
+    exports: {
+      list: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/exports`,
+          ExportListResponseSchema,
+          query as RequestSpec<never>['query'],
+        ),
+      get: (workspaceId, exportId) =>
+        get(`${base(workspaceId)}/exports/${id(exportId)}`, ExportSchema),
+      downloadUrl: (workspaceId, exportId) =>
+        send(
+          'POST',
+          `${base(workspaceId)}/exports/${id(exportId)}/download-url`,
+          ExportDownloadSchema,
+        ),
     },
     assets: {
       createUploadIntent: (workspaceId, body) =>

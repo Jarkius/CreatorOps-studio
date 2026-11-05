@@ -114,6 +114,11 @@ export async function runReadOnlyMemberHarness(
   fixtures: Pick<HarnessFixtures, 'bodies'> & {
     /** Path parameter values for the workspace the caller is a read-only member of. */
     readonly ownParams: Readonly<Record<string, string>>;
+    /**
+     * Routes that use POST but only read (a signed download link): a read-only member may call
+     * them. Each entry is a review decision and is checked to answer 200 instead of 403.
+     */
+    readonly readOnlyAllowed?: ReadonlySet<string>;
   },
 ): Promise<HarnessReport> {
   const checked: string[] = [];
@@ -139,6 +144,12 @@ export async function runReadOnlyMemberHarness(
       headers: { authorization: `Bearer ${readOnlyToken}` },
       ...(method === 'DELETE' ? {} : { payload: fixtures.bodies?.[key] ?? {} }),
     });
+    if (fixtures.readOnlyAllowed?.has(key) === true) {
+      if (response.statusCode !== 200) {
+        failures.push(`${key}: expected 200 for a read-only member, got ${response.statusCode}`);
+      }
+      continue;
+    }
     if (response.statusCode !== 403) {
       failures.push(`${key}: expected 403 for a read-only member, got ${response.statusCode}`);
     }

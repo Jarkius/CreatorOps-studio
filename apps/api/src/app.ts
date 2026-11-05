@@ -16,6 +16,8 @@ import { createAuthGuard } from './modules/identity/guard.js';
 import { registerIdentityRoutes } from './modules/identity/routes.js';
 import { createWorkspaceScope } from './modules/identity/scope.js';
 import { createAssetDeps } from './modules/assets/deps.js';
+import { createExportSigner } from './modules/export/export-urls.js';
+import { registerExportDownloadRoute, registerExportRoutes } from './modules/export/routes.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
@@ -242,6 +244,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       ? {}
       : { uploadsPerMinute: options.uploadRateLimitMax }),
   });
+  const exportDeps = {
+    db: options.db,
+    storage: options.storage,
+    exports: createExportSigner(config.SESSION_SECRET),
+  };
+  registerExportRoutes(app, { deps: exportDeps, guard, scope });
+  registerExportDownloadRoute(app, exportDeps);
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

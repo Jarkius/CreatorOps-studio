@@ -224,7 +224,7 @@ interface BodyCall extends Call {
   body: string | undefined;
 }
 
-function recordingFetch(respond: () => Response) {
+function recordingFetch(respond: (url: string) => Response) {
   const calls: BodyCall[] = [];
   const impl = (async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({
@@ -233,7 +233,7 @@ function recordingFetch(respond: () => Response) {
       headers: (init?.headers ?? {}) as Record<string, string>,
       body: typeof init?.body === 'string' ? init.body : undefined,
     });
-    return respond();
+    return respond(String(input));
   }) as typeof fetch;
   return { calls, impl };
 }
@@ -381,7 +381,7 @@ describe('content: campaigns, drafts, jobs', () => {
     startedAt: null,
     finishedAt: null,
   };
-  const make = (respond: () => Response) => {
+  const make = (respond: (url: string) => Response) => {
     const { calls, impl } = recordingFetch(respond);
     return {
       calls,
@@ -410,6 +410,44 @@ describe('content: campaigns, drafts, jobs', () => {
     expect(calls[0]?.body).toBe(JSON.stringify({ campaignId: 'c1' }));
     expect(calls[1]?.headers['idempotency-key']).toBe('key-87654321');
     expect(calls[2]?.headers['idempotency-key']).toBeUndefined();
+    expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
+  });
+
+  it('calls the export routes, with the key only on the job', async () => {
+    const exportRow = {
+      id: 'e1',
+      workspaceId: 'w1',
+      draftId: 'd1',
+      jobId: 'j1',
+      status: 'ready',
+      draftVersion: 2,
+      fileCount: 3,
+      sizeBytes: 10,
+      sha256: 'a'.repeat(64),
+      filename: 'creatorops-20261104-abcd1234.zip',
+      createdAt: '2026-11-04T00:00:00.000Z',
+      expiresAt: '2026-11-11T00:00:00.000Z',
+    };
+    const { calls, client } = make((url) =>
+      url.endsWith('/download-url')
+        ? json({ url: '/api/v1/exports/e1/download?u=1', expiresAt: 'x', filename: 'f.zip' })
+        : url.includes('/jobs/')
+          ? json(JOB, 202)
+          : url.includes('/exports?')
+            ? json({ items: [exportRow], nextCursor: null })
+            : json(exportRow),
+    );
+    await client.jobs.exportPackage('w1', { draftId: 'd1', draftVersion: 2 }, 'key-12345678');
+    expect((await client.exports.list('w1', { draftId: 'd1' })).items[0]?.id).toBe('e1');
+    expect((await client.exports.get('w1', 'e 1')).filename).toMatch(/\.zip$/);
+    expect((await client.exports.downloadUrl('w1', 'e1')).url).toContain('/download');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/export-package'],
+      ['GET', 'http://x/api/v1/workspaces/w1/exports?draftId=d1'],
+      ['GET', 'http://x/api/v1/workspaces/w1/exports/e%201'],
+      ['POST', 'http://x/api/v1/workspaces/w1/exports/e1/download-url'],
+    ]);
+    expect(calls[0]?.headers['idempotency-key']).toBe('key-12345678');
     expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
   });
 

@@ -3,6 +3,8 @@ import { createDb } from './db/client.js';
 import { createAssetDeps } from './modules/assets/deps.js';
 import { DELETED_RETENTION_SECONDS } from './modules/assets/limits.js';
 import { purgeDeletedAssets, sweepUploads } from './modules/assets/service.js';
+import { createExportSigner } from './modules/export/export-urls.js';
+import { sweepExports } from './modules/export/service.js';
 import { BullMqJobQueue } from './modules/jobs/bullmq-queue.js';
 import { NullJobQueue } from './modules/jobs/queue.js';
 import { LocalFsStorage } from './storage/local-fs.js';
@@ -35,6 +37,7 @@ if (!prepared.ok) {
 
   // Now and every ten minutes: remove unfinished uploads and purge long-deleted files.
   const assetDeps = createAssetDeps({ db, storage, sessionSecret: config.SESSION_SECRET });
+  const exportDeps = { db, storage, exports: createExportSigner(config.SESSION_SECRET) };
   const sweep = (): void => {
     sweepUploads(assetDeps).then(
       (removed) => {
@@ -50,6 +53,14 @@ if (!prepared.ok) {
       },
       (error: unknown) =>
         logger.error({ event: 'assets.purge_failed', err: error }, 'purge failed'),
+    );
+    // Expire old packages and remove files left by failed export jobs.
+    sweepExports(exportDeps).then(
+      (removed) => {
+        if (removed > 0) logger.info({ event: 'exports.swept', removed }, 'removed export files');
+      },
+      (error: unknown) =>
+        logger.error({ event: 'exports.sweep_failed', err: error }, 'export sweep failed'),
     );
   };
   sweep();
