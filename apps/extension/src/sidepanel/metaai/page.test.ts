@@ -121,6 +121,52 @@ describe('stash', () => {
     }
   });
 
+  it('asks for the file without cookies first, and with the session only when that fails', async () => {
+    const original = globalThis.fetch;
+    const modes: (RequestCredentials | undefined)[] = [];
+    const png = () =>
+      ({
+        ok: true,
+        blob: () => Promise.resolve(new Blob([new Uint8Array([1, 2])], { type: 'image/png' })),
+      }) as unknown as Response;
+    try {
+      // A CDN with `Access-Control-Allow-Origin: *` answers the cookie-less request.
+      globalThis.fetch = ((_url: string, init?: RequestInit) => {
+        modes.push(init?.credentials);
+        return Promise.resolve(png());
+      }) as unknown as typeof fetch;
+      await stashMedia('https://cdn.test/open.png');
+      expect(modes).toEqual(['omit']);
+
+      // One that needs the owner's session refuses without it; the retry carries it.
+      modes.length = 0;
+      globalThis.fetch = ((_url: string, init?: RequestInit) => {
+        modes.push(init?.credentials);
+        return Promise.resolve(
+          init?.credentials === 'omit' ? new Response('no', { status: 401 }) : png(),
+        );
+      }) as unknown as typeof fetch;
+      expect(await stashMedia('https://cdn.test/private.png')).toEqual({
+        size: 2,
+        type: 'image/png',
+      });
+      expect(modes).toEqual(['omit', 'include']);
+
+      // A network refusal (a CORS failure) on the first try also falls back.
+      modes.length = 0;
+      globalThis.fetch = ((_url: string, init?: RequestInit) => {
+        modes.push(init?.credentials);
+        return init?.credentials === 'omit'
+          ? Promise.reject(new TypeError('Failed to fetch'))
+          : Promise.resolve(png());
+      }) as unknown as typeof fetch;
+      await stashMedia('https://cdn.test/cors.png');
+      expect(modes).toEqual(['omit', 'include']);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it('refuses a failed download', async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (() => Promise.resolve(new Response('no', { status: 403 }))) as typeof fetch;

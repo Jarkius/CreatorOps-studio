@@ -154,7 +154,15 @@ export async function stashMedia(url: string): Promise<StashInfo> {
   if (!url.startsWith('https://') && !url.startsWith('blob:')) {
     throw new Error('unsupported address');
   }
-  const response = await fetch(url, { credentials: 'include' });
+  // A CDN that answers `Access-Control-Allow-Origin: *` refuses a request that carries cookies, so
+  // ask without them first and only retry with the owner's session when that fails.
+  let response: Response;
+  try {
+    response = await fetch(url, { credentials: 'omit' });
+    if (!response.ok) throw new Error('retry with the session');
+  } catch {
+    response = await fetch(url, { credentials: 'include' });
+  }
   if (!response.ok) throw new Error(`download failed (${response.status})`);
   const blob = await response.blob();
   (window as unknown as { __creatoropsMedia?: Blob }).__creatoropsMedia = blob;
