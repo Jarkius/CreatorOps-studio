@@ -13,6 +13,7 @@ import {
   IdempotencyKeySchema,
   JOB_ERROR_CODES,
   JOB_STATUS_VALUES,
+  GenerateVideoPromptsJobRequestSchema,
   JOB_TYPE_VALUES,
   JobListQuerySchema,
   JobSchema,
@@ -22,6 +23,7 @@ import {
   SECTION_ORIGIN_VALUES,
   SectionStateSchema,
   TemplateListResponseSchema,
+  VideoPromptsOutputSchema,
   TemplateSchema,
   UpdateCampaignRequestSchema,
   UpdateDraftRequestSchema,
@@ -97,7 +99,12 @@ describe('enum tuples', () => {
     expect(PLATFORM_VALUES).toEqual(['tiktok', 'facebook', 'shopee', 'generic']);
     expect(CAMPAIGN_STATUS_VALUES).toEqual(['draft', 'active', 'archived']);
     expect(DRAFT_STATUS_VALUES).toEqual(['draft', 'in_review', 'approved']);
-    expect(JOB_TYPE_VALUES).toEqual(['generate_brief', 'regenerate_section', 'export_package']);
+    expect(JOB_TYPE_VALUES).toEqual([
+      'generate_brief',
+      'regenerate_section',
+      'export_package',
+      'generate_video_prompts',
+    ]);
     expect(JOB_STATUS_VALUES).toEqual(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
     expect(JOB_ERROR_CODES).toEqual([
       'PROVIDER_TIMEOUT',
@@ -442,5 +449,59 @@ describe('template schemas', () => {
   it('wraps templates in a list response', () => {
     expect(ok(TemplateListResponseSchema, { items: [template] })).toBe(true);
     expect(ok(TemplateListResponseSchema, { items: 'none' })).toBe(false);
+  });
+});
+
+describe('video prompt job contracts', () => {
+  it('accepts a draft id with a draft version, and nothing else', () => {
+    const base = { draftId: 'd1', draftVersion: 3 };
+    expect(ok(GenerateVideoPromptsJobRequestSchema, base)).toBe(true);
+    expect(ok(GenerateVideoPromptsJobRequestSchema, { draftId: 'd1' })).toBe(false);
+    expect(ok(GenerateVideoPromptsJobRequestSchema, { ...base, draftVersion: 0 })).toBe(false);
+    expect(ok(GenerateVideoPromptsJobRequestSchema, { ...base, draftVersion: 1.5 })).toBe(false);
+    expect(ok(GenerateVideoPromptsJobRequestSchema, { ...base, draftId: '' })).toBe(false);
+    expect(ok(GenerateVideoPromptsJobRequestSchema, { ...base, extra: 1 })).toBe(false);
+  });
+
+  const scene = (name: string) => ({
+    scene: name,
+    prompt: 'A shot of the product.',
+    voiceover: 'พากย์',
+  });
+  const names = ['product_hero', 'detail', 'usage', 'final_shot'];
+  const output = { draftId: 'd1', draftVersion: 3, model: 'm', scenes: names.map(scene) };
+
+  it('reads back exactly four scenes with known names, a prompt and a voiceover', () => {
+    expect(ok(VideoPromptsOutputSchema, output)).toBe(true);
+    expect(ok(VideoPromptsOutputSchema, { ...output, scenes: output.scenes.slice(0, 3) })).toBe(
+      false,
+    );
+    expect(
+      ok(VideoPromptsOutputSchema, { ...output, scenes: [...output.scenes, scene('detail')] }),
+    ).toBe(false);
+    expect(
+      ok(VideoPromptsOutputSchema, {
+        ...output,
+        scenes: [scene('closeup'), ...output.scenes.slice(1)],
+      }),
+    ).toBe(false);
+    expect(
+      ok(VideoPromptsOutputSchema, {
+        ...output,
+        scenes: names.map((n) => ({ ...scene(n), prompt: '' })),
+      }),
+    ).toBe(false);
+    expect(
+      ok(VideoPromptsOutputSchema, {
+        ...output,
+        scenes: names.map((n) => ({ ...scene(n), voiceover: '' })),
+      }),
+    ).toBe(false);
+    expect(
+      ok(VideoPromptsOutputSchema, {
+        ...output,
+        scenes: names.map((n) => ({ ...scene(n), prompt: 'x'.repeat(2001) })),
+      }),
+    ).toBe(false);
   });
 });

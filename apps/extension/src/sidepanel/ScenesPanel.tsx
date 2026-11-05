@@ -7,6 +7,8 @@ import { ExportPanel, type OpenUrl } from './ExportPanel.js';
 import { HelperRunPanel } from './metaai/HelperRunPanel.js';
 import { useFlowHelper, useMetaAiHelper, type HelperDeps } from './metaai/useMetaAi.js';
 import { attachedByScene, scenesFromSections, type SceneItem } from './scenes.js';
+import { useSavedVideoPrompts, useVideoPromptsRun } from './videoPromptHooks.js';
+import { VideoPromptsSection } from './VideoPromptsSection.js';
 
 export interface ScenesPanelProps {
   readonly api: ApiClient;
@@ -95,6 +97,22 @@ function SceneList({
   // The owner's edits live here (not saved to the draft) so "Generate all" uses them too.
   const [edits, setEdits] = useState<Partial<Record<DraftScene, string>>>({});
   const promptOf = (item: SceneItem) => edits[item.scene] ?? item.prompt;
+  const videoRun = useVideoPromptsRun(api, workspaceId, draft);
+  const savedVideo = useSavedVideoPrompts(api, workspaceId, draft.id);
+  const [videoEdits, setVideoEdits] = useState<Partial<Record<DraftScene, string>>>({});
+  // A newly written set replaces the edits made to the old one.
+  const savedJobId = savedVideo.data?.jobId ?? null;
+  const [editsFor, setEditsFor] = useState<string | null>(savedJobId);
+  if (editsFor !== savedJobId) {
+    setEditsFor(savedJobId);
+    setVideoEdits({});
+  }
+  const generatedVideoPrompt = (scene: DraftScene): string | null =>
+    savedVideo.data?.scenes.get(scene)?.prompt ?? null;
+  const videoPromptOf = (scene: DraftScene): string | null =>
+    videoEdits[scene] ?? generatedVideoPrompt(scene);
+  // Flow gets the video prompt of a scene when there is one, else the scene text.
+  const flowPromptOf = (item: SceneItem): string => videoPromptOf(item.scene) ?? promptOf(item);
   const missing = scenes.filter(
     (item) => !attached.has(item.scene) && promptOf(item).trim() !== '',
   );
@@ -150,7 +168,7 @@ function SceneList({
               disabled={running}
               onClick={() =>
                 void flow.startAll(
-                  missingVideos.map((item) => ({ scene: item.scene, prompt: promptOf(item) })),
+                  missingVideos.map((item) => ({ scene: item.scene, prompt: flowPromptOf(item) })),
                 )
               }
             >
@@ -162,6 +180,22 @@ function SceneList({
         </div>
       ) : null}
       <HelperRunPanel state={flow.state} onCancel={flow.cancel} onDismiss={flow.dismiss} />
+      <VideoPromptsSection
+        canStart={canStart}
+        run={videoRun}
+        saved={savedVideo.data ?? null}
+        savedLoading={savedVideo.isPending}
+        promptOf={(scene) => videoPromptOf(scene) ?? ''}
+        onEdit={(scene, text) => setVideoEdits((previous) => ({ ...previous, [scene]: text }))}
+        onReset={(scene) =>
+          setVideoEdits((previous) => {
+            const next = { ...previous };
+            delete next[scene];
+            return next;
+          })
+        }
+        isEdited={(scene) => videoEdits[scene] !== undefined}
+      />
       <ol className="space-y-3">
         {scenes.map((scene, index) => (
           <SceneRow
@@ -178,7 +212,7 @@ function SceneList({
             {...(canStart
               ? {
                   onGenerate: (text: string) => void run.start(scene.scene, text),
-                  onGenerateVideo: (text: string) => void flow.start(scene.scene, text),
+                  onGenerateVideo: () => void flow.start(scene.scene, flowPromptOf(scene)),
                   generateDisabled: running,
                 }
               : {})}
