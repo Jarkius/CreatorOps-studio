@@ -220,6 +220,16 @@ def cmd_ping(args):
         "max_tokens": 16,
         "stream": False,
     }
+    if args.route == "messages":
+        # Anthropic-style route (what Claude Code uses); the key goes in the same bearer header.
+        status, payload = call("POST", "/messages", inference(args), body)
+        if status != 200:
+            return show(status, payload)
+        text = "".join(part.get("text", "") for part in payload.get("content", []) if isinstance(part, dict))
+        usage = payload.get("usage", {})
+        print(f"HTTP 200 (/v1/messages), stop={payload.get('stop_reason')}, reply={scrub(text)[:60]!r}")
+        print(f"usage: input={usage.get('input_tokens')} output={usage.get('output_tokens')}")
+        return None
     status, payload = call("POST", "/chat/completions", inference(args), body)
     if status != 200:
         return show(status, payload)
@@ -270,6 +280,7 @@ def main(argv=None):
         if name == "ping":
             command.add_argument("--model", default="claude-haiku-4-5")
             command.add_argument("--yes", action="store_true")
+            command.add_argument("--route", choices=["chat", "messages"], default="chat")
         command.set_defaults(run=run)
 
     args = parser.parse_args(argv)

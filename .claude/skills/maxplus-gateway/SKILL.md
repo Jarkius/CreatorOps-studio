@@ -48,6 +48,7 @@ All commands print `HTTP <status>` and a redacted summary. Exit code 1 means the
 | Delete a key for good | `mp.py delete --id <id> --yes` (only when the owner asked) | management | free |
 | Check balance and models | `mp.py check --key-file <file>` | inference | free |
 | Prove the pool answers chat | `mp.py ping --key-file <file> --yes` (model default `claude-haiku-4-5`, 16 tokens) | inference | a few cents |
+| Same, on the Anthropic-style route Claude Code uses | add `--route messages` (calls `/v1/messages`) | inference | a few cents |
 
 Rules the helper enforces: a limit above 0 on every key; no duplicate names (use `reroll`); `--out` must be outside the repo; `delete` and `ping` need `--yes`.
 
@@ -78,7 +79,7 @@ Rules the helper enforces: a limit above 0 on every key; no duplicate names (use
 | 401 / 403 | key wrong, rerolled or deleted | `PROVIDER_AUTH` | no | enter the key again in Settings |
 | 402 | balance empty or key limit reached | `PROVIDER_BUDGET` | no | top up, or raise the key limit with `patch` |
 | 429 | rate limit | `PROVIDER_RATE_LIMITED` | yes, after Retry-After | wait |
-| 5xx / network | gateway trouble, or pools closed by the operator | `PROVIDER_UNAVAILABLE` | yes, bounded | try `check`; MaxPlus closed all pools on 2026-11-04 and again on 2026-11-05: `check` was 200 while chat answered 503 "This endpoint is currently disabled by the administrator" for every model. That is MaxPlus's side, not our code |
+| 5xx / network | gateway trouble, or pools closed by the operator | `PROVIDER_UNAVAILABLE` | yes, bounded | try `check`; MaxPlus closed all pools on 2026-11-04 and again on 2026-11-05: `check` was 200 while chat answered 503 "This endpoint is currently disabled by the administrator" for every model. That is MaxPlus's side, not our code. Both routes (`chat`, `messages`) failed alike while `/v1/me` showed the key on pool `native`: a 503 like this is per pool, so other users on other pools still get answers. Fix: move the key to an open pool (MaxPlus dashboard, or a new key with `create --pool <name>`), not a top-up |
 
 ## Unverified (say so if asked)
 
