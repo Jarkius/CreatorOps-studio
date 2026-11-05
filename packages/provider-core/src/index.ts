@@ -11,3 +11,4 @@ export * from './text.js';
 export * from './types.js';
 export * from './validate-output.js';
 export * from './video.js';
+export * from './video-prompts.js';

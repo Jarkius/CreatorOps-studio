@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-081 | Shopee affiliate product finder with commission rates (official Open API) | PROPOSED (needs Q-008) |
 | D-080 | Video: Google Flow helper first, then a paid video API (Gemini Omni); media provider choice | ACCEPTED (owner: both, Flow first); API half PLANNED |
 | D-079 | Per-campaign cost in Thai baht: AI text from the ledger plus hand-typed scene costs | ACCEPTED (orchestrator) |
 | D-078 | Affiliate incubator framework as studio templates (after Phase 4) | PROPOSED |
@@ -630,9 +631,19 @@ The real provider refuses to start without configured prices (no guessed default
 **Decision (part 2, API provider; planned, not built):** a `MediaProvider` interface (`generateVideo` from a prompt and optionally a scene image) with a **mock** provider first and a **Gemini Omni** adapter behind it (paid, so Gate A / Q-002 applies: the owner's key and a spending cap before the first real call; cost in USD from seconds times the price, shown in baht in the campaign cost). The provider is chosen in Settings (Mock, Gemini Omni) and the panel offers Flow or API per scene. **Veo 3.1 GA exists on the Gemini Enterprise Agent Platform** (Google's page); it was not checked and is not planned.
 **Not verified:** everything about the real Flow page and its terms; the Omni request shape and price; whether Flow serves its clips to an in-page `fetch`; the clip format and length Flow produces (the server accepts MP4 with an `isom`-style brand up to 200 MB).
 
+## D-081 — Shopee affiliate product finder (2026-11-05)
+**Status:** PROPOSED. The owner asked for a list of Shopee items with their commission rate, like AutoGenX.
+**Decision (proposed):** build it on Shopee's **official Affiliate Open API** only (Thailand host `open-api.affiliate.shopee.co.th/graphql`, observed to demand a signed Authorization header), with the owner's App ID and Secret stored encrypted on the server; a Find products page in the dashboard (search, sort by commission or sales, filter), and "Create product from this item" into the normal product and campaign flow. No scraping of Shopee pages and no undocumented endpoints (`CLAUDE.md`). Details, the fields to verify and the unknowns are in `docs/SHOPEE_AFFILIATE.md`.
+**Gate:** Q-008 below. Nothing is built until the owner has an approved Shopee Affiliate account with Open API credentials.
+
 ## Open questions
 
 Each question lists what is needed and the default that applies if no answer arrives.
+
+### Q-008 — Shopee Affiliate Open API credentials
+**Gate:** D-081 (Shopee product finder).
+**Needed:** an approved Shopee Affiliate account in Thailand with the **Open API** panel enabled, the App ID and App Secret (entered by the owner in Settings, never in chat), and a read of Shopee's Open API terms on storing and showing offer data.
+**Default:** the product finder is not built; products are still added by hand.
 
 ### Q-001 — Real text generation provider
 **Gate:** Phase 4.

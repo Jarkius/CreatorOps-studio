@@ -25,7 +25,8 @@
     "db:seed": "pnpm build && pnpm --filter @creatorops/api db:seed",
     "e2e": "pnpm build && pnpm -r --workspace-concurrency=1 --if-present e2e",
     "demo": "node scripts/demo.mjs",
-    "eval:text": "node scripts/eval-text.mjs"
+    "eval:text": "node scripts/eval-text.mjs",
+    "prompts:video": "node scripts/video-prompts.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

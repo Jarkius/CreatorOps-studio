@@ -15,6 +15,13 @@ import type {
   TextProvider,
 } from './types.js';
 import { validateDraftSections, validateSectionValue } from './validate-output.js';
+import {
+  validateVideoPrompts,
+  videoPromptData,
+  videoPromptInstructions,
+  type VideoPromptRequest,
+  type VideoPromptScene,
+} from './video-prompts.js';
 
 /** The part of an HTTP exchange the adapter needs. Replaceable, so tests never touch a network. */
 export interface HttpRequest {
@@ -300,6 +307,28 @@ export class OpenAiCompatibleTextProvider implements TextProvider {
     );
     return {
       output: validateDraftSections(parseJson(reply.content)),
+      usage: reply.usage,
+      model: this.config.model,
+    };
+  }
+
+  /**
+   * Four video prompts (one per scene) plus a short voiceover line each, to paste into a video tool.
+   * Same transport, error codes and cost reporting as the text calls.
+   */
+  async generateVideoPrompts(
+    req: VideoPromptRequest,
+    opts: ProviderCallOptions = {},
+  ): Promise<{ scenes: VideoPromptScene[]; usage: ProviderUsage; model: string }> {
+    const reply = await this.call(
+      [
+        { role: 'system', content: videoPromptInstructions(req) },
+        { role: 'user', content: videoPromptData(req) },
+      ],
+      opts,
+    );
+    return {
+      scenes: validateVideoPrompts(parseJson(reply.content), req.product),
       usage: reply.usage,
       model: this.config.model,
     };
