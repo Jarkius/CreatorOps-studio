@@ -74,3 +74,48 @@ export const CampaignCostSchema = z.object({
   totalThb: z.number(),
 });
 export type CampaignCost = z.infer<typeof CampaignCostSchema>;
+
+/** GET /api/v1/workspaces/:workspaceId/cost-report?month=2026-11 (UTC month; default this month). */
+export const CostReportQuerySchema = z
+  .object({
+    month: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'use YYYY-MM, for example 2026-11')
+      .optional(),
+  })
+  .strict();
+export type CostReportQuery = z.input<typeof CostReportQuerySchema>;
+
+export const COST_REPORT_MAX_CAMPAIGNS = 100;
+
+export const CostReportCampaignSchema = z.object({
+  campaignId: z.string(),
+  name: z.string(),
+  aiCalls: z.number().int(),
+  aiThb: z.number(),
+  manualThb: z.number(),
+  totalThb: z.number(),
+});
+
+/**
+ * What a workspace spent in one month, in baht, per campaign (largest first). AI text counts calls
+ * settled in the month; typed-in lines count by the day they were added. Same rates as the
+ * campaign cost.
+ */
+export const CostReportSchema = z.object({
+  month: z.string(),
+  currency: z.literal('THB'),
+  thbPerUsd: z.number(),
+  rateSource: z.enum(['settings', 'default']),
+  marketThbPerUsd: z.number(),
+  totals: z.object({
+    aiCalls: z.number().int(),
+    aiThb: z.number(),
+    manualThb: z.number(),
+    totalThb: z.number(),
+  }),
+  campaigns: z.array(CostReportCampaignSchema),
+  /** True when more than 100 campaigns had costs; the totals still include all of them. */
+  truncated: z.boolean(),
+});
+export type CostReport = z.infer<typeof CostReportSchema>;

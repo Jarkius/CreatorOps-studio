@@ -23,8 +23,11 @@ import {
 } from './provider.js';
 import {
   CampaignCostSchema,
+  CostReportSchema,
   ManualCostSchema,
   type CampaignCost,
+  type CostReport,
+  type CostReportQuery,
   type CreateManualCostRequest,
   type ManualCost,
 } from './campaign-cost.js';
@@ -240,6 +243,10 @@ export interface ApiClient {
   usage: {
     /** Real-provider calls and cost for the current calendar month (UTC). */
     get(workspaceId: string): Promise<UsageSummary>;
+  };
+  costs: {
+    /** What the workspace spent in a month (default this month), per campaign, in baht. */
+    report(workspaceId: string, query?: CostReportQuery): Promise<CostReport>;
   };
   exports: {
     list(workspaceId: string, query?: ExportListQuery): Promise<ExportListResponse>;
@@ -525,6 +532,14 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
     usage: {
       get: (workspaceId) => get(`${base(workspaceId)}/usage`, UsageSummarySchema),
+    },
+    costs: {
+      report: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/cost-report`,
+          CostReportSchema,
+          query as RequestSpec<never>['query'],
+        ),
     },
     exports: {
       list: (workspaceId, query) =>

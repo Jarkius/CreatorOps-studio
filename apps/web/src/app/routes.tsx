@@ -4,6 +4,7 @@ import { AssetLibraryPage } from '../features/assets/AssetLibraryPage.js';
 import { CampaignPage } from '../features/campaigns/CampaignPage.js';
 import { DraftPage } from '../features/drafts/DraftPage.js';
 import { CampaignsPage } from '../features/campaigns/CampaignsPage.js';
+import { CostReportPage } from '../features/costs/CostReportPage.js';
 import { NewCampaignPage } from '../features/campaigns/NewCampaignPage.js';
 import { OverviewPage } from '../features/overview/OverviewPage.js';
 import { NewProductPage } from '../features/products/NewProductPage.js';
@@ -38,6 +39,16 @@ export const routes: RouteObject[] = [
           <SessionGate>
             <WorkspaceRequired>
               <SettingsPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/costs',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <CostReportPage />
             </WorkspaceRequired>
           </SessionGate>
         ),

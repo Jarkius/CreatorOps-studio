@@ -1,7 +1,7 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { DbOrTx } from '../../db/client.js';
-import { campaignCosts, jobs, usageEvents } from '../../db/schema.js';
+import { campaignCosts, campaigns, contentDrafts, jobs, usageEvents } from '../../db/schema.js';
 
 export type ManualCostRow = typeof campaignCosts.$inferSelect;
 
@@ -82,8 +82,16 @@ export interface AiTextTotals {
 }
 
 /**
+ * The campaign a job belongs to: a generate job names it directly; a regenerate job only names a
+ * draft, so the campaign comes from that draft. (Export jobs make no model call.)
+ */
+export const jobCampaignId = sql<
+  string | null
+>`coalesce(${jobs.campaignId}, ${contentDrafts.campaignId})`;
+
+/**
  * Settled AI text calls of the jobs that belong to this campaign (its generate jobs and the
- * regenerate and export jobs of its drafts). Unsettled reservations are not costs yet.
+ * regenerate jobs of its drafts). Unsettled reservations are not costs yet.
  */
 export async function aiTextTotals(
   db: DbOrTx,
@@ -101,11 +109,15 @@ export async function aiTextTotals(
       jobs,
       and(eq(jobs.workspaceId, usageEvents.workspaceId), eq(jobs.id, usageEvents.jobId)),
     )
+    .leftJoin(
+      contentDrafts,
+      and(eq(contentDrafts.workspaceId, jobs.workspaceId), eq(contentDrafts.id, jobs.draftId)),
+    )
     .where(
       and(
         eq(usageEvents.workspaceId, workspaceId),
         eq(usageEvents.status, 'settled'),
-        eq(jobs.campaignId, campaignId),
+        sql`${jobCampaignId} = ${campaignId}`,
       ),
     );
   const row = rows[0];
@@ -114,4 +126,93 @@ export async function aiTextTotals(
     costUsd: Number(row?.cost ?? 0),
     anomalies: row?.anomalies ?? 0,
   };
+}
+
+export interface MonthRange {
+  readonly start: Date;
+  readonly end: Date;
+}
+
+export interface CampaignAiRow {
+  readonly campaignId: string;
+  readonly calls: number;
+  readonly costUsd: number;
+}
+
+/** Settled AI calls created in the month, grouped by the campaign they belong to. */
+export async function aiByCampaign(
+  db: DbOrTx,
+  workspaceId: string,
+  range: MonthRange,
+): Promise<CampaignAiRow[]> {
+  const rows = await db
+    .select({
+      campaignId: sql<string>`${jobCampaignId}`,
+      calls: sql<number>`count(*)::int`,
+      cost: sql<string>`coalesce(sum(coalesce(${usageEvents.costUsd}, 0)), 0)`,
+    })
+    .from(usageEvents)
+    .innerJoin(
+      jobs,
+      and(eq(jobs.workspaceId, usageEvents.workspaceId), eq(jobs.id, usageEvents.jobId)),
+    )
+    .leftJoin(
+      contentDrafts,
+      and(eq(contentDrafts.workspaceId, jobs.workspaceId), eq(contentDrafts.id, jobs.draftId)),
+    )
+    .where(
+      and(
+        eq(usageEvents.workspaceId, workspaceId),
+        eq(usageEvents.status, 'settled'),
+        sql`${usageEvents.createdAt} >= ${range.start} and ${usageEvents.createdAt} < ${range.end}`,
+        sql`${jobCampaignId} is not null`,
+      ),
+    )
+    .groupBy(jobCampaignId);
+  return rows.map((row) => ({
+    campaignId: row.campaignId,
+    calls: row.calls,
+    costUsd: Number(row.cost),
+  }));
+}
+
+export interface CampaignManualRow {
+  readonly campaignId: string;
+  readonly amountThb: number;
+}
+
+/** Typed-in lines added in the month, summed per campaign. */
+export async function manualByCampaign(
+  db: DbOrTx,
+  workspaceId: string,
+  range: MonthRange,
+): Promise<CampaignManualRow[]> {
+  const rows = await db
+    .select({
+      campaignId: campaignCosts.campaignId,
+      amount: sql<string>`coalesce(sum(${campaignCosts.amountThb}), 0)`,
+    })
+    .from(campaignCosts)
+    .where(
+      and(
+        eq(campaignCosts.workspaceId, workspaceId),
+        sql`${campaignCosts.createdAt} >= ${range.start} and ${campaignCosts.createdAt} < ${range.end}`,
+      ),
+    )
+    .groupBy(campaignCosts.campaignId);
+  return rows.map((row) => ({ campaignId: row.campaignId, amountThb: Number(row.amount) }));
+}
+
+/** Names of the given campaigns in this workspace. */
+export async function campaignNames(
+  db: DbOrTx,
+  workspaceId: string,
+  ids: readonly string[],
+): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ id: campaigns.id, name: campaigns.name })
+    .from(campaigns)
+    .where(and(eq(campaigns.workspaceId, workspaceId), inArray(campaigns.id, [...ids])));
+  return new Map(rows.map((row) => [row.id, row.name]));
 }

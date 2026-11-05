@@ -1,4 +1,4 @@
-import { CampaignCostSchema, DEFAULT_THB_PER_USD } from '@creatorops/contracts';
+import { CampaignCostSchema, CostReportSchema, DEFAULT_THB_PER_USD } from '@creatorops/contracts';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -70,7 +70,13 @@ let jobCounter = 0;
 async function usage(
   person: Person,
   campaignId: string,
-  options: { status?: string; costUsd?: number | null; anomaly?: boolean; callIndex?: number } = {},
+  options: {
+    status?: string;
+    costUsd?: number | null;
+    anomaly?: boolean;
+    callIndex?: number;
+    createdAt?: string;
+  } = {},
 ): Promise<void> {
   jobCounter += 1;
   const job = await one(
@@ -80,8 +86,8 @@ async function usage(
   );
   const status = options.status ?? 'settled';
   await testDb.pool.query(
-    `insert into usage_events (workspace_id, job_id, attempt, call_index, provider, model, status, reserved_usd, cost_usd, anomaly, settled_at)
-     values ($1, $2, 1, $3, 'custom', 'm', $4, 0.5, $5, $6, case when $4 = 'settled' then now() end)`,
+    `insert into usage_events (workspace_id, job_id, attempt, call_index, provider, model, status, reserved_usd, cost_usd, anomaly, settled_at, created_at)
+     values ($1, $2, 1, $3, 'custom', 'm', $4, 0.5, $5, $6, case when $4 = 'settled' then now() end, coalesce($7::timestamptz, now()))`,
     [
       person.workspaceId,
       job,
@@ -89,6 +95,7 @@ async function usage(
       status,
       options.costUsd === undefined ? 0.08 : options.costUsd,
       options.anomaly ?? false,
+      options.createdAt ?? null,
     ],
   );
 }
@@ -168,6 +175,42 @@ describe('campaign cost in baht', () => {
     expect(result.thbPerUsd).toBe(0.3333); // the billing rate is separate
     await setRate(alice, undefined);
     expect((await cost(alice, campaign)).marketThbPerUsd).toBe(DEFAULT_THB_PER_USD);
+  });
+
+  it('counts the calls of regenerate jobs, which name a draft and not the campaign', async () => {
+    await setRate(alice, 1);
+    const campaign = await newCampaign(alice);
+    const other = await newCampaign(alice);
+    const draftOf = async (campaignId: string) => {
+      const row = await testDb.pool.query<{ product_id: string }>(
+        'select product_id from campaigns where id = $1',
+        [campaignId],
+      );
+      return one(
+        `insert into content_drafts (workspace_id, campaign_id, product_id, sections, section_state)
+         values ($1, $2, $3, '{}', '{}') returning id`,
+        [alice.workspaceId, campaignId, row.rows[0]!.product_id],
+      );
+    };
+    const regenerate = async (draftId: string, costUsd: number) => {
+      jobCounter += 1;
+      const job = await one(
+        `insert into jobs (workspace_id, type, input, created_by, idempotency_key, request_hash, draft_id)
+         values ($1, 'regenerate_section', '{}'::jsonb, $2, $3, repeat('d', 64), $4) returning id`,
+        [alice.workspaceId, alice.userId, `campaign-cost-test-${String(jobCounter)}-key`, draftId],
+      );
+      await testDb.pool.query(
+        `insert into usage_events (workspace_id, job_id, attempt, call_index, provider, model, status, reserved_usd, cost_usd, settled_at)
+         values ($1, $2, 1, 1, 'custom', 'm', 'settled', 1, $3, now())`,
+        [alice.workspaceId, job, costUsd],
+      );
+    };
+    await usage(alice, campaign, { costUsd: 0.5 });
+    await regenerate(await draftOf(campaign), 0.25);
+    await regenerate(await draftOf(other), 7); // a draft of another campaign
+    const result = await cost(alice, campaign);
+    expect(result.aiText.calls).toBe(2);
+    expect(result.aiText.costUsd).toBeCloseTo(0.75, 6);
   });
 
   it('uses the default rate when none was entered, and says so', async () => {
@@ -323,5 +366,108 @@ describe('who may see and change campaign costs', () => {
     expect((await call(alice, 'DELETE', `${base(alice, campaign)}/costs/nope`)).statusCode).toBe(
       404,
     );
+  });
+});
+
+describe('workspace cost report', () => {
+  const reportUrl = (person: Person, month?: string) =>
+    `/api/v1/workspaces/${person.workspaceId}/cost-report${month === undefined ? '' : `?month=${month}`}`;
+  const report = async (person: Person, month?: string) =>
+    CostReportSchema.parse((await call(person, 'GET', reportUrl(person, month))).json());
+
+  async function named(person: Person, name: string): Promise<string> {
+    const id = await newCampaign(person);
+    await testDb.pool.query('update campaigns set name = $2 where id = $1', [id, name]);
+    return id;
+  }
+
+  it('lists campaigns of one month, largest first, with AI, typed-in and total in baht', async () => {
+    const carol = await createPerson(testDb.db, config.SESSION_SECRET, 'carol');
+    await setRate(carol, 10);
+    const big = await named(carol, 'Big');
+    const small = await named(carol, 'Small');
+    await usage(carol, big, { costUsd: 1, createdAt: '2026-03-10T00:00:00Z' }); // ฿10
+    await usage(carol, big, { costUsd: 0.5, createdAt: '2026-03-31T23:59:59Z', callIndex: 2 }); // ฿5
+    await usage(carol, small, { costUsd: 0.2, createdAt: '2026-03-01T00:00:00Z' }); // ฿2
+    await usage(carol, small, { costUsd: 99, createdAt: '2026-04-01T00:00:00Z' }); // next month
+    await usage(carol, small, { costUsd: 99, createdAt: '2026-02-28T23:59:59Z' }); // last month
+    await usage(carol, small, {
+      status: 'reserved',
+      costUsd: null,
+      createdAt: '2026-03-05T00:00:00Z',
+    });
+    await testDb.pool.query(
+      `insert into campaign_costs (workspace_id, campaign_id, label, amount_thb, created_by, created_at)
+       values ($1, $2, 'in', 20, $4, '2026-03-15T00:00:00Z'), ($1, $2, 'out', 500, $4, '2026-04-02T00:00:00Z'),
+              ($1, $3, 'in', 1.5, $4, '2026-03-20T00:00:00Z')`,
+      [carol.workspaceId, small, small, carol.userId],
+    );
+    const result = await report(carol, '2026-03');
+    expect(result.month).toBe('2026-03');
+    expect(result.campaigns.map((item) => item.name)).toEqual(['Small', 'Big']);
+    expect(result.campaigns[0]).toMatchObject({
+      aiCalls: 1,
+      aiThb: 2,
+      manualThb: 21.5,
+      totalThb: 23.5,
+    });
+    expect(result.campaigns[1]).toMatchObject({
+      aiCalls: 2,
+      aiThb: 15,
+      manualThb: 0,
+      totalThb: 15,
+    });
+    expect(result.totals).toEqual({ aiCalls: 3, aiThb: 17, manualThb: 21.5, totalThb: 38.5 });
+    expect(result.truncated).toBe(false);
+  });
+
+  it('defaults to the current UTC month, and rejects a bad month', async () => {
+    const dave = await createPerson(testDb.db, config.SESSION_SECRET, 'dave');
+    await setRate(dave, 10);
+    const campaign = await named(dave, 'Now');
+    await usage(dave, campaign, { costUsd: 1 });
+    const now = new Date();
+    const label = `${String(now.getUTCFullYear())}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const result = await report(dave);
+    expect(result.month).toBe(label);
+    expect(result.totals.totalThb).toBe(10);
+    for (const bad of ['2026-13', '2026-00', '26-03', 'march', '2026-3']) {
+      expect((await call(dave, 'GET', reportUrl(dave, bad))).statusCode, bad).toBe(400);
+    }
+  });
+
+  it('never mixes the campaigns of two workspaces', async () => {
+    const erin = await createPerson(testDb.db, config.SESSION_SECRET, 'erin');
+    const frank = await createPerson(testDb.db, config.SESSION_SECRET, 'frank');
+    await setRate(erin, 1);
+    const mine = await named(erin, 'Mine');
+    const theirs = await named(frank, 'Theirs');
+    await usage(erin, mine, { costUsd: 1 });
+    await usage(frank, theirs, { costUsd: 50 });
+    const result = await report(erin);
+    expect(result.campaigns.map((item) => item.name)).toEqual(['Mine']);
+    expect(result.totals.totalThb).toBe(1);
+    // Frank asking through Erin's path gets 404.
+    const stranger = await call(frank, 'GET', reportUrl(erin));
+    expect(stranger.statusCode).toBe(404);
+  });
+
+  it('caps the list at 100 campaigns but keeps the totals for all of them', async () => {
+    const gina = await createPerson(testDb.db, config.SESSION_SECRET, 'gina');
+    await setRate(gina, 1);
+    for (let i = 0; i < 101; i += 1) {
+      const campaign = await named(gina, `C${String(i).padStart(3, '0')}`);
+      await usage(gina, campaign, { costUsd: 1 });
+    }
+    const result = await report(gina);
+    expect(result.campaigns).toHaveLength(100);
+    expect(result.truncated).toBe(true);
+    expect(result.totals.totalThb).toBe(101);
+    expect(result.totals.aiCalls).toBe(101);
+  });
+
+  it('is readable by a viewer and answers 401 without a token', async () => {
+    expect((await call(viewer, 'GET', reportUrl(alice))).statusCode).toBe(200);
+    expect((await call(null, 'GET', reportUrl(alice))).statusCode).toBe(401);
   });
 });

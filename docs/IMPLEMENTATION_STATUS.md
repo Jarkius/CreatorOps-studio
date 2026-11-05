@@ -309,3 +309,11 @@ Phase 5, slice S5.1 (contracts for draft assets, export and asset filters), afte
 - Live run on the real MaxPlus (pool Chinese Specials, `qwen3.8-flash`): one generate job billed 0.08 USD of credit and the campaign showed ฿0.03 at 0.3333 baht per USD; a typed-in ฿12.50 line raised the total to ฿12.53 and removing it brought it back; no key in the logs.
 - Not done: side panel cost line, per-scene AI breakdown, workspace cost report, an automatic stop when cost runs away (D-077), e2e not re-run.
 
+## Cost follow-ups: US$ beside baht, side panel line, cost report, eval script (2026-11-05, D-079)
+- **US$ beside baht:** `marketThbPerUsd` (default 35) in the provider pricing; shown beside every baht amount in the Cost section; separate from the billing rate.
+- **Side panel:** `CostLine` under each campaign. Tests: shows baht, dollars, AI and typed-in parts; "Cost unavailable" when the read fails and the row still works; read again when the latest job finishes. Mutation checks killed (job status left out of the key, wrong dollar divisor).
+- **Bug found and fixed:** a regenerate job has `draft_id` and no `campaign_id`, so its calls were not counted in the campaign cost. Fixed with `coalesce(jobs.campaign_id, content_drafts.campaign_id)`; test with a regenerate job and a draft of another campaign; mutation killed.
+- **Cost report:** `GET /workspaces/:id/cost-report?month=` and the dashboard Costs page (nav item, month box, table, totals, empty/loading/error states). API tests 5 (month boundaries, settled only, workspace scoping, 100-row cap with totals over all, default month, bad month 400, viewer read, 401, stranger 404); web tests 6. Mutations: API 11 of 11 killed, web 5 of 5 killed (one survivor, the cut note, got a test).
+- **`pnpm eval:text`:** `scripts/eval-text.mjs`, refuses to run without `--yes`, prints a cost ceiling first, writes a markdown score sheet and JSON to `.data/eval/`, never prints the key. First real run, MaxPlus `qwen3.8-flash`, 3 briefs (fan, serum, supplement): 3 of 3 pass the automated checks, cost $0.24 of credit (flat 0.08 per call); sheet saved as `docs/evaluation/2026-11-05-qwen3.8-flash-3-briefs.md` for Thai reviewers (Q-005). The remaining 17 briefs are not run.
+- **Not done:** the Thai reviewers' scores (owner), the remaining 17 briefs, an automatic stop on cost anomalies, per-scene AI cost breakdown.
+

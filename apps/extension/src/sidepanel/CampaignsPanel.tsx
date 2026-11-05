@@ -11,6 +11,7 @@ import {
 } from './campaigns.js';
 import { dashboardHref } from './format.js';
 import type { HelperDeps } from './metaai/useMetaAi.js';
+import { CostLine } from './CostLine.js';
 import { ScenesPanel } from './ScenesPanel.js';
 
 export interface CampaignsPanelProps {
@@ -102,6 +103,14 @@ export function CampaignsPanel({
                 dashboardUrl,
                 dashboardCampaignPath(workspaceId, campaign.id),
               )}
+              renderCost={() => (
+                <CostLine
+                  api={api}
+                  workspaceId={workspaceId}
+                  campaignId={campaign.id}
+                  jobKey={`${campaign.latestGenerateJob?.id ?? 'none'}:${campaign.latestGenerateJob?.status ?? 'none'}`}
+                />
+              )}
               renderScenes={() => (
                 <ScenesPanel
                   api={api}
@@ -143,6 +152,7 @@ interface CampaignRowProps {
   cancelError: unknown;
   onCancel: (job: Job) => void;
   campaignHref: string;
+  renderCost: () => ReactNode;
   renderScenes: () => ReactNode;
 }
 
@@ -157,6 +167,7 @@ function CampaignRow({
   cancelError,
   onCancel,
   campaignHref,
+  renderCost,
   renderScenes,
 }: CampaignRowProps) {
   const [showScenes, setShowScenes] = useState(false);
@@ -181,6 +192,8 @@ function CampaignRow({
           </div>
         </div>
       )}
+
+      {renderCost()}
 
       <div className="mt-2 flex flex-wrap gap-2">
         {canStart ? (

@@ -1,5 +1,8 @@
 import {
   CAMPAIGN_COST_LIMITS,
+  COST_REPORT_MAX_CAMPAIGNS,
+  type CostReport,
+  type CostReportQuery,
   DEFAULT_THB_PER_USD,
   DRAFT_SCENE_VALUES,
   type CampaignCost,
@@ -16,7 +19,10 @@ import { assertCanWrite } from '../identity/permissions.js';
 import { findCredential } from '../provider-settings/repo.js';
 import { pricingOf } from '../provider-settings/service.js';
 import {
+  aiByCampaign,
   aiTextTotals,
+  campaignNames,
+  manualByCampaign,
   countManualCosts,
   deleteManualCost,
   insertManualCost,
@@ -126,4 +132,85 @@ export async function removeManualCost(
       metadata: { costId },
     });
   });
+}
+
+/** The UTC month as a half-open range; `undefined` means the current month. */
+export function monthRange(
+  month: string | undefined,
+  now: Date,
+): { label: string; start: Date; end: Date } {
+  const match = month === undefined ? null : /^(\d{4})-(\d{2})$/.exec(month);
+  const year = match === null ? now.getUTCFullYear() : Number(match[1]);
+  const index = match === null ? now.getUTCMonth() : Number(match[2]) - 1;
+  const start = new Date(Date.UTC(year, index, 1));
+  const end = new Date(Date.UTC(year, index + 1, 1));
+  return { label: `${String(year)}-${String(index + 1).padStart(2, '0')}`, start, end };
+}
+
+/** What the workspace spent in one month, per campaign, in baht. Any member may read. */
+export async function getCostReport(
+  db: Db,
+  ctx: RequestContext,
+  query: CostReportQuery,
+  now: Date = new Date(),
+): Promise<CostReport> {
+  const range = monthRange(query.month, now);
+  const [ai, manual, credential] = await Promise.all([
+    aiByCampaign(db, ctx.workspaceId, range),
+    manualByCampaign(db, ctx.workspaceId, range),
+    findCredential(db, ctx),
+  ]);
+  const pricing = credential === null ? null : pricingOf(credential);
+  const entered = pricing?.thbPerUsd;
+  const thbPerUsd = entered ?? DEFAULT_THB_PER_USD;
+
+  const byCampaign = new Map<string, { aiCalls: number; aiThb: number; manualThb: number }>();
+  const row = (id: string) => {
+    const existing = byCampaign.get(id);
+    if (existing !== undefined) return existing;
+    const created = { aiCalls: 0, aiThb: 0, manualThb: 0 };
+    byCampaign.set(id, created);
+    return created;
+  };
+  for (const item of ai) {
+    const target = row(item.campaignId);
+    target.aiCalls += item.calls;
+    target.aiThb = round2(item.costUsd * thbPerUsd);
+  }
+  for (const item of manual) row(item.campaignId).manualThb = round2(item.amountThb);
+
+  const names = await campaignNames(db, ctx.workspaceId, [...byCampaign.keys()]);
+  const all = [...byCampaign.entries()]
+    .map(([campaignId, value]) => ({
+      campaignId,
+      name: names.get(campaignId) ?? 'Unknown campaign',
+      aiCalls: value.aiCalls,
+      aiThb: value.aiThb,
+      manualThb: value.manualThb,
+      totalThb: round2(value.aiThb + value.manualThb),
+    }))
+    .sort(
+      (a, b) =>
+        b.totalThb - a.totalThb ||
+        a.name.localeCompare(b.name) ||
+        a.campaignId.localeCompare(b.campaignId),
+    );
+
+  const sum = (pick: (item: (typeof all)[number]) => number) =>
+    round2(all.reduce((total, item) => total + pick(item), 0));
+  return {
+    month: range.label,
+    currency: 'THB',
+    thbPerUsd,
+    rateSource: entered === undefined ? 'default' : 'settings',
+    marketThbPerUsd: pricing?.marketThbPerUsd ?? DEFAULT_THB_PER_USD,
+    totals: {
+      aiCalls: all.reduce((total, item) => total + item.aiCalls, 0),
+      aiThb: sum((item) => item.aiThb),
+      manualThb: sum((item) => item.manualThb),
+      totalThb: sum((item) => item.totalThb),
+    },
+    campaigns: all.slice(0, COST_REPORT_MAX_CAMPAIGNS),
+    truncated: all.length > COST_REPORT_MAX_CAMPAIGNS,
+  };
 }

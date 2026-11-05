@@ -2,7 +2,10 @@ import {
   CampaignCostItemParamsSchema,
   CampaignCostParamsSchema,
   CampaignCostSchema,
+  CostReportQuerySchema,
+  CostReportSchema,
   CreateManualCostRequestSchema,
+  ProviderSettingsParamsSchema,
   ManualCostSchema,
 } from '@creatorops/contracts';
 import type {
@@ -16,7 +19,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { Db } from '../../db/client.js';
 import { AppError } from '../../platform/errors.js';
 import type { RequestContext } from '../identity/context.js';
-import { addManualCost, getCampaignCost, removeManualCost } from './service.js';
+import { addManualCost, getCampaignCost, getCostReport, removeManualCost } from './service.js';
 
 export interface CampaignCostRouteOptions {
   readonly db: Db;
@@ -39,6 +42,22 @@ export function registerCampaignCostRoutes(
   const common = { onRequest: guard, preValidation: scope };
   const tags = ['campaigns'];
   const security = [{ bearerAuth: [] }];
+
+  typed.get(
+    '/api/v1/workspaces/:workspaceId/cost-report',
+    {
+      ...common,
+      schema: {
+        tags,
+        summary: 'What the workspace spent in one month, per campaign, in baht',
+        security,
+        params: ProviderSettingsParamsSchema,
+        querystring: CostReportQuerySchema,
+        response: { 200: CostReportSchema },
+      },
+    },
+    (request) => getCostReport(db, contextOf(request), request.query),
+  );
 
   typed.get(
     `${base}/cost`,

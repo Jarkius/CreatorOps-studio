@@ -5,6 +5,7 @@ import { buttonClassName } from '@creatorops/ui';
 import { assetsPath } from '../features/assets/paths.js';
 import { settingsPath } from '../features/settings/paths.js';
 import { campaignsPath } from '../features/campaigns/paths.js';
+import { costsPath } from '../features/costs/paths.js';
 import { productsPath } from '../features/products/paths.js';
 import { NEW_WORKSPACE_PATH } from '../features/workspaces/WorkspaceRequired.js';
 import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
@@ -100,6 +101,20 @@ export function Layout() {
               ) : (
                 <NavLink to={campaignsPath(current.id)} className={linkClass}>
                   Campaigns
+                </NavLink>
+              )}
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
+                  Costs
+                </span>
+              ) : (
+                <NavLink to={costsPath(current.id)} className={linkClass}>
+                  Costs
                 </NavLink>
               )}
             </li>

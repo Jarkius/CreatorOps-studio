@@ -7,7 +7,25 @@ import { hasActiveJob, newExtensionIdempotencyKey, PANEL_CAMPAIGN_LIMIT } from '
 /** Query keys for the panel. Every key starts with ['panel', ...] so one prefix clears them. */
 export const panelKeys = {
   campaigns: (workspaceId: string) => ['panel', 'campaigns', workspaceId] as const,
+  cost: (workspaceId: string, campaignId: string, jobKey: string) =>
+    ['panel', 'cost', workspaceId, campaignId, jobKey] as const,
 };
+
+/**
+ * What one campaign cost, in baht. `jobKey` (the latest job's id and status) is part of the key, so
+ * the figure is read again when a job starts or ends; the server is the only source of the number.
+ */
+export function usePanelCampaignCost(
+  api: ApiClient,
+  workspaceId: string,
+  campaignId: string,
+  jobKey: string,
+) {
+  return useQuery({
+    queryKey: panelKeys.cost(workspaceId, campaignId, jobKey),
+    queryFn: () => api.campaigns.cost(workspaceId, campaignId),
+  });
+}
 
 /**
  * The newest campaigns, each with its latest generate job (D-064), so one request shows every

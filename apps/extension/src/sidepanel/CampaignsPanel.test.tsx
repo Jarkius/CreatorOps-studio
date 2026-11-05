@@ -1,6 +1,7 @@
 import {
   ApiError,
   type ApiClient,
+  type CampaignCost,
   type CampaignListItem,
   type Job,
   type JobStatus,
@@ -63,10 +64,26 @@ function job(id: string, campaignId: string, status: JobStatus, overrides: Parti
   };
 }
 
+const COST: CampaignCost = {
+  currency: 'THB',
+  thbPerUsd: 0.3333,
+  rateSource: 'settings',
+  marketThbPerUsd: 35,
+  aiText: { calls: 1, costUsd: 0.08, costThb: 0.03, anomalies: 0 },
+  manual: {
+    items: [
+      { id: 'm1', campaignId: 'c1', scene: null, label: 'Tool', amountThb: 12.5, createdAt: '' },
+    ],
+    totalThb: 12.5,
+  },
+  totalThb: 12.53,
+};
+
 interface Fakes {
   campaigns?: () => Promise<{ items: CampaignListItem[]; nextCursor: null }>;
   generateBrief?: (...args: unknown[]) => Promise<Job>;
   cancel?: (workspaceId: string, jobId: string) => Promise<Job>;
+  cost?: () => Promise<CampaignCost>;
 }
 
 function renderPanel(fakes: Fakes, options: { canStart?: boolean } = {}) {
@@ -80,7 +97,7 @@ function renderPanel(fakes: Fakes, options: { canStart?: boolean } = {}) {
     fakes.cancel ?? ((_w: string, id: string) => Promise.resolve(job(id, 'c1', 'cancelled'))),
   );
   const api = {
-    campaigns: { list: campaignsList },
+    campaigns: { list: campaignsList, cost: fakes.cost ?? (() => Promise.resolve(COST)) },
     jobs: { generateBrief, cancel },
   } as unknown as ApiClient;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -118,6 +135,44 @@ describe('side panel campaigns', () => {
     expect(screen.queryByText('Old one')).not.toBeInTheDocument();
     expect(within(row('Hero launch')).getByText(/Done\. Review the drafts/)).toBeInTheDocument();
     expect(within(row('Spring sale')).queryByText(/Done|Busy/)).not.toBeInTheDocument();
+  });
+
+  it('shows what each campaign cost in baht with US dollars beside it', async () => {
+    renderPanel({
+      campaigns: () =>
+        Promise.resolve({ items: [campaign('c1', 'Hero launch')], nextCursor: null }),
+    });
+    const line = await within(
+      await screen.findByText('Hero launch').then((e) => e.closest('li')!),
+    ).findByLabelText('Campaign cost');
+    expect(line).toHaveTextContent('Cost: ฿12.53 ≈ $0.36 · AI ฿0.03 · typed in ฿12.50');
+  });
+
+  it('says the cost is unavailable when it cannot be read, and the row still works', async () => {
+    renderPanel({
+      campaigns: () =>
+        Promise.resolve({ items: [campaign('c1', 'Hero launch')], nextCursor: null }),
+      cost: () => Promise.reject(new Error('down')),
+    });
+    expect(await screen.findByText('Cost unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate Hero launch' })).toBeEnabled();
+  });
+
+  it('reads the cost again when the latest job finishes', async () => {
+    const cost = vi.fn(() => Promise.resolve(COST));
+    let status: JobStatus = 'running';
+    renderPanel({
+      campaigns: () =>
+        Promise.resolve({
+          items: [campaign('c1', 'Hero launch', { latestGenerateJob: job('j1', 'c1', status) })],
+          nextCursor: null,
+        }),
+      cost,
+    });
+    await screen.findByLabelText('Campaign cost');
+    expect(cost).toHaveBeenCalledTimes(1);
+    status = 'succeeded'; // the next poll of the list (after 2 s) returns the finished job
+    await waitFor(() => expect(cost).toHaveBeenCalledTimes(2), { timeout: 5000 });
   });
 
   it('shows an empty state with a link to create a campaign in the dashboard', async () => {
