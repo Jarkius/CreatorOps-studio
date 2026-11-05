@@ -9,3 +9,12 @@ export function assertCanWrite(ctx: RequestContext): void {
     throw new AppError('FORBIDDEN', 'You do not have permission to change this workspace.');
   }
 }
+
+const MANAGE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
+/** Provider keys and spending limits are for owners and admins only, not editors. */
+export function assertCanManageProvider(ctx: RequestContext): void {
+  if (!MANAGE_ROLES.has(ctx.role)) {
+    throw new AppError('FORBIDDEN', 'Only an owner or admin can change the provider settings.');
+  }
+}

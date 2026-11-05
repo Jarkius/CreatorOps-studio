@@ -75,6 +75,23 @@ export const apiEnvSchema = z
       .regex(/^chrome-extension:\/\/[a-p]{32}$/, 'must look like chrome-extension://<32-letter id>')
       .optional(),
     SESSION_SECRET: z.string().min(32),
+    // Key that encrypts provider API keys stored in the database (D-066): 32 random bytes, base64.
+    // Distinct from SESSION_SECRET. Without it the settings screen refuses to save a key.
+    SECRETS_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => {
+        try {
+          return Buffer.from(value, 'base64').length === 32 && /^[A-Za-z0-9+/]{43}=$/.test(value);
+        } catch {
+          return false;
+        }
+      }, 'must be 32 random bytes as base64 (44 characters); make one with: openssl rand -base64 32')
+      .optional(),
+    // Names the key above in stored values so it can be rotated later. Letters and digits only.
+    SECRETS_ENCRYPTION_KEY_ID: z
+      .string()
+      .regex(/^[a-z0-9]{1,16}$/)
+      .default('k1'),
   })
   .superRefine((env, ctx) => {
     if (

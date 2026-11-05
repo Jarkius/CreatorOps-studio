@@ -19,9 +19,9 @@ import { validateDraftSections, validateSectionValue } from './validate-output.j
 /** The part of an HTTP exchange the adapter needs. Replaceable, so tests never touch a network. */
 export interface HttpRequest {
   readonly url: string;
-  readonly method: 'POST';
+  readonly method: 'POST' | 'GET';
   readonly headers: Readonly<Record<string, string>>;
-  readonly body: string;
+  readonly body?: string;
   readonly signal?: AbortSignal | undefined;
 }
 export interface HttpResponse {
@@ -39,7 +39,7 @@ export const fetchTransport: HttpTransport = async (request) => {
   const response = await fetch(request.url, {
     method: request.method,
     headers: { ...request.headers },
-    body: request.body,
+    ...(request.body === undefined ? {} : { body: request.body }),
     redirect: 'error',
     ...(request.signal === undefined ? {} : { signal: request.signal }),
   });
@@ -88,7 +88,7 @@ export interface OpenAiCompatibleConfig {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-function endpoint(baseUrl: string, allowLocalHttp: boolean): string {
+function baseOf(baseUrl: string, allowLocalHttp: boolean): string {
   let url: URL;
   try {
     url = new URL(baseUrl);
@@ -102,8 +102,11 @@ function endpoint(baseUrl: string, allowLocalHttp: boolean): string {
   if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
     throw new TypeError('baseUrl must not carry credentials, a query or a fragment');
   }
-  return `${url.origin}${url.pathname.replace(/\/+$/u, '')}/chat/completions`;
+  return `${url.origin}${url.pathname.replace(/\/+$/u, '')}`;
 }
+
+const endpoint = (baseUrl: string, allowLocalHttp: boolean): string =>
+  `${baseOf(baseUrl, allowLocalHttp)}/chat/completions`;
 
 const SYSTEM_RULES = [
   'You write short-form product video content for creators.',
@@ -343,4 +346,42 @@ function parseJson(content: string): unknown {
   } catch {
     throw new ProviderError('INVALID_OUTPUT');
   }
+}
+
+export interface ConnectionCheck {
+  readonly ok: boolean;
+  /** A stable word when not ok. */
+  readonly code: 'AUTH_FAILED' | 'BUDGET_EXCEEDED' | 'INVALID_REQUEST' | 'UNREACHABLE' | null;
+}
+
+/**
+ * One free, read-only call (`GET {base}/models`) to see that the address answers and the key is
+ * accepted. It never sends product text and never generates anything, so it costs nothing.
+ */
+export async function checkConnection(config: {
+  readonly baseUrl: string;
+  readonly apiKey: string;
+  readonly transport?: HttpTransport;
+  readonly allowLocalHttp?: boolean;
+  readonly signal?: AbortSignal;
+}): Promise<ConnectionCheck> {
+  const url = `${baseOf(config.baseUrl, config.allowLocalHttp === true)}/models`;
+  let response: HttpResponse;
+  try {
+    response = await (config.transport ?? fetchTransport)({
+      url,
+      method: 'GET',
+      headers: { accept: 'application/json', authorization: `Bearer ${config.apiKey}` },
+      signal: config.signal,
+    });
+  } catch {
+    return { ok: false, code: 'UNREACHABLE' };
+  }
+  if (response.status >= 200 && response.status < 300) return { ok: true, code: null };
+  if (response.status === 401 || response.status === 403) return { ok: false, code: 'AUTH_FAILED' };
+  if (response.status === 402) return { ok: false, code: 'BUDGET_EXCEEDED' };
+  if (response.status >= 500 || response.status === 408 || response.status === 429) {
+    return { ok: false, code: 'UNREACHABLE' };
+  }
+  return { ok: false, code: 'INVALID_REQUEST' };
 }

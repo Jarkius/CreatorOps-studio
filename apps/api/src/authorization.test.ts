@@ -132,6 +132,11 @@ beforeAll(async () => {
         sections: { hook: 'Pwned' },
       },
       'PUT /api/v1/workspaces/:workspaceId/drafts/:draftId/assets': { assets: [] },
+      'PUT /api/v1/workspaces/:workspaceId/provider-settings': {
+        provider: 'openrouter',
+        model: 'vendor/model-x',
+        apiKey: 'sk-or-v1-0123456789abcdef',
+      },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,
         name: 'Pwned',

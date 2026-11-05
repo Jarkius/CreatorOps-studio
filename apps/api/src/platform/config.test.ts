@@ -132,4 +132,27 @@ describe('loadConfig', () => {
     expect(error.issues.map((issue) => issue.variable)).toContain('REDIS_URL');
     expect(error.message).not.toContain('topsecret');
   });
+
+  it('accepts SECRETS_ENCRYPTION_KEY only as 32 base64 bytes, never echoes it, and defaults its id', () => {
+    const good = Buffer.alloc(32, 7).toString('base64');
+    expect(loadConfig(validEnv()).SECRETS_ENCRYPTION_KEY).toBeUndefined();
+    expect(loadConfig(validEnv()).SECRETS_ENCRYPTION_KEY_ID).toBe('k1');
+    expect(loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: good })).SECRETS_ENCRYPTION_KEY).toBe(
+      good,
+    );
+    for (const bad of [
+      Buffer.alloc(16).toString('base64'),
+      'not-base64!',
+      'short',
+      good.slice(0, -1),
+    ]) {
+      expect(() => loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: bad }))).toThrow();
+      try {
+        loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: bad }));
+      } catch (error) {
+        expect(String(error)).not.toContain(bad);
+      }
+    }
+    expect(() => loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY_ID: 'Bad Id!' }))).toThrow();
+  });
 });

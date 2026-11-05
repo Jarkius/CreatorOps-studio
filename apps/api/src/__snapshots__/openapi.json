@@ -6137,6 +6137,539 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspaceId}/provider-settings": {
+      "get": {
+        "summary": "Read the text provider settings (the key is never returned)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save the text provider, model, key, prices and monthly limit (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openrouter",
+                      "custom"
+                    ]
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 400
+                  },
+                  "pricing": {
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "inputPerMillionUsd": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "outputPerMillionUsd": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "multiplier": {
+                        "default": 1,
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 100
+                      },
+                      "minPerRequestUsd": {
+                        "default": 0,
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      }
+                    },
+                    "required": [
+                      "inputPerMillionUsd",
+                      "outputPerMillionUsd"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "monthlyCapUsd": {
+                    "nullable": true,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100000
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove the saved provider and key (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/provider-settings/check": {
+      "post": {
+        "summary": "Check the connection with one free read-only call (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "code",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/uploads/{intentId}": {
       "put": {
         "summary": "Send the file bytes to a signed upload URL (step 2)",

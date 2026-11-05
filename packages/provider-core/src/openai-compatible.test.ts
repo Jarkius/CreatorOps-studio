@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProviderError, type ProviderErrorCode } from './errors.js';
 import { MockTextProvider } from './mock.js';
 import {
+  checkConnection,
   estimateCostUsd,
   fetchTransport,
   MAX_RESPONSE_CHARS,
@@ -96,7 +97,7 @@ describe('OpenAiCompatibleTextProvider: request', () => {
     expect(sent.url).toBe('https://openrouter.example/api/v1/chat/completions');
     expect(sent.method).toBe('POST');
     expect(sent.headers.authorization).toBe(`Bearer ${KEY}`);
-    const body = JSON.parse(sent.body) as {
+    const body = JSON.parse(sent.body ?? '') as {
       model: string;
       messages: { role: string; content: string }[];
       response_format: unknown;
@@ -122,7 +123,7 @@ describe('OpenAiCompatibleTextProvider: request', () => {
       extraBody: { provider: { data_collection: 'deny' }, model: 'evil/model', messages: [] },
     });
     await provider.generateBrief(REQUEST);
-    const body = JSON.parse(requests[0]!.body) as Record<string, unknown>;
+    const body = JSON.parse(requests[0]!.body ?? '') as Record<string, unknown>;
     expect(body.provider).toEqual({ data_collection: 'deny' });
     expect(body.model).toBe('vendor/model-x');
     expect((body.messages as unknown[]).length).toBe(2);
@@ -199,7 +200,7 @@ describe('OpenAiCompatibleTextProvider: results', () => {
     const req: RegenerateSectionRequest = { ...REQUEST, section: 'title', current: draft };
     const result = await provider.regenerateSection(req);
     expect(result).toMatchObject({ section: 'title', value: 'ชื่อใหม่ที่ต่างจากเดิม' });
-    expect(JSON.parse(requests[0]!.body).messages[0].content).toContain(
+    expect(JSON.parse(requests[0]!.body ?? '').messages[0].content).toContain(
       'Rewrite only the section "title"',
     );
   });
@@ -366,5 +367,48 @@ describe('fetchTransport', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('checkConnection', () => {
+  const run = (response: HttpResponse | Error) => {
+    const seen: HttpRequest[] = [];
+    const transport: HttpTransport = (request) => {
+      seen.push(request);
+      return response instanceof Error ? Promise.reject(response) : Promise.resolve(response);
+    };
+    return {
+      seen,
+      result: checkConnection({ baseUrl: 'https://a.example/v1/', apiKey: KEY, transport }),
+    };
+  };
+
+  it('makes one GET to /models with the key, and sends no body', async () => {
+    const { seen, result } = run(reply({ data: [] }));
+    expect(await result).toEqual({ ok: true, code: null });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ method: 'GET', url: 'https://a.example/v1/models' });
+    expect(seen[0]!.body).toBeUndefined();
+    expect(seen[0]!.headers.authorization).toBe(`Bearer ${KEY}`);
+  });
+
+  it('names the problem for 401, 402, 5xx, network errors and other statuses', async () => {
+    expect((await run(reply({}, { status: 401 })).result).code).toBe('AUTH_FAILED');
+    expect((await run(reply({}, { status: 403 })).result).code).toBe('AUTH_FAILED');
+    expect((await run(reply({}, { status: 402 })).result).code).toBe('BUDGET_EXCEEDED');
+    expect((await run(reply({}, { status: 503 })).result).code).toBe('UNREACHABLE');
+    expect((await run(reply({}, { status: 404 })).result).code).toBe('INVALID_REQUEST');
+    expect(await run(new TypeError(`down ${KEY}`)).result).toEqual({
+      ok: false,
+      code: 'UNREACHABLE',
+    });
+  });
+
+  it('refuses a plain http address before any call', async () => {
+    const transport = vi.fn();
+    await expect(
+      checkConnection({ baseUrl: 'http://a.example/v1', apiKey: KEY, transport }),
+    ).rejects.toThrow(TypeError);
+    expect(transport).not.toHaveBeenCalled();
   });
 });

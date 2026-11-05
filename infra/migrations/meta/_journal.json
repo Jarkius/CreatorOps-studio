@@ -64,6 +64,13 @@
       "when": 1793840820515,
       "tag": "0008_provider_error_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793841107276,
+      "tag": "0009_provider_credentials",
+      "breakpoints": true
     }
   ]
 }

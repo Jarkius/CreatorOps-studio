@@ -634,3 +634,51 @@ export const draftExports = pgTable(
     index('draft_exports_expiry_idx').on(t.status, t.expiresAt),
   ],
 );
+
+export const PROVIDER_PRESETS = ['openrouter', 'custom'] as const;
+
+/**
+ * The text provider a workspace chose (D-066). One row per workspace and purpose. The API key is
+ * stored only as `key_encrypted` (AES-256-GCM, bound to the workspace id); `key_last4` is what the
+ * screen may show. `pricing` and `monthly_cap_usd` feed the usage ledger (D-077).
+ */
+export const providerCredentials = pgTable(
+  'provider_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    purpose: text('purpose').notNull().default('text'),
+    provider: text('provider').notNull(),
+    baseUrl: text('base_url').notNull(),
+    model: text('model').notNull(),
+    keyEncrypted: text('key_encrypted').notNull(),
+    keyLast4: text('key_last4').notNull().default(''),
+    pricing: jsonb('pricing'),
+    monthlyCapUsd: numeric('monthly_cap_usd', { precision: 12, scale: 2 }),
+    version: integer('version').notNull().default(1),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    updatedBy: uuid('updated_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    unique('provider_credentials_workspace_purpose_unique').on(t.workspaceId, t.purpose),
+    check('provider_credentials_purpose_check', sql`${t.purpose} = 'text'`),
+    check('provider_credentials_provider_check', sql`${t.provider} in ('openrouter', 'custom')`),
+    check('provider_credentials_version_check', sql`${t.version} >= 1`),
+    check(
+      'provider_credentials_pricing_object',
+      sql`${t.pricing} is null or jsonb_typeof(${t.pricing}) = 'object'`,
+    ),
+    check(
+      'provider_credentials_cap_check',
+      sql`${t.monthlyCapUsd} is null or ${t.monthlyCapUsd} >= 0`,
+    ),
+  ],
+);
