@@ -49,7 +49,6 @@ All commands print `HTTP <status>` and a redacted summary. Exit code 1 means the
 | Check balance and models | `mp.py check --key-file <file>` | inference | free |
 | Prove the pool answers chat | `mp.py ping --key-file <file> --yes` (model default `claude-haiku-4-5`, 16 tokens) | inference | a few cents |
 | Same, on the Anthropic-style route Claude Code uses | add `--route messages` (calls `/v1/messages`) | inference | a few cents |
-| Use a pool's own address (`/chinese-specials/v1`) | add `--pool-path chinese-specials` to `check` or `ping` (`/me` exists only on the main address) | inference | as above |
 
 Rules the helper enforces: a limit above 0 on every key; no duplicate names (use `reroll`); `--out` must be outside the repo; `delete` and `ping` need `--yes`.
 
@@ -69,7 +68,7 @@ Rules the helper enforces: a limit above 0 on every key; no duplicate names (use
 - Base URL `https://api.maxplus-ai.cc/v1`; the app's adapter adds `/chat/completions`.
 - The account balance (`credit_usd`, about 2.03 USD on 2026-11-05) is the real cap until a top-up; the key limit only stops it earlier.
 - The existing project key is `creatorops-dev`, id `3e07dc71f3c0ea11a414f166`, pool `native`, limit 100, lifetime.
-- Models listed: Claude Haiku 4.5, Sonnet 4.5/4.6/5, Opus 4.6/4.7/4.8/5, Fable 5, GPT 5.5, GPT 5.6 sol/terra, codex-auto-review. Cheapest for tests: `claude-haiku-4-5`.
+- `/v1/models` lists only the models of the key's current pool. On pool `native` it listed: Claude Haiku 4.5, Sonnet 4.5/4.6/5, Opus 4.6/4.7/4.8/5, Fable 5, GPT 5.5, GPT 5.6 sol/terra, codex-auto-review. Cheapest for tests: `claude-haiku-4-5`.
 - `native` is the 5× pool with a per-request minimum. Avoid Auto pools (multiplier can jump to 24×). The cost rule (D-077): `max(tokens × base price × multiplier, minimum)`.
 - Rate limits read from the docs: `/v1/me` 60 per minute per key, `/v1/usage` 20 per minute per key.
 
@@ -84,7 +83,8 @@ Rules the helper enforces: a limit above 0 on every key; no duplicate names (use
 
 ## Working setup (verified 2026-11-05, later)
 
-- The owner moved `creatorops-dev` to pool **Chinese Specials** (×0.993; Chat Completions, Messages and Responses). The main address `https://api.maxplus-ai.cc/v1` and the pool address `https://api.maxplus-ai.cc/chinese-specials/v1` both answered.
+- **One address for every pool; the key picks the pool.** Change a key's pool in the MaxPlus dashboard; never change the address. Claude Code uses `https://api.maxplus-ai.cc` as `ANTHROPIC_BASE_URL`; our app's OpenAI-compatible adapter uses `https://api.maxplus-ai.cc/v1` (it adds `/chat/completions`). The dashboard also lists per-pool URLs; they are not needed.
+- The owner moved `creatorops-dev` to pool **Chinese Specials** (×0.993; Chat Completions, Messages and Responses).
 - `qwen3.8-flash`: 200, `finish=stop`, Thai reply, `usage.cost` not reported. `deepseek-v4.1-flash` and `glm-5.3-flash` spend 16 tokens on hidden reasoning (`finish=length`, empty reply), so give them a larger `max_tokens`; deepseek reported `usage.cost` 0.00001.
 - Balance 301.93 USD after the owner's top-up; the key limit (100 USD lifetime) is now the real cap.
 - These are Chinese model providers behind a third-party proxy: development and pilot only, owner-written product text only (D-062).
