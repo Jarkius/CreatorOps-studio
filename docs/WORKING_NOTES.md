@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-05 · **Branch:** `ccr-186e9c63-3y215n` (D-064; the old name in earlier docs is retired). **Phase:** 0 to 3 complete; S5.0 to S5.3 and A1 done; A2, A3 and A4 done (scene list, Meta AI helper on a fake page with wait-for-sign-in, Full Auto; the owner tests the real site); Phase 5 is complete: results and export in the dashboard and the side panel, file picker, name search (S5.4 to S5.9, D-074 to D-076); next is Phase 4 (real text).
+**Last updated:** 2026-11-05 (end of session) · **Branch:** `ccr-186e9c63-3y215n` (D-064). **Phase:** 0 to 3 and 5 complete; A1 to A4 done (Meta AI helper on a fake page; the owner tests the real site); **Phase 4 built on a mock transport (S4.1 to S4.6, S4.7 library)**; next is S4.7 evaluation script, then S4.0 the first real call with the MaxPlus dev key.
 
 ## Where we are
 
@@ -11,8 +11,10 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | 0 Foundation (monorepo, CI, config, redaction, local Postgres) | done |
 | 1 Extension shell + API foundation (mock auth, dashboard shell, MV3 side panel) | done |
 | 2 Workspaces, products, media (API, dashboard, extension product view, uploads, signed media) | done; see the exit check in `docs/IMPLEMENTATION_STATUS.md` |
-| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | **in progress**: S3.0 to S3.8 done (see below); plan in D-045..D-061 |
-| 4+ real providers, export, publishing | blocked on open questions Q-001, Q-002, Q-005 (see `docs/DECISIONS.md`) |
+| 3 Content generation with a mock provider (jobs, Redis + BullMQ per D-006) | done (S3.0 to S3.9) |
+| 4 Real text provider | built on a mock transport: S4.1 to S4.6 and the S4.7 library (D-077); not yet called for real |
+| 5 Export (attachments, ZIP, signed download, results UI) | done (D-067, D-074 to D-076) |
+| 6+ media APIs, publishing, team | not started; gated (D-022, D-060, Q-002) |
 
 ### Phase 3 progress (plan: D-045..D-054, details D-055/D-056, evidence in `docs/IMPLEMENTATION_STATUS.md`)
 
@@ -35,7 +37,7 @@ Read this first when resuming. It is a compact summary; the authoritative docume
 | A1 side panel Create tab (product, mode, checklist, one button; starts campaign and generation) | done |
 | S3.9 exit check: dashboard e2e now runs a real worker and Redis; campaign-to-draft spec (generate, edit, regenerate another section, reload) | done |
 
-Tests at the last full run (S5 leftovers): contracts 77, provider-core 95, config 12, ui 43, extension unit 166, web 279, api 502; end-to-end 53 (22 extension, 31 dashboard). Lint, typecheck, build, format:check all pass.
+Tests at the last full run (Phase 4, 2026-11-05): contracts 83, provider-core 133, config 12, ui 43, extension unit 166, web 296, api 544; end-to-end 53 (22 extension, 31 dashboard; last run before Phase 4, not re-run since). Lint, typecheck, build, format:check all pass.
 
 Phase 3 gotchas: a section edit always beats a regenerate job (revision checked before the provider call and again under the draft row lock); editing content resets an approved draft to `draft`. Run the touched tests green before a mutation run (a red baseline makes every mutation look killed). the API entry is `apps/api/src/server.ts` (`index.ts` only exports a constant). Run Prettier from the repo root, not from `apps/api` (it reformats the OpenAPI snapshot there). BullMQ rejects `:` in a custom job id, so queue ids are `${jobId}_${attempt}`. Redis 7.0.15 is installed locally (`redis-server`). Mock Thai copy needs native review (Q-005). Constants are duplicated across schema, contracts and provider-core; `db/constants.test.ts` cross-checks them. The 500-campaign cap has no concurrent test. Migration mutation scripts must remove whole lines (a stray comma gives false positives). Regenerate the OpenAPI snapshot with `vitest run app.test -u` and check the diff only adds lines.
 
@@ -111,6 +113,8 @@ S4.1 to S4.6 are built on a mock transport (D-077; details in IMPLEMENTATION_STA
 
 ## MaxPlus dev key (2026-11-05)
 
+Use the project skill `maxplus-gateway` (`.claude/skills/maxplus-gateway/`, copy in `docs/skills/`): run `python3 -I .claude/skills/maxplus-gateway/mp.py <list|create|patch|reroll|delete|check|ping>`; it never prints a secret and writes a new key only to a private file outside the repo.
+
 At the owner's request a dedicated key was created through the MaxPlus management API (the management token was used in memory only and is to be rotated): name `creatorops-dev`, id `3e07dc71f3c0ea11a414f166`, pool `native`, `limit_usd` 100, `limit_period` lifetime. Read-only checks passed: `GET /v1/me` 200 (account balance about 2.03 USD credit, so the balance, not the key limit, is the real cap until a top-up) and `GET /v1/models` 200 with 14 models (Claude Haiku 4.5 to Opus 5, GPT 5.5 and 5.6). No generation call was made yet. The secret was handed to the owner through a private file, never written to the repo or chat. Settings to enter: Custom, `https://api.maxplus-ai.cc/v1`, a model from that list, the prices and the `native` pool multiplier and per-request minimum from MaxPlus's price page.
 
 ## Open questions that need the owner
@@ -125,8 +129,8 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 2. **A3 (done 2026-11-04, D-072):** Generate in Meta AI per scene in the side panel, built and e2e-tested against a fake meta.ai. **Owner action: test it on the real meta.ai** (load the demo build, press Generate in Meta AI on a scene, allow meta.ai in Chrome's prompt, stay signed in) and send the "Copy diagnostics" text if it fails; two fix rounds, then decide about AutoGenX. Fixes are usually in `sidepanel/metaai/selectors.ts`.
 3. **A4 (done 2026-11-04, D-073):** Full Auto tick on the Create tab (script, then the four scene images in order, Cancel, skips scenes that have a file) and **Generate all scenes** in the scene list. Not built: video, fresh chat per scene, resume after the panel closes.
 4. **A5 and all of Phase 5 (done 2026-11-05, D-074 to D-076):** zip builder, export job, list, signed download, sweeper, results and export in the dashboard and in the side panel, product file picker on the draft, name search in the library. Not built: a real SIGKILL of the worker (state it leaves is tested), an extension e2e for export.
-5. **Next:** Phase 4 (real text: settings screen with the encrypted key D-066, OpenAI-compatible adapter, usage ledger, usage screen; OpenRouter is the default, D-065; spend cap is optional, D-069), the first real test S6.0, optional API adapters for images and video (Muse Image is offered at about $0.01 per image per OpenRouter's listing; unverified), asset filters (S5.4), reconciling the Phase 2 boxes in `docs/07`.
-6. **Owner actions:** rotate the management token that was pasted in chat once; when ready, create an OpenRouter key (never in chat or git); test the helper on the real meta.ai after A3; check that Meta's paid plan is available in Thailand.
+5. **Phase 4 (built 2026-11-05 on a mock transport, D-077):** OpenAI-compatible adapter, encrypted provider key (`SECRETS_ENCRYPTION_KEY`), Settings page with Check connection, usage ledger with a monthly limit, worker uses the workspace provider (metered), 20-brief Thai evaluation library. **Next, in order:** (a) S4.7 runnable script `pnpm eval:text` (it was declined once as written; ask the owner before adding scripts to `package.json`); (b) S4.0 first real call: on the owner's machine set `SECRETS_ENCRYPTION_KEY`, paste the MaxPlus dev key into Settings (Custom, `https://api.maxplus-ai.cc/v1`, `claude-haiku-4-5`, prices and the `native` multiplier), Check connection, generate once, read Usage; or from the sandbox `mp.py ping --yes` (a few cents); (c) Thai evaluation run and owner scores (Q-005); (d) affiliate templates (D-078: batch plan generator first, no model needed); (e) advisor findings list above (Meta AI helper fixes after the owner's real test). Open gaps: no automatic stop on a cost anomaly (flag only), a retried generate job re-pays variants already made, OpenRouter `usage.include` and MaxPlus `usage.cost` unverified, e2e not re-run since Phase 4.
+6. **Owner actions:** **reroll the MaxPlus management token** (two were pasted in this session's transcript; treat both as exposed); delete the key file `maxplus-creatorops-dev.key` from the scratchpad after pasting it into Settings (the scratchpad is wiped with the container anyway); top up MaxPlus if more than a few test calls are needed (balance about 2.03 USD); test the Meta AI helper on the real site and send "Copy diagnostics"; answer Q-001, Q-002, Q-005.
 7. **Quick start for the owner:** `pnpm demo` (see README).
 
 **Routine reminders**

@@ -17,6 +17,7 @@ Read in this order before changing code:
 13. `WORKER_BRIEF_TEMPLATE.md` (start every Haiku worker spec from it; lessons log at the bottom)
 14. `MAXPLUS_PRICING.md` (the owner's MaxPlus gateway price notes, unverified; D-077)
 15. `reference/affiliate-product-incubator.skill.md` (the owner's 5-phase affiliate framework, kept as a reference for studio templates; D-078)
+16. `skills/` (reusable copies of the project skills `app-dev-methodology` and `maxplus-gateway`; the live ones are in `.claude/skills/`)
 
 ## Which document wins
 
