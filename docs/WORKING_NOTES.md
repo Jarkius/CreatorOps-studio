@@ -109,6 +109,10 @@ From the owner-test review; the Meta AI items are inference (no real meta.ai her
 
 S4.1 to S4.6 are built on a mock transport (D-077; details in IMPLEMENTATION_STATUS). To try it: set `SECRETS_ENCRYPTION_KEY` (`openssl rand -base64 32`) for the API and the worker, open Settings in the dashboard, save OpenRouter with a capped key and the prices, press Check connection, then generate. Send back the job error code and the Usage numbers if anything looks wrong. Next: S4.7 evaluation script (`pnpm eval:text`), S4.0 first real call with the owner's key, then the affiliate templates (D-078).
 
+## MaxPlus dev key (2026-11-05)
+
+At the owner's request a dedicated key was created through the MaxPlus management API (the management token was used in memory only and is to be rotated): name `creatorops-dev`, id `3e07dc71f3c0ea11a414f166`, pool `native`, `limit_usd` 100, `limit_period` lifetime. Read-only checks passed: `GET /v1/me` 200 (account balance about 2.03 USD credit, so the balance, not the key limit, is the real cap until a top-up) and `GET /v1/models` 200 with 14 models (Claude Haiku 4.5 to Opus 5, GPT 5.5 and 5.6). No generation call was made yet. The secret was handed to the owner through a private file, never written to the repo or chat. Settings to enter: Custom, `https://api.maxplus-ai.cc/v1`, a model from that list, the prices and the `native` pool multiplier and per-request minimum from MaxPlus's price page.
+
 ## Open questions that need the owner
 
 Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai evaluation reviewers (before Phase 4); Q-003/Q-004/Q-007 hosting, auth provider and storage vendor (before any hosted deployment); Q-006 extension distribution (before a beta). Defaults are listed in `docs/DECISIONS.md`.
