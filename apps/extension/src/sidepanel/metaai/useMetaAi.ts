@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import { sceneKeys } from '../sceneHooks.js';
 import { uploadAndAttach } from './attach.js';
 import { createChromeBrowser } from './browser.js';
+import { FLOW_SITE, META_AI_SITE, type HelperKind, type HelperSite } from './sites.js';
 import { formatDiagnostics } from './diagnostics.js';
 import * as pageFunctions from './page.js';
 import {
@@ -26,8 +27,8 @@ export interface HelperDeps {
   readonly fetchImpl?: typeof fetch;
 }
 
-export function defaultHelperDeps(): HelperDeps {
-  return { browser: createChromeBrowser(), page: pageFunctions };
+export function defaultHelperDeps(site: HelperSite = META_AI_SITE): HelperDeps {
+  return { browser: createChromeBrowser(site), page: pageFunctions };
 }
 
 /** Where a scene is in a run of several (Full Auto); null for a single scene. */
@@ -40,6 +41,8 @@ export type HelperState =
   | { readonly phase: 'idle' }
   | {
       readonly phase: 'running';
+      readonly site: HelperSite;
+      readonly kind: HelperKind;
       readonly scene: DraftScene;
       readonly step: StepId;
       readonly waitingForSignIn: boolean;
@@ -48,6 +51,8 @@ export type HelperState =
     }
   | {
       readonly phase: 'done';
+      readonly site: HelperSite;
+      readonly kind: HelperKind;
       readonly scene: DraftScene;
       /** How many scene images this run saved. */
       readonly saved: number;
@@ -55,6 +60,8 @@ export type HelperState =
     }
   | {
       readonly phase: 'failed';
+      readonly site: HelperSite;
+      readonly kind: HelperKind;
       readonly scene: DraftScene;
       readonly code: MetaAiErrorCode | 'UNKNOWN';
       readonly message: string;
@@ -80,6 +87,27 @@ export function useMetaAiHelper(
   draft: Pick<Draft, 'id' | 'productId'>,
   deps?: HelperDeps,
 ) {
+  return useSiteHelper(META_AI_SITE, 'image', api, workspaceId, draft, deps);
+}
+
+/** The Google Flow helper: one video clip per scene, in the owner's own Flow tab (D-080). */
+export function useFlowHelper(
+  api: ApiClient,
+  workspaceId: string,
+  draft: Pick<Draft, 'id' | 'productId'>,
+  deps?: HelperDeps,
+) {
+  return useSiteHelper(FLOW_SITE, 'video', api, workspaceId, draft, deps);
+}
+
+function useSiteHelper(
+  site: HelperSite,
+  kind: HelperKind,
+  api: ApiClient,
+  workspaceId: string,
+  draft: Pick<Draft, 'id' | 'productId'>,
+  deps?: HelperDeps,
+) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<HelperState>({ phase: 'idle' });
   const controllerRef = useRef<AbortController | null>(null);
@@ -89,7 +117,7 @@ export function useMetaAiHelper(
       if (controllerRef.current !== null || jobs.length === 0) return;
       const controller = new AbortController();
       controllerRef.current = controller;
-      const helper = deps ?? defaultHelperDeps();
+      const helper = deps ?? defaultHelperDeps(site);
       let saved = 0;
       let lastScene: DraftScene = jobs[0]?.scene ?? 'product_hero';
       let lines: DiagnosticLine[] = [];
@@ -102,10 +130,12 @@ export function useMetaAiHelper(
           const label =
             position === null ? scene : `${scene} (${position.index} of ${position.total})`;
           const report = (code: MetaAiErrorCode | 'OK' | 'UNKNOWN') =>
-            formatDiagnostics(lines, { code, scene: label }, new Date());
+            formatDiagnostics(lines, { code, scene: label }, new Date(), site.name);
           const step = (next: StepId) =>
             setState({
               phase: 'running',
+              site,
+              kind,
               scene,
               step: next,
               waitingForSignIn: false,
@@ -123,13 +153,15 @@ export function useMetaAiHelper(
               if (!(await helper.browser.requestPermission())) {
                 throw new MetaAiError(
                   'PERMISSION_DENIED',
-                  'Meta AI was not allowed. The helper only works on meta.ai and only after you allow it.',
+                  `${site.name} was not allowed. The helper only works on ${site.name} and only after you allow it.`,
                 );
               }
             }
             const result = await runMetaAiScene({
               browser: helper.browser,
               page: helper.page,
+              site,
+              kind,
               prompt,
               signal: controller.signal,
               onStep: step,
@@ -144,6 +176,7 @@ export function useMetaAiHelper(
               draftId: draft.id,
               productId: draft.productId,
               scene,
+              site,
               bytes: result.bytes,
               mimeType: result.mimeType,
               signal: controller.signal,
@@ -157,6 +190,8 @@ export function useMetaAiHelper(
             const known = error instanceof MetaAiError ? error : null;
             setState({
               phase: 'failed',
+              site,
+              kind,
               scene,
               code: known?.code ?? 'UNKNOWN',
               message:
@@ -170,16 +205,23 @@ export function useMetaAiHelper(
         }
         setState({
           phase: 'done',
+          site,
+          kind,
           scene: lastScene,
           saved,
-          diagnostics: formatDiagnostics(lines, { code: 'OK', scene: lastScene }, new Date()),
+          diagnostics: formatDiagnostics(
+            lines,
+            { code: 'OK', scene: lastScene },
+            new Date(),
+            site.name,
+          ),
         });
       } finally {
         controllerRef.current = null;
         void queryClient.invalidateQueries({ queryKey: sceneKeys.assets(workspaceId, draft.id) });
       }
     },
-    [api, deps, draft.id, draft.productId, queryClient, workspaceId],
+    [api, deps, draft.id, draft.productId, kind, queryClient, site, workspaceId],
   );
 
   const start = useCallback(

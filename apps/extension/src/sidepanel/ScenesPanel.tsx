@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCampaignDraft, useDraftAssets } from './sceneHooks.js';
 import { ExportPanel, type OpenUrl } from './ExportPanel.js';
 import { HelperRunPanel } from './metaai/HelperRunPanel.js';
-import { useMetaAiHelper, type HelperDeps } from './metaai/useMetaAi.js';
+import { useFlowHelper, useMetaAiHelper, type HelperDeps } from './metaai/useMetaAi.js';
 import { attachedByScene, scenesFromSections, type SceneItem } from './scenes.js';
 
 export interface ScenesPanelProps {
@@ -85,9 +85,12 @@ function SceneList({
   openUrl?: OpenUrl;
 }) {
   const run = useMetaAiHelper(api, workspaceId, draft, helper);
-  const running = run.state.phase === 'running';
+  const flow = useFlowHelper(api, workspaceId, draft, helper);
+  // One helper at a time: both write to the same draft and use the owner's browser.
+  const running = run.state.phase === 'running' || flow.state.phase === 'running';
   const assets = useDraftAssets(api, workspaceId, draft.id);
   const attached = attachedByScene(assets.data?.items ?? []);
+  const attachedVideos = attachedByScene(assets.data?.items ?? [], 'video');
   const scenes = scenesFromSections(draft.sections);
   // The owner's edits live here (not saved to the draft) so "Generate all" uses them too.
   const [edits, setEdits] = useState<Partial<Record<DraftScene, string>>>({});
@@ -96,6 +99,9 @@ function SceneList({
     (item) => !attached.has(item.scene) && promptOf(item).trim() !== '',
   );
   const missingJobs = () => missing.map((item) => ({ scene: item.scene, prompt: promptOf(item) }));
+  const missingVideos = scenes.filter(
+    (item) => !attachedVideos.has(item.scene) && promptOf(item).trim() !== '',
+  );
   // Full Auto starts once, after the file list is known, so scenes that already have a file are
   // skipped; a failure or Cancel stops it and nothing restarts it until the owner presses again.
   const autoStarted = useRef(false);
@@ -131,6 +137,31 @@ function SceneList({
         </Button>
       ) : null}
       <HelperRunPanel state={run.state} onCancel={run.cancel} onDismiss={run.dismiss} />
+      {canStart ? (
+        <div className="space-y-2">
+          <p className="text-sm text-[var(--co-text-muted)]">
+            Make video in Flow uses your own signed-in Google Flow tab. Set the model and the 9:16
+            shape in that tab first: the helper uses what is selected there and changes none of
+            Flow's settings. Chrome asks once to allow Flow.
+          </p>
+          {missingVideos.length > 0 ? (
+            <Button
+              variant="secondary"
+              disabled={running}
+              onClick={() =>
+                void flow.startAll(
+                  missingVideos.map((item) => ({ scene: item.scene, prompt: promptOf(item) })),
+                )
+              }
+            >
+              {missingVideos.length === scenes.length
+                ? 'Make all videos in Flow'
+                : `Make the ${missingVideos.length} missing video${missingVideos.length === 1 ? '' : 's'} in Flow`}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      <HelperRunPanel state={flow.state} onCancel={flow.cancel} onDismiss={flow.dismiss} />
       <ol className="space-y-3">
         {scenes.map((scene, index) => (
           <SceneRow
@@ -142,10 +173,12 @@ function SceneList({
               setEdits((previous) => ({ ...previous, [scene.scene]: text }))
             }
             fileName={attached.get(scene.scene)?.asset.originalFilename ?? null}
+            videoName={attachedVideos.get(scene.scene)?.asset.originalFilename ?? null}
             fileKnown={assets.isSuccess}
             {...(canStart
               ? {
                   onGenerate: (text: string) => void run.start(scene.scene, text),
+                  onGenerateVideo: (text: string) => void flow.start(scene.scene, text),
                   generateDisabled: running,
                 }
               : {})}
@@ -169,8 +202,10 @@ function SceneRow({
   prompt,
   onPromptChange,
   fileName,
+  videoName,
   fileKnown,
   onGenerate,
+  onGenerateVideo,
   generateDisabled = false,
 }: {
   index: number;
@@ -178,8 +213,10 @@ function SceneRow({
   prompt: string;
   onPromptChange: (prompt: string) => void;
   fileName: string | null;
+  videoName: string | null;
   fileKnown: boolean;
   onGenerate?: (prompt: string) => void;
+  onGenerateVideo?: (prompt: string) => void;
   generateDisabled?: boolean;
 }) {
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -193,6 +230,11 @@ function SceneRow({
         {fileKnown ? (
           <span className="text-sm text-[var(--co-text-muted)] [overflow-wrap:anywhere]">
             {fileName === null ? 'No file yet' : `File: ${fileName}`}
+          </span>
+        ) : null}
+        {fileKnown && videoName !== null ? (
+          <span className="w-full text-sm text-[var(--co-text-muted)] [overflow-wrap:anywhere]">
+            {`Video: ${videoName}`}
           </span>
         ) : null}
       </div>
@@ -227,6 +269,16 @@ function SceneRow({
             onClick={() => onGenerate(prompt)}
           >
             Generate in Meta AI
+          </Button>
+        )}
+        {onGenerateVideo === undefined ? null : (
+          <Button
+            variant="secondary"
+            aria-label={`Make video for ${scene.label} in Flow`}
+            disabled={generateDisabled || prompt.trim() === ''}
+            onClick={() => onGenerateVideo(prompt)}
+          >
+            Make video in Flow
           </Button>
         )}
         <Button

@@ -1,7 +1,7 @@
 import { Button } from '@creatorops/ui';
 import { useState } from 'react';
 
-import { STEP_LABELS, STEP_ORDER } from './runner.js';
+import { stepLabels, STEP_ORDER } from './runner.js';
 import type { HelperState } from './useMetaAi.js';
 
 export interface HelperRunPanelProps {
@@ -22,6 +22,7 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   if (state.phase === 'idle') return null;
   const sceneName = SCENE_NAMES[state.scene] ?? state.scene;
+  const thing = state.kind === 'video' ? 'video' : 'image';
   const copyDiagnostics = () => {
     navigator.clipboard.writeText(state.diagnostics).then(
       () => setCopied('copied'),
@@ -31,14 +32,14 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
 
   return (
     <section
-      aria-label="Meta AI helper"
+      aria-label={`${state.site.name} helper`}
       className="rounded-md border border-[var(--co-border)] p-3 text-sm"
     >
       {state.phase === 'running' ? (
         <>
           <p className="font-medium">
             {state.position === null
-              ? `Meta AI is working on ${sceneName}`
+              ? `${state.site.name} is working on ${sceneName}`
               : `Scene ${state.position.index} of ${state.position.total}: ${sceneName}`}
           </p>
           <ol aria-label="Steps" className="mt-2 space-y-1">
@@ -48,14 +49,14 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
               return (
                 <li key={step} aria-current={index === current ? 'step' : undefined}>
                   <span aria-hidden="true">{mark} </span>
-                  {STEP_LABELS[step]}
+                  {stepLabels(state.site, state.kind)[step]}
                 </li>
               );
             })}
           </ol>
           {state.waitingForSignIn ? (
             <p role="status" className="mt-2 font-medium">
-              Waiting for you to sign in in the Meta AI tab. It continues by itself afterwards.
+              {`Waiting for you to sign in in the ${state.site.name} tab. It continues by itself afterwards.`}
             </p>
           ) : null}
           <div className="mt-2">
@@ -70,8 +71,8 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
         <>
           <p role="status" className="font-medium">
             {state.saved === 1
-              ? `Saved the image to ${sceneName}.`
-              : `Saved ${state.saved} scene images.`}
+              ? `Saved the ${thing} to ${sceneName}.`
+              : `Saved ${state.saved} scene ${thing}s.`}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button variant="secondary" onClick={onDismiss}>
@@ -87,7 +88,7 @@ export function HelperRunPanel({ state, onCancel, onDismiss }: HelperRunPanelPro
             {state.message}
           </p>
           {state.saved > 0 ? (
-            <p className="mt-1">{`${state.saved} scene image${state.saved === 1 ? ' was' : 's were'} saved before it stopped.`}</p>
+            <p className="mt-1">{`${state.saved} scene ${thing}${state.saved === 1 ? ' was' : 's were'} saved before it stopped.`}</p>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={copyDiagnostics}>

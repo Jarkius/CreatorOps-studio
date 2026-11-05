@@ -1,17 +1,8 @@
 import { ASSET_LIMITS, UPLOAD_MIME_VALUES, type UploadMime } from '@creatorops/contracts';
 
 import type { PageProbe, StashInfo, SubmitResult } from './page.js';
-import {
-  META_AI_CHUNK_BYTES,
-  META_AI_LOAD_TIMEOUT_MS,
-  META_AI_LOGIN_TIMEOUT_MS,
-  META_AI_POLL_MS,
-  META_AI_PROMPT_BOX_TIMEOUT_MS,
-  META_AI_SELECTORS,
-  META_AI_START_URL,
-  META_AI_TIMEOUT_MS,
-  type SelectorSet,
-} from './selectors.js';
+import type { SelectorSet } from './selectors.js';
+import { META_AI_SITE, type HelperKind, type HelperSite } from './sites.js';
 
 /** Stable codes so the panel can show a plain message for each. */
 export type MetaAiErrorCode =
@@ -74,6 +65,19 @@ export const STEP_LABELS: Readonly<Record<StepId, string>> = {
   collecting: 'Collecting the image',
   uploading: 'Saving it to this scene',
 };
+
+/** The step wording for a site and a kind of file; Meta AI images give exactly `STEP_LABELS`. */
+export function stepLabels(site: HelperSite, kind: HelperKind): Readonly<Record<StepId, string>> {
+  const thing = kind === 'video' ? 'video' : 'image';
+  return {
+    opening: `Opening ${site.name}`,
+    checking: 'Checking the page',
+    typing: 'Sending your prompt',
+    waiting: `Waiting for the ${thing}`,
+    collecting: `Collecting the ${thing}`,
+    uploading: 'Saving it to this scene',
+  };
+}
 export const STEP_ORDER: readonly StepId[] = [
   'opening',
   'checking',
@@ -99,7 +103,9 @@ export interface RunOptions {
   readonly browser: MetaAiBrowser;
   readonly page: PageFunctions;
   readonly prompt: string;
-  readonly kind?: 'image' | 'video';
+  readonly kind?: HelperKind;
+  /** The site to use; Meta AI when left out. */
+  readonly site?: HelperSite;
   readonly signal: AbortSignal;
   readonly onStep: (step: StepId) => void;
   /** True while the helper waits for the owner to sign in in the Meta AI tab. */
@@ -124,23 +130,23 @@ function fromBase64(text: string): Uint8Array {
 }
 
 /** Fails fast on a page that is not ready, with the reason the owner needs. */
-function assertUsable(probe: PageProbe): void {
+function assertUsable(probe: PageProbe, name: string): void {
   if (probe.state === 'login') {
     throw new MetaAiError(
       'LOGIN_REQUIRED',
-      'Meta AI is asking you to sign in. Sign in in that tab, then try again.',
+      `${name} is asking you to sign in. Sign in in that tab, then try again.`,
     );
   }
   if (probe.state === 'challenge') {
     throw new MetaAiError(
       'CHALLENGE',
-      'Meta AI is showing a check that needs you. Finish it in that tab, then try again. The helper does not solve it.',
+      `${name} is showing a check that needs you. Finish it in that tab, then try again. The helper does not solve it.`,
     );
   }
   if (probe.state === 'limit') {
     throw new MetaAiError(
       'RATE_LIMITED',
-      'Meta AI says you have hit a limit for now. Wait a while, then try again.',
+      `${name} says you have hit a limit for now. Wait a while, then try again.`,
     );
   }
 }
@@ -153,9 +159,10 @@ function assertUsable(probe: PageProbe): void {
 export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult> {
   const { browser, page, prompt, signal, onStep, log } = options;
   const kind = options.kind ?? 'image';
+  const site = options.site ?? META_AI_SITE;
   const sleep = options.sleep ?? defaultSleep;
   const now = options.now ?? Date.now;
-  const selectors = options.selectors ?? META_AI_SELECTORS;
+  const selectors = options.selectors ?? site.selectors;
   const startedAt = now();
   const note = (step: DiagnosticLine['step'], text: string) =>
     log({ atMs: now() - startedAt, step, note: text });
@@ -195,20 +202,20 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
   if (!(await browser.hasPermission())) {
     throw new MetaAiError(
       'PERMISSION_DENIED',
-      'Chrome has not allowed this extension to use meta.ai. Turn the helper on and allow it.',
+      `Chrome has not allowed this extension to use ${site.name}. Turn the helper on and allow it.`,
     );
   }
 
   onStep('opening');
   checkAborted();
   let tabId = await browser.findTab();
-  note('opening', tabId === null ? 'no meta.ai tab open, opening one' : 'using the open tab');
+  note('opening', tabId === null ? `no ${site.name} tab open, opening one` : 'using the open tab');
   if (tabId === null) {
     try {
-      tabId = await abortable(browser.openTab(META_AI_START_URL, META_AI_LOAD_TIMEOUT_MS));
+      tabId = await abortable(browser.openTab(site.startUrl, site.loadTimeoutMs));
     } catch (error) {
       if (error instanceof MetaAiError) throw error;
-      throw new MetaAiError('TIMEOUT', 'The Meta AI page did not finish loading. Try again.');
+      throw new MetaAiError('TIMEOUT', `The ${site.name} page did not finish loading. Try again.`);
     }
   }
   const tab = tabId;
@@ -236,7 +243,7 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
       }
       if (probe !== null) {
         note('checking', describe(probe));
-        if (probe.state !== 'login') assertUsable(probe);
+        if (probe.state !== 'login') assertUsable(probe, site.name);
         if (probe.promptBoxIndex >= 0) break;
         if (probe.state === 'login' && !signingIn.value) {
           signingIn.value = true;
@@ -246,23 +253,23 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
         }
       }
       if (signingIn.value) {
-        signInWaited += META_AI_POLL_MS;
-        if (signInWaited > META_AI_LOGIN_TIMEOUT_MS) {
+        signInWaited += site.pollMs;
+        if (signInWaited > site.loginTimeoutMs) {
           throw new MetaAiError(
             'LOGIN_REQUIRED',
-            'Meta AI was not signed in within 5 minutes. Sign in in that tab, then try again.',
+            `${site.name} was not signed in within 5 minutes. Sign in in that tab, then try again.`,
           );
         }
       } else {
-        loadWaited += META_AI_POLL_MS;
-        if (loadWaited > META_AI_PROMPT_BOX_TIMEOUT_MS) {
+        loadWaited += site.pollMs;
+        if (loadWaited > site.promptBoxTimeoutMs) {
           throw new MetaAiError(
             'PAGE_NOT_RECOGNISED',
-            'The Meta AI page does not look the way the helper expects. Use Copy diagnostics and send it for a fix.',
+            `The ${site.name} page does not look the way the helper expects. Use Copy diagnostics and send it for a fix.`,
           );
         }
       }
-      await wait(META_AI_POLL_MS);
+      await wait(site.pollMs);
     }
     if (signingIn.value) {
       signingIn.value = false;
@@ -279,26 +286,26 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     if (!sent.ok) {
       throw new MetaAiError(
         'SEND_FAILED',
-        'The helper could not type into Meta AI. Use Copy diagnostics and send it for a fix.',
+        `The helper could not type into ${site.name}. Use Copy diagnostics and send it for a fix.`,
       );
     }
 
     onStep('waiting');
-    const limit = META_AI_TIMEOUT_MS[kind];
+    const limit = site.timeoutMs[kind];
     let previous = '';
     let fresh: string[] = [];
-    for (let waited = 0; ; waited += META_AI_POLL_MS) {
+    for (let waited = 0; ; waited += site.pollMs) {
       checkAborted();
       if (waited > limit) {
         note('waiting', `gave up after ${Math.round(limit / 1000)} s`);
         throw new MetaAiError(
           'TIMEOUT',
-          'Meta AI did not finish in time. Check the tab, then try again.',
+          `${site.name} did not finish in time. Check the tab, then try again.`,
         );
       }
-      await wait(META_AI_POLL_MS);
+      await wait(site.pollMs);
       const now1 = await inTab(tab, page.probePage, [selectors]);
-      assertUsable(now1);
+      assertUsable(now1, site.name);
       const urls = await inTab(tab, page.listMedia, [selectors]);
       fresh = urls.filter((url) => !before.includes(url));
       note('waiting', `${fresh.length} new media items; ${describe(now1)}`);
@@ -311,7 +318,12 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     onStep('collecting');
     checkAborted();
     const target = fresh[0];
-    if (target === undefined) throw new MetaAiError('MEDIA_FAILED', 'No image was found.');
+    if (target === undefined) {
+      throw new MetaAiError(
+        'MEDIA_FAILED',
+        `No ${kind === 'video' ? 'video' : 'image'} was found.`,
+      );
+    }
     let info: StashInfo;
     try {
       info = await inTab(tab, page.stashMedia, [target]);
@@ -319,7 +331,7 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     } catch {
       throw new MetaAiError(
         'MEDIA_FAILED',
-        'The helper could not download the image from Meta AI. Use Copy diagnostics and send it for a fix.',
+        `The helper could not download the ${kind === 'video' ? 'video' : 'image'} from ${site.name}. Use Copy diagnostics and send it for a fix.`,
       );
     }
     note('collecting', `file ${info.size} bytes, type ${info.type}`);
@@ -327,15 +339,15 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     if (!isUploadMime(info.type) || info.size < 1 || info.size > limitBytes) {
       throw new MetaAiError(
         'MEDIA_FAILED',
-        'Meta AI gave a file this app cannot accept (type or size).',
+        `${site.name} gave a file this app cannot accept (type or size).`,
       );
     }
     const bytes = new Uint8Array(info.size);
-    for (let offset = 0; offset < info.size; offset += META_AI_CHUNK_BYTES) {
+    for (let offset = 0; offset < info.size; offset += site.chunkBytes) {
       checkAborted();
-      const chunk = fromBase64(await inTab(tab, page.readStash, [offset, META_AI_CHUNK_BYTES]));
+      const chunk = fromBase64(await inTab(tab, page.readStash, [offset, site.chunkBytes]));
       if (offset + chunk.length > info.size) {
-        throw new MetaAiError('MEDIA_FAILED', 'Meta AI gave more data than expected.');
+        throw new MetaAiError('MEDIA_FAILED', `${site.name} gave more data than expected.`);
       }
       bytes.set(chunk, offset);
     }

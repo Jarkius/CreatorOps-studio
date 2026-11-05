@@ -44,10 +44,17 @@ export function scenesFromSections(
   });
 }
 
-/** The attached file of each scene (the first one in package order), or none. */
-export function attachedByScene(items: readonly DraftAsset[]): ReadonlyMap<DraftScene, DraftAsset> {
+/**
+ * The attached file of each scene (the first one in package order), or none. A scene can hold one
+ * image and one video (D-080), so the kind says which one is meant; images by default.
+ */
+export function attachedByScene(
+  items: readonly DraftAsset[],
+  kind: 'image' | 'video' = 'image',
+): ReadonlyMap<DraftScene, DraftAsset> {
   const map = new Map<DraftScene, DraftAsset>();
   for (const item of items) {
+    if (item.asset.type !== kind) continue;
     if (item.scene !== null && !map.has(item.scene)) map.set(item.scene, item);
   }
   return map;

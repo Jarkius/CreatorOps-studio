@@ -154,14 +154,14 @@ describe('side panel scene list (A2)', () => {
             {
               assetId: 'a1',
               scene: 'usage',
-              asset: { originalFilename: 'usage.mp4' },
+              asset: { originalFilename: 'usage.png', type: 'image' },
             } as DraftAsset,
           ],
         }),
     });
     await user.click(await screen.findByRole('button', { name: 'Show scenes for Hero launch' }));
     const usage = (await screen.findByLabelText('3. Usage')).closest('li') as HTMLElement;
-    expect(await within(usage).findByText('File: usage.mp4')).toBeInTheDocument();
+    expect(await within(usage).findByText('File: usage.png')).toBeInTheDocument();
     expect(screen.getAllByText('No file yet')).toHaveLength(3);
   });
 

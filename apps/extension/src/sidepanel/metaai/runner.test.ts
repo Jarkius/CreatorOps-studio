@@ -9,6 +9,7 @@ import {
   type PageFunctions,
   type StepId,
 } from './runner.js';
+import { FLOW_SITE, type HelperKind, type HelperSite } from './sites.js';
 
 const PROMPT = 'a secret prompt about the product';
 
@@ -39,13 +40,23 @@ interface Setup {
   tab?: number | null;
   controller?: AbortController;
   onSleep?: (calls: number) => void;
+  site?: HelperSite;
+  kind?: HelperKind;
 }
 
 function setup(options: Setup = {}) {
   const file = options.file ?? new Uint8Array([1, 2, 3, 4]);
   let mediaCall = 0;
   const media = options.media ?? [[], ['https://cdn.test/a.png']];
-  const calls = { submit: 0, clear: 0, open: 0, sleeps: 0, focus: 0, typedPrompt: '' };
+  const calls = {
+    submit: 0,
+    clear: 0,
+    open: 0,
+    sleeps: 0,
+    focus: 0,
+    typedPrompt: '',
+    openedUrl: '',
+  };
   const signIn: boolean[] = [];
   const page: PageFunctions = {
     probePage: () => (options.probes ?? (() => probe()))(),
@@ -74,8 +85,9 @@ function setup(options: Setup = {}) {
       calls.focus += 1;
       return Promise.resolve();
     },
-    openTab: () => {
+    openTab: (url) => {
       calls.open += 1;
+      calls.openedUrl = url;
       return Promise.resolve(9);
     },
     run: (_tab, func, args) =>
@@ -89,6 +101,8 @@ function setup(options: Setup = {}) {
       browser,
       page,
       prompt: PROMPT,
+      ...(options.site === undefined ? {} : { site: options.site }),
+      ...(options.kind === undefined ? {} : { kind: options.kind }),
       signal: controller.signal,
       onStep: (step) => steps.push(step),
       onWaitingForSignIn: (waiting) => signIn.push(waiting),
@@ -111,6 +125,69 @@ async function code(promise: Promise<unknown>): Promise<string> {
   }
   return 'none';
 }
+
+async function message(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof MetaAiError) return error.message;
+    throw error;
+  }
+  return 'none';
+}
+
+describe('runMetaAiScene on Google Flow (D-080)', () => {
+  it('makes a video: same steps, mp4 bytes back, and the prompt typed once', async () => {
+    const t = setup({
+      site: FLOW_SITE,
+      kind: 'video',
+      type: 'video/mp4',
+      media: [[], ['https://cdn.test/clip.mp4']],
+    });
+    const result = await t.run();
+    expect(result.mimeType).toBe('video/mp4');
+    expect([...result.bytes]).toEqual([1, 2, 3, 4]);
+    expect(t.steps).toEqual(['opening', 'checking', 'typing', 'waiting', 'collecting']);
+    expect(t.calls.submit).toBe(1);
+  });
+
+  it('names Google Flow in what it tells the owner, never Meta AI', async () => {
+    const challenge = setup({
+      site: FLOW_SITE,
+      kind: 'video',
+      probes: () => probe({ state: 'challenge' }),
+    });
+    expect(await message(challenge.run())).toMatch(/^Google Flow is showing a check/);
+    const limit = setup({
+      site: FLOW_SITE,
+      kind: 'video',
+      probes: () => probe({ state: 'limit' }),
+    });
+    expect(await message(limit.run())).toMatch(/^Google Flow says you have hit a limit/);
+    const denied = setup({ site: FLOW_SITE, kind: 'video', permission: false });
+    expect(await message(denied.run())).toMatch(/use Google Flow/);
+    const stuck = setup({ site: FLOW_SITE, kind: 'video', media: [[]] });
+    const text = await message(stuck.run());
+    expect(text).toMatch(/^Google Flow did not finish in time/);
+    expect(text).not.toMatch(/Meta/);
+  });
+
+  it('waits up to ten minutes for a video, not three', async () => {
+    const t = setup({ site: FLOW_SITE, kind: 'video', media: [[]] });
+    expect(await code(t.run())).toBe('TIMEOUT');
+    expect(t.calls.sleeps).toBeGreaterThan(290);
+    expect(t.calls.sleeps).toBeLessThan(320);
+  });
+
+  it("opens Flow's own address when no tab is open, and Meta AI's for the default site", async () => {
+    const flow = setup({ site: FLOW_SITE, kind: 'video', tab: null, type: 'video/mp4' });
+    await flow.run();
+    expect(flow.calls.openedUrl).toBe('https://labs.google/fx/tools/flow');
+    const meta = setup({ tab: null });
+    await meta.run();
+    expect(meta.calls.openedUrl).toBe('https://www.meta.ai/');
+  });
+});
 
 describe('runMetaAiScene', () => {
   it('walks the steps in order and returns the image bytes', async () => {

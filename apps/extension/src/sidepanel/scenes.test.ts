@@ -34,10 +34,23 @@ describe('scenesFromSections', () => {
 });
 
 describe('attachedByScene', () => {
-  const item = (assetId: string, scene: DraftAsset['scene']) => ({ assetId, scene }) as DraftAsset;
+  const item = (assetId: string, scene: DraftAsset['scene'], type: 'image' | 'video' = 'image') =>
+    ({ assetId, scene, asset: { type } }) as DraftAsset;
   it('keeps the first file per scene and ignores files without a scene', () => {
     const map = attachedByScene([item('x', null), item('a', 'usage'), item('b', 'usage')]);
     expect(map.size).toBe(1);
     expect(map.get('usage')?.assetId).toBe('a');
+  });
+
+  it('keeps images and videos apart, so a scene can hold one of each', () => {
+    const items = [
+      item('v', 'usage', 'video'),
+      item('i', 'usage', 'image'),
+      item('w', 'detail', 'video'),
+    ];
+    expect(attachedByScene(items).get('usage')?.assetId).toBe('i');
+    expect(attachedByScene(items, 'video').get('usage')?.assetId).toBe('v');
+    expect(attachedByScene(items).has('detail')).toBe(false);
+    expect([...attachedByScene(items, 'video').keys()].sort()).toEqual(['detail', 'usage']);
   });
 });

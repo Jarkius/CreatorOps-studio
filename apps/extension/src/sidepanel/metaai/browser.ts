@@ -1,19 +1,18 @@
 import { MetaAiError, type MetaAiBrowser } from './runner.js';
-import { META_AI_ORIGIN, META_AI_TAB_PATTERN } from './selectors.js';
-
-const ORIGINS = [`${META_AI_ORIGIN}/*`];
+import { META_AI_SITE, type HelperSite } from './sites.js';
 
 /**
  * The real browser behind `MetaAiBrowser`: `chrome.permissions`, `chrome.tabs` and
  * `chrome.scripting`, limited to the one allowed site. The tab is found by its address pattern
  * and opened visibly, never in the background.
  */
-export function createChromeBrowser(): MetaAiBrowser {
+export function createChromeBrowser(site: HelperSite = META_AI_SITE): MetaAiBrowser {
+  const origins = [...site.origins];
   return {
-    hasPermission: () => chrome.permissions.contains({ origins: ORIGINS }),
-    requestPermission: () => chrome.permissions.request({ origins: ORIGINS }),
+    hasPermission: () => chrome.permissions.contains({ origins }),
+    requestPermission: () => chrome.permissions.request({ origins }),
     async findTab() {
-      const tabs = await chrome.tabs.query({ url: META_AI_TAB_PATTERN });
+      const tabs = await chrome.tabs.query({ url: [...site.tabPatterns] });
       return tabs.find((tab) => tab.id !== undefined)?.id ?? null;
     },
     openTab(url, timeoutMs) {
@@ -57,7 +56,7 @@ export function createChromeBrowser(): MetaAiBrowser {
       } catch {
         throw new MetaAiError(
           'PAGE_NOT_RECOGNISED',
-          'The helper could not reach the Meta AI tab. Keep it open on meta.ai and try again.',
+          `The helper could not reach the ${site.name} tab. Keep it open and try again.`,
         );
       }
     },

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { attachmentsWith, generatedFileName, uploadAndAttach } from './attach.js';
 import { MetaAiError } from './runner.js';
+import { FLOW_SITE } from './sites.js';
 
 const item = (
   assetId: string,
@@ -26,6 +27,19 @@ describe('attachmentsWith', () => {
       aiGenerated: true,
       generator: 'Meta AI',
     });
+  });
+
+  it('replaces only a file of the same kind: a video keeps the scene image, an image keeps the video', () => {
+    const image = { ...item('img', 'usage'), kind: 'image' as const };
+    const video = { ...item('vid', 'usage'), kind: 'video' as const };
+    const flow = { generator: 'Google Flow', kind: 'video' as const };
+    const withVideo = attachmentsWith([image, video], 'usage', 'new-vid', flow);
+    expect(withVideo.assets.map((a) => a.assetId)).toEqual(['img', 'new-vid']);
+    expect(withVideo.assets[1]).toMatchObject({ generator: 'Google Flow', aiGenerated: true });
+    const withImage = attachmentsWith([image, video], 'usage', 'new-img');
+    expect(withImage.assets.map((a) => a.assetId)).toEqual(['vid', 'new-img']);
+    // The server never sees our private `kind` field.
+    expect(JSON.stringify(withVideo)).not.toContain('"kind"');
   });
 
   it('refuses to go over ten files, but allows a replacement at ten', () => {
@@ -127,6 +141,64 @@ describe('uploadAndAttach', () => {
         },
       ],
     });
+  });
+
+  it('saves a Flow clip with the Flow label and file name, beside the scene image', async () => {
+    const t = fakeApi();
+    t.raw.drafts.listAssets.mockImplementation(() =>
+      Promise.resolve({
+        items: [
+          {
+            ...item('scene-image', 'usage'),
+            aiGenerated: true,
+            generator: 'Meta AI',
+            asset: { type: 'image' },
+          } as unknown as DraftAsset,
+          {
+            ...item('old-clip', 'usage'),
+            aiGenerated: true,
+            generator: 'Google Flow',
+            asset: { type: 'video' },
+          } as unknown as DraftAsset,
+        ],
+      }),
+    );
+    await uploadAndAttach({
+      ...base,
+      mimeType: 'video/mp4',
+      site: FLOW_SITE,
+      api: t.api,
+      signal: new AbortController().signal,
+      fetchImpl: t.fetchImpl as unknown as typeof fetch,
+    });
+    expect(t.raw.assets.createUploadIntent).toHaveBeenCalledWith(
+      'w1',
+      expect.objectContaining({
+        mimeType: 'video/mp4',
+        filename: expect.stringMatching(/^flow-usage-.*\.mp4$/),
+      }),
+    );
+    const sent = t.raw.drafts.setAssets.mock.calls[0] as unknown as [
+      string,
+      string,
+      { assets: unknown[] },
+    ];
+    expect(sent[2].assets).toEqual([
+      {
+        assetId: 'scene-image',
+        role: 'media',
+        scene: 'usage',
+        aiGenerated: true,
+        generator: 'Meta AI',
+      },
+      {
+        assetId: 'asset-new',
+        role: 'media',
+        scene: 'usage',
+        aiGenerated: true,
+        generator: 'Google Flow',
+      },
+    ]);
   });
 
   it('stops with UPLOAD_FAILED when the server refuses the bytes, and attaches nothing', async () => {

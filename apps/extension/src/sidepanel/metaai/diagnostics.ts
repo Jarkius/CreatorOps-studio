@@ -9,9 +9,10 @@ export function formatDiagnostics(
   lines: readonly DiagnosticLine[],
   outcome: { readonly code: MetaAiErrorCode | 'OK' | 'UNKNOWN'; readonly scene: string },
   at: Date,
+  siteName = 'Meta AI',
 ): string {
   return [
-    'CreatorOps Meta AI helper diagnostics',
+    `CreatorOps ${siteName} helper diagnostics`,
     `time: ${at.toISOString()}`,
     `scene: ${outcome.scene}`,
     `result: ${outcome.code}`,

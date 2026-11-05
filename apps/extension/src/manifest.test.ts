@@ -26,17 +26,24 @@ describe('buildManifest', () => {
     expect([...manifest.host_permissions]).toEqual(['https://api.example.com/*']);
   });
 
-  it('offers the Meta AI site as an optional host permission only (D-071)', () => {
+  it('offers the helper sites as optional host permissions only (D-071, D-080)', () => {
     const manifest = buildManifest(base);
-    expect([...manifest.optional_host_permissions]).toEqual(['https://www.meta.ai/*']);
-    expect(manifest.host_permissions.join(' ')).not.toContain('meta.ai');
+    expect([...manifest.optional_host_permissions]).toEqual([
+      'https://www.meta.ai/*',
+      'https://labs.google/fx/tools/flow/*',
+      'https://flow.google.com/*',
+    ]);
+    const hosts = manifest.host_permissions.join(' ');
+    for (const site of ['meta.ai', 'labs.google', 'flow.google']) expect(hosts).not.toContain(site);
   });
 
-  it('grants the Meta AI host at install only for an end-to-end test build', () => {
+  it('grants the helper hosts at install only for an end-to-end test build', () => {
     const manifest = buildManifest({ ...base, grantMetaAiForTests: true });
     expect([...manifest.host_permissions]).toEqual([
       'http://localhost:3000/*',
       'https://www.meta.ai/*',
+      'https://labs.google/fx/tools/flow/*',
+      'https://flow.google.com/*',
     ]);
   });
 

@@ -240,7 +240,11 @@ describe('Full Auto from the Create tab (A4)', () => {
     const t = fakeHelper();
     setup(t.deps, {
       attached: [
-        { assetId: 'a1', scene: 'usage', asset: { originalFilename: 'usage.png' } } as DraftAsset,
+        {
+          assetId: 'a1',
+          scene: 'usage',
+          asset: { originalFilename: 'usage.png', type: 'image' },
+        } as DraftAsset,
       ],
     });
     await startFullAuto(user);
