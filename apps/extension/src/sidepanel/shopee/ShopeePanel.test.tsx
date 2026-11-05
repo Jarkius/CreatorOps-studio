@@ -97,7 +97,7 @@ function setup(
   return { create, order };
 }
 
-const section = () => within(screen.getByRole('region', { name: 'Shopee products' }));
+const section = () => within(screen.getByRole('region', { name: 'Shopee Affiliate' }));
 const offerNames = () =>
   within(screen.getByRole('list', { name: 'Shopee offers' }))
     .getAllByRole('listitem')

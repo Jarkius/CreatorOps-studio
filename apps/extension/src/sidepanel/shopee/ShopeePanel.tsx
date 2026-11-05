@@ -108,10 +108,10 @@ export function ShopeePanel(props: ShopeePanelProps) {
 
   return (
     <section
-      aria-label="Shopee products"
+      aria-label="Shopee Affiliate"
       className="rounded-md border border-[var(--co-border)] p-3"
     >
-      <h2 className="text-base font-semibold">Shopee products</h2>
+      <h2 className="text-base font-semibold">Shopee Affiliate</h2>
       <p className="mt-1 text-sm text-[var(--co-text-muted)]">
         Open your Shopee Affiliate product list in a tab, then import it here. The importer only
         reads what the page shows: it clicks nothing and never signs in. Chrome asks once to allow

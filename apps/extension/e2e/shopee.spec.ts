@@ -12,20 +12,20 @@ const card = (id: number, name: string, price: string, commission: string, sold:
     <div><span>ขายแล้ว ${sold}</span></div>
   </div>`;
 
-const FAKE_LIST = `<!doctype html><html><head><title>Shopee Affiliate</title></head><body>
+const FAKE_LIST = `<!doctype html><html><head><meta charset="utf-8"><title>Shopee Affiliate</title></head><body>
 <header><button>เข้าสู่ระบบ</button></header><main>
 ${card(1, 'พัดลมพกพา', '199', '6', '10k')}
 ${card(2, 'เครื่องชงกาแฟพกพา', '1,290', '12.5', '1.2พัน')}
 ${card(3, 'แก้วเก็บความเย็น', '350', '9', '87')}
 </main></body></html>`;
 
-const TRAFFIC_CHECK = `<!doctype html><html><head><title>Shopee</title></head><body>
+const TRAFFIC_CHECK = `<!doctype html><html><head><meta charset="utf-8"><title>Shopee</title></head><body>
 <p>เข้าสู่หน้าที่ต้องการไม่สำเร็จ</p></body></html>`;
 
 /** Serves a fake Shopee Affiliate site: no network, no real site. */
 async function fakeShopee(context: BrowserContext, html: string): Promise<Page> {
   await context.route('https://affiliate.shopee.co.th/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'text/html', body: html }),
+    route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }),
   );
   // The owner's own tab, already open on the product list.
   const tab = await context.newPage();
@@ -41,7 +41,7 @@ test('Import from Shopee lists the products by commission and creates a product 
   const shopee = await fakeShopee(context, FAKE_LIST);
   const panel = await context.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-  const region = panel.getByRole('region', { name: 'Shopee products' });
+  const region = panel.getByRole('region', { name: 'Shopee Affiliate' });
   await region.getByRole('button', { name: 'Import from Shopee affiliate page' }).click();
 
   const list = region.getByRole('list', { name: 'Shopee offers' });
@@ -77,7 +77,7 @@ test("Import from Shopee stops on Shopee's traffic check and says so", async ({
   await fakeShopee(context, TRAFFIC_CHECK);
   const panel = await context.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-  const region = panel.getByRole('region', { name: 'Shopee products' });
+  const region = panel.getByRole('region', { name: 'Shopee Affiliate' });
   await region.getByRole('button', { name: 'Import from Shopee affiliate page' }).click();
   await expect(region.getByRole('alert')).toContainText('Shopee is showing a check');
   await expect(region.getByRole('button', { name: 'Copy diagnostics' })).toBeVisible();
