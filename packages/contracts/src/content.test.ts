@@ -113,6 +113,7 @@ describe('enum tuples', () => {
       'INVALID_PROVIDER_OUTPUT',
       'PROVIDER_AUTH',
       'PROVIDER_BUDGET',
+      'PROVIDER_COST_HOLD',
       'CONTENT_REFUSED',
       'SECTION_CHANGED',
       'ASSET_UNAVAILABLE',

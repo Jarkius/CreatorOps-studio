@@ -25,6 +25,15 @@ export function useUsage(workspaceId: string) {
   });
 }
 
+export function useAcknowledgeAnomalies(workspaceId: string) {
+  const { client } = useDashboard();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.usage.acknowledgeAnomalies(workspaceId),
+    onSuccess: (usage) => queryClient.setQueryData(settingsKeys.usage(workspaceId), usage),
+  });
+}
+
 export function useSaveProvider(workspaceId: string) {
   const { client } = useDashboard();
   const queryClient = useQueryClient();

@@ -54,6 +54,7 @@ const USAGE: UsageSummary = {
   capUsd: null,
   countedUsd: 0,
   anomalies: 0,
+  costHold: false,
   byModel: [],
 };
 
@@ -80,6 +81,10 @@ function setup(role: Workspace['role'] = 'owner', initial: Partial<World> = {}) 
       world.calls.push(call);
       const path = call.path.split('?')[0] ?? '';
       if (path === `${API}/provider-settings` && call.method === 'GET') return json(world.settings);
+      if (path === `${API}/usage/acknowledge-anomalies` && call.method === 'POST') {
+        world.usage = { ...world.usage, costHold: false };
+        return json(world.usage);
+      }
       if (path === `${API}/usage`) return json(world.usage);
       if (path === `${API}/provider-settings` && call.method === 'PUT') {
         if (world.saveError !== null) {
@@ -284,5 +289,37 @@ describe('Settings: usage', () => {
     expect(screen.getByText(/1 call cost much more than your prices predict/)).toBeInTheDocument();
     const table = screen.getByRole('table');
     expect(within(table).getByText('vendor/model-x')).toBeInTheDocument();
+  });
+});
+
+describe('Settings: cost hold', () => {
+  const held = { ...USAGE, anomalies: 1, costHold: true };
+
+  it('tells an owner that new calls are paused and lets them continue once', async () => {
+    const { world } = setup('owner', { settings: SAVED, usage: held });
+    const alert = await screen.findByText(/New AI calls are paused/);
+    expect(alert).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'I checked it, continue' }));
+    await waitFor(() =>
+      expect(screen.queryByText(/New AI calls are paused/)).not.toBeInTheDocument(),
+    );
+    expect(world.calls.filter((c) => c.path.endsWith('/usage/acknowledge-anomalies'))).toHaveLength(
+      1,
+    );
+  });
+
+  it('shows an editor the pause but no button', async () => {
+    setup('editor', { settings: SAVED, usage: held });
+    expect(await screen.findByText(/New AI calls are paused/)).toBeInTheDocument();
+    expect(screen.getByText('Ask an owner or admin to continue.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'I checked it, continue' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows nothing when there is no hold', async () => {
+    setup('owner', { settings: SAVED });
+    await screen.findByText(/No real-provider calls yet this month/);
+    expect(screen.queryByText(/New AI calls are paused/)).not.toBeInTheDocument();
   });
 });

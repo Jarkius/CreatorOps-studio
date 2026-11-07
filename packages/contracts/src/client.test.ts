@@ -468,7 +468,7 @@ describe('content: campaigns, drafts, jobs', () => {
     const { calls, client } = make((url) =>
       url.endsWith('/check')
         ? json({ ok: true, code: null, message: 'Connected.' })
-        : url.endsWith('/usage')
+        : url.includes('/usage')
           ? json({
               month: '2026-11',
               calls: 0,
@@ -479,6 +479,7 @@ describe('content: campaigns, drafts, jobs', () => {
               capUsd: null,
               countedUsd: 0,
               anomalies: 0,
+              costHold: false,
               byModel: [],
             })
           : json(settings),
@@ -492,12 +493,14 @@ describe('content: campaigns, drafts, jobs', () => {
     await client.providerSettings.remove('w1');
     expect((await client.providerSettings.check('w1')).ok).toBe(true);
     expect((await client.usage.get('w1')).month).toBe('2026-11');
+    expect((await client.usage.acknowledgeAnomalies('w1')).costHold).toBe(false);
     expect(calls.map((call) => [call.method, call.url])).toEqual([
       ['GET', 'http://x/api/v1/workspaces/w1/provider-settings'],
       ['PUT', 'http://x/api/v1/workspaces/w1/provider-settings'],
       ['DELETE', 'http://x/api/v1/workspaces/w1/provider-settings'],
       ['POST', 'http://x/api/v1/workspaces/w1/provider-settings/check'],
       ['GET', 'http://x/api/v1/workspaces/w1/usage'],
+      ['POST', 'http://x/api/v1/workspaces/w1/usage/acknowledge-anomalies'],
     ]);
     expect(calls[1]?.body).toContain('sk-test-12345678');
     expect(calls.filter((call) => call.body?.includes('sk-test')).length).toBe(1);

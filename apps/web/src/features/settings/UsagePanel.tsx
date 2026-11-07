@@ -1,13 +1,20 @@
-import { ErrorState, LoadingState } from '@creatorops/ui';
+import { Button, ErrorState, LoadingState } from '@creatorops/ui';
 
 import { describeError } from '../errors.js';
-import { useUsage } from './settingsQueries.js';
+import { useAcknowledgeAnomalies, useUsage } from './settingsQueries.js';
 
 export const formatUsd = (value: number): string => `$${value.toFixed(value >= 1 ? 2 : 4)}`;
 
 /** This month's real-provider calls and cost, and how much of the monthly limit is used. */
-export function UsagePanel({ workspaceId }: { workspaceId: string }) {
+export function UsagePanel({
+  workspaceId,
+  canManage,
+}: {
+  workspaceId: string;
+  canManage: boolean;
+}) {
   const usage = useUsage(workspaceId);
+  const acknowledge = useAcknowledgeAnomalies(workspaceId);
   if (usage.isPending) return <LoadingState label="Loading usage…" />;
   if (usage.isError) {
     const { message, requestId } = describeError(usage.error);
@@ -47,6 +54,26 @@ export function UsagePanel({ workspaceId }: { workspaceId: string }) {
           <p className="text-sm text-[var(--co-text-muted)]">{percent}% of the limit is used.</p>
         </div>
       )}
+      {data.costHold ? (
+        <div role="alert" className="space-y-2 text-sm leading-relaxed text-[var(--co-danger)]">
+          <p>
+            New AI calls are paused: a call cost much more than your prices predict. Check the
+            prices you entered and the plan you pay for, then continue.
+          </p>
+          {canManage ? (
+            <Button
+              variant="secondary"
+              disabled={acknowledge.isPending}
+              onClick={() => acknowledge.mutate()}
+            >
+              {acknowledge.isPending ? 'Continuing…' : 'I checked it, continue'}
+            </Button>
+          ) : (
+            <p>Ask an owner or admin to continue.</p>
+          )}
+          {acknowledge.isError ? <p>{describeError(acknowledge.error).message}</p> : null}
+        </div>
+      ) : null}
       {data.anomalies > 0 ? (
         <p role="status" className="text-sm leading-relaxed text-[var(--co-danger)]">
           {data.anomalies} call{data.anomalies === 1 ? '' : 's'} cost much more than your prices

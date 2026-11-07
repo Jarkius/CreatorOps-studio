@@ -250,6 +250,8 @@ export interface ApiClient {
   usage: {
     /** Real-provider calls and cost for the current calendar month (UTC). */
     get(workspaceId: string): Promise<UsageSummary>;
+    /** Owner or admin: clears the hold that a cost anomaly put on new real-provider calls. */
+    acknowledgeAnomalies(workspaceId: string): Promise<UsageSummary>;
   };
   costs: {
     /** What the workspace spent in a month (default this month), per campaign, in baht. */
@@ -543,6 +545,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
     usage: {
       get: (workspaceId) => get(`${base(workspaceId)}/usage`, UsageSummarySchema),
+      acknowledgeAnomalies: (workspaceId) =>
+        send('POST', `${base(workspaceId)}/usage/acknowledge-anomalies`, UsageSummarySchema),
     },
     costs: {
       report: (workspaceId, query) =>

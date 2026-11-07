@@ -426,6 +426,7 @@ export const JOB_ERROR_CODES = [
   'INVALID_PROVIDER_OUTPUT',
   'PROVIDER_AUTH',
   'PROVIDER_BUDGET',
+  'PROVIDER_COST_HOLD',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
   'ASSET_UNAVAILABLE',
@@ -495,7 +496,7 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_error_code_check',
-      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'PROVIDER_COST_HOLD', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
     ),
     check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
     check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),
@@ -718,6 +719,8 @@ export const usageEvents = pgTable(
     costSource: text('cost_source'),
     /** True when the provider's reported cost was far above what the owner's prices predict. */
     anomaly: boolean('anomaly').notNull().default(false),
+    /** When an owner or admin acknowledged this anomaly. An unacknowledged one holds new calls. */
+    anomalyAckedAt: timestamp('anomaly_acked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
     settledAt: timestamp('settled_at', { withTimezone: true }),
   },

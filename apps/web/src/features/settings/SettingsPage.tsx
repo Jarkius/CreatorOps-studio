@@ -50,7 +50,7 @@ export function SettingsPage() {
         <h2 id="usage-heading" className="text-base font-semibold">
           Usage this month
         </h2>
-        <UsagePanel workspaceId={workspaceId} />
+        <UsagePanel workspaceId={workspaceId} canManage={canManage} />
       </section>
     </div>
   );

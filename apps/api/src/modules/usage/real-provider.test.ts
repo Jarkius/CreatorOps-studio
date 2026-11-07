@@ -308,22 +308,23 @@ describe('a workspace with a saved provider', () => {
   it('counts what has been spent: a second call is refused once the first used the room', async () => {
     const who = await person('two');
     // Worst case of one call is about 0.03 USD with these prices; the limit fits one real cost but not a second worst case.
-    await saveProvider(who, { monthlyCapUsd: 0.05 });
+    // The cost is close to what the prices predict (0.0105), so it is not an anomaly and the hold stays out of this test.
+    await saveProvider(who, { monthlyCapUsd: 0.04 });
     const first = await startGenerate(who, await newCampaign(who));
-    script = [{ cost: 0.04 }];
+    script = [{ cost: 0.012 }];
     expect(await processJob(workerDeps(), first)).toBe('succeeded');
     const second = await startGenerate(who, await newCampaign(who));
     expect(await processJob(workerDeps(), second)).toBe('failed');
     expect(requests).toHaveLength(1);
     expect(await job(second)).toMatchObject({ error_code: 'PROVIDER_BUDGET' });
-    expect((await usage(who)).countedUsd).toBeCloseTo(0.04, 6);
+    expect((await usage(who)).countedUsd).toBeCloseTo(0.012, 6);
   });
 
   it('with several variants, stops at the limit and saves nothing from the job', async () => {
     const who = await person('variants');
-    await saveProvider(who, { monthlyCapUsd: 0.05 });
+    await saveProvider(who, { monthlyCapUsd: 0.04 });
     const jobId = await startGenerate(who, await newCampaign(who, 3));
-    script = [{ cost: 0.04 }, { cost: 0.04 }, { cost: 0.04 }];
+    script = [{ cost: 0.012 }, { cost: 0.012 }, { cost: 0.012 }];
     expect(await processJob(workerDeps(), jobId)).toBe('failed');
     expect(requests).toHaveLength(1);
     expect(await job(jobId)).toMatchObject({ error_code: 'PROVIDER_BUDGET' });
@@ -434,6 +435,132 @@ describe('a workspace with a saved provider', () => {
     ]);
     expect(dump).not.toContain(API_KEY);
     expect(dump).not.toContain('LIVEKEY');
+  });
+});
+
+describe('cost hold after an anomaly', () => {
+  const acknowledge = (who: Person, workspaceId = who.workspaceId) =>
+    app.inject({
+      method: 'POST',
+      url: `/api/v1/workspaces/${workspaceId}/usage/acknowledge-anomalies`,
+      headers: auth(who),
+    });
+
+  /** One call that cost far more than the prices predict, so the workspace is on hold. */
+  async function causeAnomaly(who: Person): Promise<void> {
+    const jobId = await startGenerate(who, await newCampaign(who));
+    script = [{ cost: 0.5 }];
+    expect(await processJob(workerDeps(), jobId)).toBe('succeeded');
+    expect((await usage(who)).costHold).toBe(true);
+  }
+
+  it('refuses the next call at once: no provider call, a plain failure, no retry, nothing reserved', async () => {
+    const who = await person('hold1');
+    await saveProvider(who); // no monthly limit: the hold still applies
+    await causeAnomaly(who);
+    requests.length = 0;
+    const jobId = await startGenerate(who, await newCampaign(who));
+    script = [{}];
+    expect(await processJob(workerDeps(), jobId)).toBe('failed');
+    expect(requests).toHaveLength(0);
+    expect(await job(jobId)).toMatchObject({ error_code: 'PROVIDER_COST_HOLD', attempts: 1 });
+    expect((await job(jobId)).error_message).toContain('acknowledge');
+    expect(await events(who)).toHaveLength(1);
+  });
+
+  it('stops a job part-way: the next variant is refused and nothing is saved', async () => {
+    const who = await person('hold2');
+    await saveProvider(who);
+    const jobId = await startGenerate(who, await newCampaign(who, 3));
+    script = [{ cost: 0.5 }, {}, {}];
+    expect(await processJob(workerDeps(), jobId)).toBe('failed');
+    expect(requests).toHaveLength(1);
+    expect(await job(jobId)).toMatchObject({ error_code: 'PROVIDER_COST_HOLD' });
+    const drafts = await testDb.pool.query(
+      'select count(*)::int as n from content_drafts where workspace_id = $1',
+      [who.workspaceId],
+    );
+    expect(drafts.rows[0].n).toBe(0);
+  });
+
+  it('is cleared by the owner, and the next call runs; the audit trail says how many', async () => {
+    const who = await person('hold3');
+    await saveProvider(who);
+    await causeAnomaly(who);
+    const cleared = await acknowledge(who);
+    expect(cleared.statusCode, cleared.body).toBe(200);
+    expect(cleared.json()).toMatchObject({ costHold: false, anomalies: 1 });
+    const jobId = await startGenerate(who, await newCampaign(who));
+    script = [{}];
+    expect(await processJob(workerDeps(), jobId)).toBe('succeeded');
+    const audit = await testDb.pool.query(
+      "select metadata from audit_events where workspace_id = $1 and action = 'usage.anomalies_acknowledged'",
+      [who.workspaceId],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].metadata).toEqual({ cleared: 1 });
+  });
+
+  it('holds again when a new anomaly happens after an acknowledgement', async () => {
+    const who = await person('hold4');
+    await saveProvider(who);
+    await causeAnomaly(who);
+    await acknowledge(who);
+    await causeAnomaly(who);
+  });
+
+  it('does not touch another workspace', async () => {
+    const one = await person('hold5a');
+    const two = await person('hold5b');
+    await saveProvider(one);
+    await saveProvider(two);
+    await causeAnomaly(one);
+    const jobId = await startGenerate(two, await newCampaign(two));
+    script = [{}];
+    expect(await processJob(workerDeps(), jobId)).toBe('succeeded');
+    expect((await usage(two)).costHold).toBe(false);
+  });
+
+  it('clearing one workspace leaves another workspace on hold', async () => {
+    const one = await person('hold7a');
+    const two = await person('hold7b');
+    await saveProvider(one);
+    await saveProvider(two);
+    await causeAnomaly(one);
+    await causeAnomaly(two);
+    expect((await acknowledge(one)).statusCode).toBe(200);
+    expect((await usage(one)).costHold).toBe(false);
+    expect((await usage(two)).costHold).toBe(true);
+  });
+
+  it('can only be cleared by an owner or admin; a stranger gets 404; a no-op writes no audit row', async () => {
+    const who = await person('hold6');
+    const stranger = await person('hold6x');
+    await saveProvider(who);
+    await causeAnomaly(who);
+    const members: Person[] = [];
+    for (const role of ['admin', 'editor', 'reviewer', 'viewer'] as const) {
+      const member = await person(`hold6-${role}`);
+      await testDb.pool.query(
+        'insert into workspace_members (workspace_id, user_id, role) values ($1, $2, $3)',
+        [who.workspaceId, member.userId, role],
+      );
+      members.push(member);
+    }
+    for (const member of members.slice(1)) {
+      expect((await acknowledge(member, who.workspaceId)).statusCode).toBe(403);
+    }
+    expect((await acknowledge(stranger, who.workspaceId)).statusCode).toBe(404);
+    expect((await usage(who)).costHold).toBe(true);
+    expect((await acknowledge(members[0]!, who.workspaceId)).statusCode).toBe(200);
+    expect((await usage(who)).costHold).toBe(false);
+    // Nothing left to clear: still 200, and no second audit row.
+    expect((await acknowledge(who)).statusCode).toBe(200);
+    const audit = await testDb.pool.query(
+      "select count(*)::int as n from audit_events where workspace_id = $1 and action = 'usage.anomalies_acknowledged'",
+      [who.workspaceId],
+    );
+    expect(audit.rows[0].n).toBe(1);
   });
 });
 

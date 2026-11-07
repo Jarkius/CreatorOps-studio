@@ -10,6 +10,8 @@ export const PROVIDER_ERROR_CODES = [
   'BUDGET_EXCEEDED',
   /** The reply was cut off by the output limit. Permanent: a retry would be cut off too. */
   'OUTPUT_TRUNCATED',
+  /** Our own spending hold: an earlier call cost far more than expected. Permanent until acknowledged. */
+  'COST_HOLD',
 ] as const;
 
 export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES)[number];
@@ -31,6 +33,7 @@ const SAFE_MESSAGES: Record<ProviderErrorCode, string> = {
   AUTH_FAILED: 'The text provider rejected the configured credentials.',
   BUDGET_EXCEEDED: 'The text provider account has no credit left or reached its limit.',
   OUTPUT_TRUNCATED: 'The text provider reply was cut off before it finished.',
+  COST_HOLD: 'Paused: an earlier call cost much more than expected.',
 };
 
 export const MAX_RETRY_AFTER_MS = 60_000;

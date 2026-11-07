@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, sql } from 'drizzle-orm';
 
 import type { Db, DbOrTx } from '../../db/client.js';
 import { usageEvents } from '../../db/schema.js';
@@ -18,7 +18,7 @@ export interface ReserveInput {
 
 export type ReserveResult =
   | { readonly ok: true; readonly eventId: string }
-  | { readonly ok: false; readonly reason: 'over_cap' | 'duplicate' };
+  | { readonly ok: false; readonly reason: 'over_cap' | 'duplicate' | 'cost_hold' };
 
 /** The start of the current calendar month in UTC, as the database computes it. */
 const monthStart = sql`date_trunc('month', now() at time zone 'UTC') at time zone 'UTC'`;
@@ -40,6 +40,42 @@ export async function countedUsd(db: DbOrTx, workspaceId: string): Promise<numbe
 }
 
 /**
+ * True while a call that cost far more than expected (an anomaly) has not been acknowledged by an
+ * owner or admin. New calls are refused until then (D-077 follow-up: a mispriced model must not
+ * keep spending up to the monthly limit).
+ */
+export async function hasCostHold(db: DbOrTx, workspaceId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: usageEvents.id })
+    .from(usageEvents)
+    .where(
+      and(
+        eq(usageEvents.workspaceId, workspaceId),
+        eq(usageEvents.anomaly, true),
+        isNull(usageEvents.anomalyAckedAt),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Clears the hold: marks this workspace's unacknowledged anomalies as seen. Returns how many. */
+export async function acknowledgeAnomalies(db: DbOrTx, workspaceId: string): Promise<number> {
+  const rows = await db
+    .update(usageEvents)
+    .set({ anomalyAckedAt: sql`date_trunc('milliseconds', now())` })
+    .where(
+      and(
+        eq(usageEvents.workspaceId, workspaceId),
+        eq(usageEvents.anomaly, true),
+        isNull(usageEvents.anomalyAckedAt),
+      ),
+    )
+    .returning({ id: usageEvents.id });
+  return rows.length;
+}
+
+/**
  * Sets the worst case aside before a call is made. The check and the insert run under one lock per
  * workspace, so two workers cannot both pass the limit. With no limit the event is still recorded.
  */
@@ -48,6 +84,10 @@ export async function reserveCall(db: Db, input: ReserveInput): Promise<ReserveR
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${input.workspaceId}, ${RESERVE_LOCK_SEED}))`,
     );
+    // Checked even with no monthly limit: the hold exists for exactly that case.
+    if (await hasCostHold(tx, input.workspaceId)) {
+      return { ok: false, reason: 'cost_hold' } as const;
+    }
     if (input.capUsd !== null) {
       const counted = await countedUsd(tx, input.workspaceId);
       // A tiny tolerance keeps rounding (six decimals) from refusing a call that exactly fits.

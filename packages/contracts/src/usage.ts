@@ -18,6 +18,8 @@ export const UsageSummarySchema = z.object({
   countedUsd: z.number(),
   /** Calls whose reported cost was far above what the entered prices predict. */
   anomalies: z.number().int(),
+  /** True while an unacknowledged anomaly holds new real-provider calls (an owner or admin clears it). */
+  costHold: z.boolean(),
   byModel: z.array(
     z.object({
       provider: z.string(),

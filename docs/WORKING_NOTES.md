@@ -138,6 +138,8 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 4. Wire the paid video API (`generate_video`, Gemini Omni provider in `provider-core/src/video.ts`, Settings selector) only when the owner has a paid Gemini key and a cap (D-080 part 2).
 5. Hosted deployment and real sign-in (Q-003, Q-004) before outside testers.
 
+**Cost-anomaly hold built 2026-11-07 (D-084):** an unacknowledged anomaly stops new real-provider calls (even with no monthly limit) until an owner/admin presses "I checked it, continue" in Settings; migration 0013; 8 new API tests, 7 mutations killed, 3 web tests; e2e after it: extension 28, dashboard 31. Two older cap tests had to use a non-anomalous cost (0.012) because their 0.04 was an anomaly. The retried-job re-pay gap is still open.
+
 **Logging (2026-11-07):** the metered provider logs `provider.call` / `provider.call_failed` per call (no text, no key; 2 tests, mutation killed); `pnpm demo` is now `LOG_LEVEL=info` and tees each process to `.data/logs/*.log`. Still open: extension-side log, panel-to-job trace id.
 
 **Screenshots refreshed 2026-11-07:** `scripts/capture-screenshots.mjs` now also runs a worker (needs `REDIS_URL` and `apps/extension/dist-e2e`) and adds `web-campaign-page`, `web-draft-results` (video prompts, export), `web-settings` and `extension-shopee` (fake Shopee page); README updated. Not captured: Scenes list, Meta AI / Flow progress, Costs with real numbers (the mock provider costs nothing), Results with attached pictures.

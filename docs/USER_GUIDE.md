@@ -53,6 +53,7 @@ This starts PostgreSQL and Redis locally, builds the dashboard and the extension
 |---|---|
 | "Sign-in is not configured yet" in the panel | load the demo build (`pnpm demo` builds it), not a plain `pnpm build` |
 | Settings says a key cannot be saved | set `SECRETS_ENCRYPTION_KEY` for the API and the worker, restart |
+| A job fails with "Paused: an earlier call cost much more than expected" | a call cost far more than your prices predict. Settings, Usage: check the prices and the plan, then press "I checked it, continue" (owner or admin) |
 | Generation stays "Waiting to start" | the worker is not running or has no `REDIS_URL` |
 | `ECONNREFUSED 5432` | PostgreSQL is down: `pnpm dev:db` |
 | A helper says the page is not recognised | Copy diagnostics, send it; the fix is a small edit in `selectors.ts` / `sites.ts` |

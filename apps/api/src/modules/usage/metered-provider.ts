@@ -116,9 +116,14 @@ export class MeteredTextProvider implements TextProvider {
       capUsd: meter.capUsd,
     });
     if (!reserved.ok) {
-      // Over the limit: stop here and make no call. A duplicate means this attempt already ran.
+      // Over the limit or on hold: stop here and make no call. A duplicate means this attempt
+      // already ran.
       throw new ProviderError(
-        reserved.reason === 'over_cap' ? 'BUDGET_EXCEEDED' : 'INVALID_REQUEST',
+        reserved.reason === 'over_cap'
+          ? 'BUDGET_EXCEEDED'
+          : reserved.reason === 'cost_hold'
+            ? 'COST_HOLD'
+            : 'INVALID_REQUEST',
       );
     }
     const callStarted = Date.now();
