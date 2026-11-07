@@ -41,7 +41,7 @@ export interface WorkerSettings {
   readonly leaseSeconds: number;
   /** How often a running job renews its lease and looks for a cancel request. */
   readonly heartbeatMs: number;
-  /** The longest one provider call may take. */
+  /** The longest one provider call may take; a job that makes several calls gets that per call. */
   readonly providerTimeoutMs: number;
 }
 
@@ -134,6 +134,18 @@ export async function processJob(deps: WorkerDeps, jobId: string): Promise<Proce
   }
 }
 
+/**
+ * The whole-job time limit: one provider call's limit for each call the job makes in a row. A
+ * generate job builds `variants` drafts one after another (up to three), so a single 90 s budget
+ * would fail a healthy slow provider on the last variant and then charge for the retry.
+ */
+export function jobTimeoutMs(job: { type: string; input: unknown }, settings: WorkerSettings) {
+  if (job.type !== 'generate_brief') return settings.providerTimeoutMs;
+  const variants = (job.input as { variants?: unknown } | null)?.variants;
+  const calls = typeof variants === 'number' && Number.isInteger(variants) ? variants : 3;
+  return settings.providerTimeoutMs * Math.min(Math.max(calls, 1), 3);
+}
+
 function providerFor(deps: WorkerDeps, job: JobRow, attempt: number): Promise<TextProvider> {
   return deps.resolveProvider === undefined
     ? Promise.resolve(deps.provider)
@@ -147,7 +159,7 @@ async function run(
   controller: AbortController,
   settings: WorkerSettings,
 ): Promise<ProcessOutcome> {
-  const timeout = AbortSignal.timeout(settings.providerTimeoutMs);
+  const timeout = AbortSignal.timeout(jobTimeoutMs(job, settings));
   const signal = AbortSignal.any([controller.signal, timeout]);
 
   let result: JobResult;

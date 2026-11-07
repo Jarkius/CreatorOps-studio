@@ -14,7 +14,13 @@ import { requireDatabaseUrl, SECRET_FOR_TESTS } from '../../test/db-url.js';
 import { RecordingJobQueue } from '../../test/job-queue.js';
 import { createPerson, type Person } from '../../test/people.js';
 import { createTestDb, type TestDb } from '../../test/test-db.js';
-import { processJob, type WorkerDeps, type WorkerLog } from './process.js';
+import {
+  DEFAULT_WORKER_SETTINGS,
+  jobTimeoutMs,
+  processJob,
+  type WorkerDeps,
+  type WorkerLog,
+} from './process.js';
 import { reconcile } from './reconcile.js';
 
 let testDb: TestDb;
@@ -537,7 +543,37 @@ describe('processJob: permanent failures end at once', () => {
   });
 });
 
+describe('jobTimeoutMs', () => {
+  const settings = { ...DEFAULT_WORKER_SETTINGS, providerTimeoutMs: 100 };
+  it('gives a generate job one call limit per variant, at most three', () => {
+    expect(jobTimeoutMs({ type: 'generate_brief', input: { variants: 1 } }, settings)).toBe(100);
+    expect(jobTimeoutMs({ type: 'generate_brief', input: { variants: 3 } }, settings)).toBe(300);
+    expect(jobTimeoutMs({ type: 'generate_brief', input: { variants: 99 } }, settings)).toBe(300);
+    expect(jobTimeoutMs({ type: 'generate_brief', input: {} }, settings)).toBe(300);
+    expect(jobTimeoutMs({ type: 'generate_brief', input: null }, settings)).toBe(300);
+  });
+  it('leaves other job types at one call limit', () => {
+    expect(jobTimeoutMs({ type: 'regenerate_section', input: {} }, settings)).toBe(100);
+    expect(jobTimeoutMs({ type: 'export_package', input: {} }, settings)).toBe(100);
+  });
+});
+
 describe('processJob: time limit', () => {
+  it('lets three slow-but-healthy variants finish inside the per-call limit times three', async () => {
+    const { job } = await seed({ variants: 3 });
+    const outcome = await processJob(
+      deps(
+        new ScriptedProvider(async () => {
+          await new Promise((done) => setTimeout(done, 40));
+          return SECTIONS;
+        }),
+        { settings: { providerTimeoutMs: 50 } },
+      ),
+      job.id,
+    );
+    expect(outcome).toBe('succeeded');
+  });
+
   it('turns a slow provider call into a timeout and retries it', async () => {
     const { job } = await seed();
     const outcome = await processJob(
