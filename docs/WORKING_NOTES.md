@@ -134,7 +134,7 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 **Next build, in this order (keep each slice small):**
 1. Fix whatever the owner's real-site tests show.
 2. Shopee: auto-scroll and paging of the list (offered, awaiting the owner's yes), honest and visible, no disguising.
-3. Dashboard views for what only the panel has (video prompts, Shopee products).
+3. Dashboard views for what only the panel has: video prompts **done 2026-11-07** (read-only section on the draft page, `VideoPromptsView.tsx`, 3 tests; writing stays in the panel; not run in a browser, no e2e); Shopee products still open.
 4. Wire the paid video API (`generate_video`, Gemini Omni provider in `provider-core/src/video.ts`, Settings selector) only when the owner has a paid Gemini key and a cap (D-080 part 2).
 5. Hosted deployment and real sign-in (Q-003, Q-004) before outside testers.
 

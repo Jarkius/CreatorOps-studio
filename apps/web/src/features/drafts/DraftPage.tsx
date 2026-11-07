@@ -15,6 +15,7 @@ import { useDraft, useRefreshDraft, useUpdateDraft } from './draftQueries.js';
 import { COPY_ORDER, formatDraftForCopy } from './formatDraft.js';
 import { CLAIM_KIND_LABELS, SECTION_LABELS } from './sectionLabels.js';
 import { DraftResults } from './DraftResults.js';
+import { VideoPromptsView } from './VideoPromptsView.js';
 import { SectionCard } from './SectionCard.js';
 
 export const STATUS_CONFLICT_MESSAGE =
@@ -198,6 +199,7 @@ function DraftView({ workspaceId, draft }: { workspaceId: string; draft: Draft }
       </section>
 
       <DraftResults workspaceId={workspaceId} draft={draft} canWrite={canWrite} />
+      <VideoPromptsView workspaceId={workspaceId} draft={draft} />
 
       <section aria-labelledby="sections-heading" className="space-y-3">
         <h2 id="sections-heading" className="text-base font-semibold">
