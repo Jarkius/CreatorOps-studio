@@ -437,6 +437,74 @@ describe('a workspace with a saved provider', () => {
   });
 });
 
+describe('provider call logging', () => {
+  const recording = () => {
+    const lines: Record<string, unknown>[] = [];
+    const sink = (object: Record<string, unknown>) => void lines.push(object);
+    const log = { info: sink, warn: sink, error: sink };
+    const deps = (): WorkerDeps => {
+      const fallback = new MockTextProvider();
+      return {
+        db: testDb.db,
+        provider: fallback,
+        resolveProvider: (j, attempt) =>
+          resolveProvider({ db: testDb.db, fallback, secrets, transport, log }, j, attempt),
+        queue,
+        log,
+        random: () => 0,
+      };
+    };
+    return { lines, deps };
+  };
+
+  it('writes one provider.call line per call with time, units and cost, and no text or key', async () => {
+    const who = await person('logok');
+    await saveProvider(who);
+    const jobId = await startGenerate(who, await newCampaign(who));
+    script = [{ cost: 0.011 }];
+    const { lines, deps } = recording();
+    expect(await processJob(deps(), jobId)).toBe('succeeded');
+    const calls = lines.filter((line) => line.event === 'provider.call');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      jobId,
+      attempt: 1,
+      callIndex: 1,
+      provider: 'openrouter',
+      model: 'vendor/model-x',
+      inputUnits: 1000,
+      outputUnits: 500,
+      costUsd: 0.011,
+      costSource: 'reported',
+      anomaly: false,
+    });
+    expect(typeof calls[0]?.durationMs).toBe('number');
+    const text = JSON.stringify(lines);
+    expect(text).not.toContain(API_KEY);
+    expect(text).not.toContain(draft.title);
+  });
+
+  it('writes a provider.call_failed line with the code and whether it was kept as billed', async () => {
+    const who = await person('logfail');
+    await saveProvider(who);
+    const jobId = await startGenerate(who, await newCampaign(who));
+    script = [{ status: 401 }];
+    const { lines, deps } = recording();
+    expect(await processJob(deps(), jobId)).toBe('failed');
+    const failed = lines.filter((line) => line.event === 'provider.call_failed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({
+      jobId,
+      provider: 'openrouter',
+      code: 'AUTH_FAILED',
+      retryable: false,
+      keptAsBilled: false,
+    });
+    expect(lines.some((line) => line.event === 'provider.call')).toBe(false);
+    expect(JSON.stringify(lines)).not.toContain(API_KEY);
+  });
+});
+
 describe('a workspace without a saved provider', () => {
   it('uses the built-in writer, calls no network, and records no usage', async () => {
     const who = await person('mock');

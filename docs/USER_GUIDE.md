@@ -32,6 +32,13 @@ This starts PostgreSQL and Redis locally, builds the dashboard and the extension
 
 **Dashboard (full workspace):** Products (Shopee imports are marked), Asset library, Campaigns and drafts (edit, regenerate a section, status, claim warnings, video prompts, attach pictures, **Export ZIP package** and download), Costs (per campaign and per month), Settings.
 
+## Logs and debugging
+
+- `pnpm demo` runs at `LOG_LEVEL=info` and writes everything to `.data/logs/api.log`, `worker.log` and `web.log` (appended, one JSON object per line, secrets and signed-URL queries already redacted). The terminal shows the same lines with a `[api]` or `[worker]` prefix, minus the two lines per request, which stay in the file.
+- Follow one job: `grep <jobId> .data/logs/worker.log`. Events: `job.started`, `job.finished` (outcome, duration), `job.attempt_failed` (error code, will it retry), `provider.call` (one line per real provider call: model, duration, tokens, cost, anomaly flag) and `provider.call_failed` (code, retryable, kept as billed). The mock text writer makes no `provider.call` lines; only a saved real provider does.
+- Follow a failed request: the error shown in the dashboard or panel carries a request id; `grep <requestId> .data/logs/api.log`.
+- A failed job also shows its error code and message in the dashboard and the panel. The Meta AI, Flow and Shopee helpers have **Copy diagnostics**.
+
 ## 3. Deployment
 
 **What exists:** a single-machine setup for one user (above). `AUTH_MODE=mock` hands out tokens without credentials, so the API refuses to start with it in production and it must never face a network (`ALLOW_MOCK_AUTH_ON_NETWORK` exists for deliberate exceptions only).

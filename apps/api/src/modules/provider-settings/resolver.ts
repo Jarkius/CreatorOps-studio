@@ -21,7 +21,10 @@ export interface ResolverDeps {
   readonly transport?: HttpTransport;
   readonly allowLocalHttp?: boolean;
   readonly maxOutputTokens?: number;
-  readonly log?: { warn(object: Record<string, unknown>, message: string): void };
+  readonly log?: {
+    warn(object: Record<string, unknown>, message: string): void;
+    info?(object: Record<string, unknown>, message: string): void;
+  };
 }
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2000;

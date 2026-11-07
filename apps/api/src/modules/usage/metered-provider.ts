@@ -28,7 +28,10 @@ export interface MeterContext {
   /** The adapter's output limit: the worst case for the reply. */
   readonly maxOutputTokens: number;
   /** Replaceable so tests can see a failed settlement. */
-  readonly log?: { warn(object: Record<string, unknown>, message: string): void };
+  readonly log?: {
+    warn(object: Record<string, unknown>, message: string): void;
+    info?(object: Record<string, unknown>, message: string): void;
+  };
 }
 
 /** Thai can use more than one token per character, so the input estimate is deliberately high. */
@@ -118,6 +121,14 @@ export class MeteredTextProvider implements TextProvider {
         reserved.reason === 'over_cap' ? 'BUDGET_EXCEEDED' : 'INVALID_REQUEST',
       );
     }
+    const callStarted = Date.now();
+    const callFields = {
+      jobId: meter.jobId,
+      attempt: meter.attempt,
+      callIndex,
+      provider: this.inner.id,
+      model: meter.model,
+    };
     const settle = async (settlement: Settlement): Promise<void> => {
       try {
         await settleCall(meter.db, reserved.eventId, settlement);
@@ -137,6 +148,18 @@ export class MeteredTextProvider implements TextProvider {
       result = await run();
     } catch (error) {
       const billed = isProviderError(error) && MAY_HAVE_BILLED.has(error.code);
+      // One line per failed call: the code and whether it counts as billed, never the text.
+      meter.log?.warn(
+        {
+          event: 'provider.call_failed',
+          ...callFields,
+          durationMs: Date.now() - callStarted,
+          code: isProviderError(error) ? error.code : 'UNKNOWN',
+          retryable: isProviderError(error) ? error.retryable : false,
+          keptAsBilled: billed,
+        },
+        'provider call failed',
+      );
       await settle({
         status: billed ? 'settled' : 'released',
         requests: billed ? 1 : 0,
@@ -148,7 +171,22 @@ export class MeteredTextProvider implements TextProvider {
       });
       throw error;
     }
-    await settle(settlementFor(result.usage, meter.pricing));
+    const settlement = settlementFor(result.usage, meter.pricing);
+    await settle(settlement);
+    // One line per call: how long it took and what it used and cost, never the text.
+    meter.log?.info?.(
+      {
+        event: 'provider.call',
+        ...callFields,
+        durationMs: Date.now() - callStarted,
+        inputUnits: settlement.inputUnits,
+        outputUnits: settlement.outputUnits,
+        costUsd: settlement.costUsd,
+        costSource: settlement.costSource,
+        anomaly: settlement.anomaly,
+      },
+      'provider call finished',
+    );
     return result;
   }
 

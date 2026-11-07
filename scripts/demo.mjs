@@ -8,7 +8,7 @@
 // Text generation uses the mock provider (Thai copy from templates, no paid API, no key needed).
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createWriteStream, mkdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
@@ -101,17 +101,43 @@ const env = {
   // New every run: signed sessions and links stop working after a restart, which is fine here.
   SESSION_SECRET: randomBytes(32).toString('hex'),
   PORT: String(API_PORT),
-  LOG_LEVEL: 'warn',
+  // Info, so job and provider-call lines show; the full output also goes to .data/logs/.
+  LOG_LEVEL: 'info',
 };
 
 say('Starting the API, the worker and the dashboard');
+// Each process writes everything to .data/logs/<name>.log (appended, secrets are already redacted
+// by the API's logger) and to the terminal with a [name] prefix. The terminal skips the two lines
+// per request ("incoming request", "request completed") because the panel polls often; the file
+// keeps them.
+const LOG_DIR = path.join(root, '.data', 'logs');
+mkdirSync(LOG_DIR, { recursive: true });
+const QUIET_ON_TERMINAL = /"msg":"(incoming request|request completed)"/;
+function launch(name, command, args, options) {
+  const file = createWriteStream(path.join(LOG_DIR, `${name}.log`), { flags: 'a' });
+  file.write(`\n--- ${name} started ${new Date().toISOString()} ---\n`);
+  const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+  for (const stream of [child.stdout, child.stderr]) {
+    let pending = '';
+    stream.on('data', (chunk) => {
+      file.write(chunk);
+      pending += chunk.toString();
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!QUIET_ON_TERMINAL.test(line)) console.log(`[${name}] ${line}`);
+      }
+    });
+  }
+  child.on('close', () => file.end());
+  return child;
+}
 const children = [
-  spawn(process.execPath, ['apps/api/dist/server.js'], { cwd: root, env, stdio: 'inherit' }),
-  spawn(process.execPath, ['apps/api/dist/worker.js'], { cwd: root, env, stdio: 'inherit' }),
-  spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(WEB_PORT), '--strictPort'], {
+  launch('api', process.execPath, ['apps/api/dist/server.js'], { cwd: root, env }),
+  launch('worker', process.execPath, ['apps/api/dist/worker.js'], { cwd: root, env }),
+  launch('web', 'pnpm', ['exec', 'vite', 'preview', '--port', String(WEB_PORT), '--strictPort'], {
     cwd: path.join(root, 'apps', 'web'),
     env,
-    stdio: 'inherit',
   }),
 ];
 
@@ -150,6 +176,7 @@ console.log(`
  Then click the toolbar icon to open the panel.
 
  Text is the mock provider: Thai copy built from templates. A real provider
- is added later in Settings (Phase 4). Press Ctrl+C to stop.
+ is added in Settings. Logs: ${LOG_DIR} (api.log, worker.log, web.log).
+ Press Ctrl+C to stop.
 ============================================================
 `);
