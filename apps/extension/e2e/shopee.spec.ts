@@ -82,3 +82,73 @@ test("Import from Shopee stops on Shopee's traffic check and says so", async ({
   await expect(region.getByRole('alert')).toContainText('Shopee is showing a check');
   await expect(region.getByRole('button', { name: 'Copy diagnostics' })).toBeVisible();
 });
+
+/**
+ * A fake paged list: two products per page, a tall page (so the first step is a scroll), and a
+ * Next button at the bottom that swaps the products. `checkOnPage` makes that page show Shopee's
+ * traffic check instead of products.
+ */
+function pagedList(pages: number, checkOnPage = 0): string {
+  const cards = (page: number) =>
+    [1, 2]
+      .map((n) => {
+        const id = page * 10 + n;
+        return card(id, `สินค้าหน้า${page}-${n}`, `${100 + id}`, `${page + n}`, '5');
+      })
+      .join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Shopee Affiliate</title></head><body>
+<main id="list"></main><div style="height:2500px"></div>
+<button id="next" aria-label="Next" style="display:block;width:60px;height:30px">›</button>
+<script>
+  const cards = ${JSON.stringify([1, 2, 3, 4, 5].slice(0, pages).map((page) => cards(page)))};
+  let page = 1;
+  const show = () => {
+    if (page === ${checkOnPage}) {
+      document.body.innerHTML = '<p>เข้าสู่หน้าที่ต้องการไม่สำเร็จ</p>';
+      return;
+    }
+    document.getElementById('list').innerHTML = cards[page - 1];
+    document.getElementById('next').disabled = page >= cards.length;
+  };
+  document.getElementById('next').addEventListener('click', () => { page += 1; show(); });
+  show();
+</script></body></html>`;
+}
+
+async function importWithLoadMore(context: BrowserContext, extensionId: string, html: string) {
+  await fakeShopee(context, html);
+  const panel = await context.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  const region = panel.getByRole('region', { name: 'Shopee Affiliate' });
+  await region.getByRole('checkbox', { name: /Load more of the list/ }).check();
+  await region.getByRole('button', { name: 'Import from Shopee affiliate page' }).click();
+  return region;
+}
+
+test('Load more scrolls, presses Next, merges every page and stops at the end of the list', async ({
+  context,
+  extensionId,
+}) => {
+  const region = await importWithLoadMore(context, extensionId, pagedList(3));
+  // The first step is a scroll, then Next is pressed twice; the button is then disabled.
+  await expect(region.getByRole('status').filter({ hasText: 'Reached the end' })).toBeVisible({
+    timeout: 30_000,
+  });
+  const list = region.getByRole('list', { name: 'Shopee offers' });
+  await expect(list.getByRole('listitem')).toHaveCount(6);
+  await expect(list).toContainText('สินค้าหน้า1-1');
+  await expect(list).toContainText('สินค้าหน้า3-2');
+});
+
+test('Load more stops at a Shopee check, keeps the products already read and does not go on', async ({
+  context,
+  extensionId,
+}) => {
+  const region = await importWithLoadMore(context, extensionId, pagedList(3, 2));
+  await expect(
+    region.getByRole('status').filter({ hasText: 'Shopee is showing a check' }),
+  ).toBeVisible({ timeout: 30_000 });
+  const list = region.getByRole('list', { name: 'Shopee offers' });
+  await expect(list.getByRole('listitem')).toHaveCount(2);
+  await expect(list).toContainText('สินค้าหน้า1-1');
+});
