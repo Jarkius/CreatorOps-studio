@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-05 (end of session) · **Branch:** `ccr-186e9c63-3y215n` (D-064). **Phase:** 0 to 3 and 5 complete; A1 to A4 done (Meta AI helper on a fake page; the owner tests the real site); **Phase 4 built on a mock transport (S4.1 to S4.6, S4.7 library)**; next is S4.7 evaluation script, then S4.0 the first real call with the MaxPlus dev key.
+**Last updated:** 2026-11-07 · **Branch:** `ccr-186e9c63-3y215n` (D-064). **State:** everything is committed and pushed (last commit `336afaa`). Built and verified against fake pages (e2e: extension 26, dashboard 31): text through MaxPlus `qwen3.8-flash` with campaign cost in baht, Meta AI image helper, Google Flow video helper, video prompts button, Shopee Affiliate importer. **Working style: workable MVP first, not perfection (see `CLAUDE.md`).**
 
 ## Where we are
 
@@ -126,6 +126,19 @@ Test run 2026-11-05 (later): `check` 200 (balance 2.026 USD, 14 models); `ping` 
 ## Open questions that need the owner
 
 Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai evaluation reviewers (before Phase 4); Q-003/Q-004/Q-007 hosting, auth provider and storage vendor (before any hosted deployment); Q-006 extension distribution (before a beta). Defaults are listed in `docs/DECISIONS.md`.
+
+## Next steps (read this first, 2026-11-07)
+
+**Owner tests on the real sites (nothing else moves the MVP as much):** (1) Flow: sign in at flow.google.com, set 9:16, Scenes, Write video prompts, Make video in Flow; (2) Shopee: open the affiliate product list, Import from Shopee affiliate page; (3) Meta AI images if wanted. Send "Copy diagnostics" for any failure; fixes are small edits in `sidepanel/metaai/sites.ts` and `sidepanel/shopee/page.ts` / `selectors.ts`. Also: a Thai reviewer for `docs/evaluation/`, reroll the MaxPlus management token, set `MAXPLUS_KEY` in the environment settings.
+
+**Next build, in this order (keep each slice small):**
+1. Fix whatever the owner's real-site tests show.
+2. Shopee: auto-scroll and paging of the list (offered, awaiting the owner's yes), honest and visible, no disguising.
+3. Dashboard views for what only the panel has (video prompts, Shopee products).
+4. Wire the paid video API (`generate_video`, Gemini Omni provider in `provider-core/src/video.ts`, Settings selector) only when the owner has a paid Gemini key and a cap (D-080 part 2).
+5. Hosted deployment and real sign-in (Q-003, Q-004) before outside testers.
+
+**Old plan below is kept for history.**
 
 ## Next steps
 

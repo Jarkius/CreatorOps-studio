@@ -9,6 +9,17 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 - Project skill: `.claude/skills/app-dev-methodology` (session start, slice loop, delegation, verification, and which docs to update at the end; rewritten 2026-11-04). Project rules in this file and `docs/` take precedence over the skill where they differ.
 - Git: work on the branch the session designates (currently `ccr-186e9c63-3y215n`; D-064); commit when asked; no pull request unless requested (`docs/DECISIONS.md` D-017).
 
+## How we work now: workable MVP first (owner instruction, 2026-11-07)
+
+The owner wants a **workable MVP delivered consistently**, not perfection. Apply this to every task:
+
+- **Ship small, working slices and keep going.** Make a decision from the docs and the code, state it in one line, and continue. Ask the owner only when blocked by something only they can give (a key, an approval, a real-site test).
+- **Verify in proportion.** Required for every slice: lint, typecheck, the touched tests, and one real run of the feature when it is cheap. Exhaustive mutation sweeps and long reports are reserved for security-critical code (auth, secrets, workspace scoping, the usage ledger, the job state machine); elsewhere a few tests that cover the main path and the obvious failures are enough.
+- **Do not polish or re-litigate.** No refactors, extra options or doc rewrites that the next MVP step does not need. If something is imperfect but works, note it in `docs/WORKING_NOTES.md` and move on.
+- **Keep the owner's loop short.** What the owner tests (their real Meta AI, Flow and Shopee tabs, the MaxPlus key) matters more than more code against fake pages. Say what to try, take their feedback, fix it.
+- **Short replies.** Say what changed, what to try, and what is still open. Details belong in the docs, not in chat.
+- **The hard limit stays:** no CAPTCHA or check bypass, no passing as human to evade bot detection, no fingerprint or proxy tricks, no fake engagement (see Compliance boundaries). Everything else the owner decides.
+
 ## Mandatory first actions
 
 0. When starting or resuming any work, invoke the project skill `app-dev-methodology` (Skill tool) and read `docs/WORKING_NOTES.md` first. They say what to read next, how to run a slice, and which files to update at the end.
