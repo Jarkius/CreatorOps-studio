@@ -55,11 +55,13 @@ Product workspace → Thai-first copy and script generation → asset upload and
 
 ## What this product will not do
 
-No fake views, likes, comments, or follows. No account warming. No scraping or automating consumer AI sites or social platforms. No CAPTCHA, fingerprint, or proxy evasion. No device-farm control. Publishing only through official APIs after access is confirmed. See `docs/05_SECURITY_AND_COMPLIANCE.md` §6.
+No fake views, likes, comments, or follows. No account warming. No scraping or automating social platforms. The only exceptions are three owner-approved, user-initiated helpers that act in the owner's own signed-in tab, never sign in and never get past a check: Meta AI (D-071), Google Flow (D-080) and the Shopee Affiliate importer (D-082, D-083). No CAPTCHA, fingerprint, or proxy evasion. No device-farm control. Publishing only through official APIs after access is confirmed. See `docs/05_SECURITY_AND_COMPLIANCE.md` §6.
 
 ## Documentation
 
 Start with `docs/README.md`, which lists every document and which one wins when two disagree.
+
+To set up and use the product, read `docs/USER_GUIDE.md`; for whether it is ready for a real test, `docs/READY.md`.
 
 | Document | Purpose |
 |---|---|
