@@ -12,7 +12,7 @@ import {
 } from '@creatorops/ui';
 
 import { describeError, isNotFound } from '../errors.js';
-import { formatDate, formatPrice } from './format.js';
+import { formatDate, formatPrice, shopeeLinkOf } from './format.js';
 import { productPath, newProductPath, productsPath, statusFromParam } from './paths.js';
 import { useProductList } from './productQueries.js';
 import { NotFoundNotice } from './ProductStates.js';
@@ -31,6 +31,7 @@ const tabClass = (current: boolean) =>
   ].join(' ');
 
 function ProductRow({ workspaceId, product }: { workspaceId: string; product: Product }) {
+  const shopeeLink = shopeeLinkOf(product.sourceUrl);
   return (
     <li className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 leading-relaxed">
       <div className="min-w-0 flex-1">
@@ -43,6 +44,20 @@ function ProductRow({ workspaceId, product }: { workspaceId: string; product: Pr
         <p className="text-sm text-[var(--co-text-muted)]">
           {formatPrice(product.priceAmount, product.currency)}
         </p>
+        {shopeeLink === null ? null : (
+          <p className="text-sm">
+            <span className="text-[var(--co-text-muted)]">From Shopee · </span>
+            <a
+              href={shopeeLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--co-accent)] underline underline-offset-4"
+            >
+              Open on Shopee
+              <span className="sr-only"> (opens in a new tab): {product.name}</span>
+            </a>
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <StatusPill status={product.status} />
