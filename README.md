@@ -8,11 +8,11 @@ An extension-first content operations tool for Thai solo sellers, affiliate crea
 
 ## Status
 
-Phases 0–2 are built and verified: monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, and media uploads with signed URLs. Phase 3 (content generation with a mock provider) is next. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. Run commands are under "Development commands" below.
+Built and verified against fake pages and a mock provider (the owner tests the real Meta AI, Flow and Shopee tabs): monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, media uploads, campaigns and drafts with a job worker, real text through an OpenAI-compatible provider, the Meta AI and Flow helpers, the Shopee importer, video prompts and ZIP export. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. Run commands are under "Development commands" below.
 
 ### Screenshots (captured from the running app)
 
-Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, built packages and extension; see the script header). The side panel is loaded as a tab because automation cannot open Chrome's real side panel.
+Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, `REDIS_URL`, built packages and the extension e2e build; see the script header). The side panel is loaded as a tab because automation cannot open Chrome's real side panel.
 
 | Dashboard products | Asset library (uploaded) |
 |---|---|
@@ -22,7 +22,15 @@ Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, bu
 |---|---|
 | ![Product detail](docs/screenshots/web-product-detail.png) | ![Side panel](docs/screenshots/extension-side-panel.png) |
 
-More: `web-overview.png`, `web-new-workspace.png` in `docs/screenshots/`.
+| Campaign page | Draft with video prompts and export |
+|---|---|
+| ![Campaign](docs/screenshots/web-campaign-page.png) | ![Draft results](docs/screenshots/web-draft-results.png) |
+
+| Settings (text provider) | Shopee importer in the side panel |
+|---|---|
+| ![Settings](docs/screenshots/web-settings.png) | ![Shopee importer](docs/screenshots/extension-shopee.png) |
+
+The Shopee shot uses a fake Shopee page; the draft uses the free mock text writer. More in `docs/screenshots/`: `web-overview.png`, `web-new-workspace.png`, `extension-create.png`.
 
 ## Try it locally (one command)
 
