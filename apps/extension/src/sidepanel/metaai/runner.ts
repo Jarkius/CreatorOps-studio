@@ -151,6 +151,18 @@ function assertUsable(probe: PageProbe, name: string): void {
   }
 }
 
+/** Image prompts get the site's prefix ("Imagine ") unless they already start with its first word. */
+export function textToSend(
+  site: { readonly imagePromptPrefix: string },
+  kind: HelperKind,
+  prompt: string,
+): string {
+  const prefix = site.imagePromptPrefix;
+  if (kind !== 'image' || prefix === '') return prompt;
+  const word = prefix.trim().split(/\s+/)[0] ?? '';
+  return new RegExp(`^\\s*${word}\\b`, 'i').test(prompt) ? prompt : `${prefix}${prompt}`;
+}
+
 /**
  * Makes one image in the owner's own meta.ai tab (D-071). One scene at a time; every wait is
  * bounded; it stops at once when the signal aborts; it stops with a plain message on a login
@@ -281,7 +293,7 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
 
     onStep('typing');
     checkAborted();
-    const sent = await inTab(tab, page.submitPrompt, [selectors, prompt]);
+    const sent = await inTab(tab, page.submitPrompt, [selectors, textToSend(site, kind, prompt)]);
     note('typing', `submit: ${sent.how}`);
     if (!sent.ok) {
       throw new MetaAiError(
@@ -300,7 +312,7 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
         note('waiting', `gave up after ${Math.round(limit / 1000)} s`);
         throw new MetaAiError(
           'TIMEOUT',
-          `${site.name} did not finish in time. Check the tab, then try again.`,
+          `${site.name} did not finish in time. Check the tab: if it answered in words instead of making a ${kind === 'video' ? 'video' : 'picture'}, change the prompt and try again.`,
         );
       }
       await wait(site.pollMs);

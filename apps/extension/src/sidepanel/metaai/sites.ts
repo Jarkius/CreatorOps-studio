@@ -41,6 +41,8 @@ export interface HelperSite {
   readonly loginTimeoutMs: number;
   readonly pollMs: number;
   readonly chunkBytes: number;
+  /** Put before an image prompt that does not already start with it (a chat may answer in text otherwise). */
+  readonly imagePromptPrefix: string;
 }
 
 export const META_AI_SITE: HelperSite = {
@@ -58,6 +60,7 @@ export const META_AI_SITE: HelperSite = {
   loginTimeoutMs: META_AI_LOGIN_TIMEOUT_MS,
   pollMs: META_AI_POLL_MS,
   chunkBytes: META_AI_CHUNK_BYTES,
+  imagePromptPrefix: 'Imagine ',
 };
 
 /**
@@ -126,4 +129,5 @@ export const FLOW_SITE: HelperSite = {
   loginTimeoutMs: 5 * 60_000,
   pollMs: 2_000,
   chunkBytes: META_AI_CHUNK_BYTES,
+  imagePromptPrefix: '',
 };

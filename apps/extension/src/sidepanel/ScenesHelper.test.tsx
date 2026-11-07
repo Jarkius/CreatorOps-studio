@@ -162,7 +162,7 @@ describe('Meta AI helper in the scene list (A3)', () => {
     await user.type(box, 'my usage prompt');
     await user.click(screen.getByRole('button', { name: 'Generate Usage in Meta AI' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Saved the image to Usage.');
-    expect(submit).toHaveBeenCalledWith(expect.anything(), 'my usage prompt');
+    expect(submit).toHaveBeenCalledWith(expect.anything(), 'Imagine my usage prompt');
     expect(api.setAssets).toHaveBeenCalledWith('w1', 'd1', {
       assets: [
         {
@@ -198,7 +198,12 @@ describe('Meta AI helper in the scene list (A3)', () => {
     await user.type(box, 'my detail');
     await user.click(screen.getByRole('button', { name: 'Generate all scenes in Meta AI' }));
     expect(await screen.findByText('Saved 4 scene images.')).toBeInTheDocument();
-    expect(prompts).toEqual(['hero text', 'my detail', 'usage text', 'final text']);
+    expect(prompts).toEqual([
+      'Imagine hero text',
+      'Imagine my detail',
+      'Imagine usage text',
+      'Imagine final text',
+    ]);
     expect(n).toBe(4);
   });
 
@@ -219,7 +224,7 @@ describe('Meta AI helper in the scene list (A3)', () => {
       screen.getByRole('button', { name: 'Generate the 3 missing scenes in Meta AI' }),
     );
     expect(await screen.findByText('Saved 3 scene images.')).toBeInTheDocument();
-    expect(prompts).toEqual(['hero text', 'detail text', 'final text']);
+    expect(prompts).toEqual(['Imagine hero text', 'Imagine detail text', 'Imagine final text']);
   });
 
   it('hides Generate all from people who cannot start work', async () => {

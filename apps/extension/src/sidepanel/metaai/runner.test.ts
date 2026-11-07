@@ -4,6 +4,7 @@ import type { PageProbe } from './page.js';
 import {
   MetaAiError,
   runMetaAiScene,
+  textToSend,
   type DiagnosticLine,
   type MetaAiBrowser,
   type PageFunctions,
@@ -196,7 +197,7 @@ describe('runMetaAiScene', () => {
     expect(t.steps).toEqual(['opening', 'checking', 'typing', 'waiting', 'collecting']);
     expect([...result.bytes]).toEqual([1, 2, 3, 4]);
     expect(result.mimeType).toBe('image/png');
-    expect(t.calls.typedPrompt).toBe(PROMPT);
+    expect(t.calls.typedPrompt).toBe(`Imagine ${PROMPT}`);
     expect(t.calls.clear).toBe(1);
   });
 
@@ -456,5 +457,23 @@ describe('runMetaAiScene', () => {
         log: () => undefined,
       }),
     ).rejects.toMatchObject({ code: 'TIMEOUT' });
+  });
+});
+
+describe('textToSend', () => {
+  const meta = { imagePromptPrefix: 'Imagine ' };
+  it('puts the prefix before an image prompt', () => {
+    expect(textToSend(meta, 'image', 'a red mug on a desk')).toBe('Imagine a red mug on a desk');
+  });
+  it('leaves a prompt that already starts with the word, in any case', () => {
+    expect(textToSend(meta, 'image', 'imagine a red mug')).toBe('imagine a red mug');
+    expect(textToSend(meta, 'image', '  Imagine a red mug')).toBe('  Imagine a red mug');
+  });
+  it('treats a longer word that merely starts with it as a normal prompt', () => {
+    expect(textToSend(meta, 'image', 'Imagination lamp')).toBe('Imagine Imagination lamp');
+  });
+  it('does not touch video prompts or a site with no prefix', () => {
+    expect(textToSend(meta, 'video', 'a slow pan')).toBe('a slow pan');
+    expect(textToSend({ imagePromptPrefix: '' }, 'image', 'a mug')).toBe('a mug');
   });
 });

@@ -189,7 +189,12 @@ describe('Full Auto from the Create tab (A4)', () => {
     const api = setup(t.deps);
     await startFullAuto(user);
     expect(await screen.findByText('Saved 4 scene images.')).toBeInTheDocument();
-    expect(t.prompts).toEqual(['hero text', 'detail text', 'usage text', 'final text']);
+    expect(t.prompts).toEqual([
+      'Imagine hero text',
+      'Imagine detail text',
+      'Imagine usage text',
+      'Imagine final text',
+    ]);
     expect(api.setAssets).toHaveBeenCalledTimes(4);
     expect(api.setAssets).toHaveBeenLastCalledWith('w1', 'd1', {
       assets: expect.arrayContaining([
@@ -249,7 +254,7 @@ describe('Full Auto from the Create tab (A4)', () => {
     });
     await startFullAuto(user);
     expect(await screen.findByText('Saved 3 scene images.')).toBeInTheDocument();
-    expect(t.prompts).toEqual(['hero text', 'detail text', 'final text']);
+    expect(t.prompts).toEqual(['Imagine hero text', 'Imagine detail text', 'Imagine final text']);
   });
 
   it('stops at the first problem, says how many were saved, and does not go on to the rest', async () => {
@@ -259,7 +264,7 @@ describe('Full Auto from the Create tab (A4)', () => {
     await startFullAuto(user);
     expect(await screen.findByRole('alert')).toHaveTextContent('check that needs you');
     expect(screen.getByText('2 scene images were saved before it stopped.')).toBeInTheDocument();
-    expect(t.prompts).toEqual(['hero text', 'detail text']);
+    expect(t.prompts).toEqual(['Imagine hero text', 'Imagine detail text']);
   });
 
   it('can be cancelled in the middle of a scene, keeping what was already saved', async () => {
@@ -272,6 +277,6 @@ describe('Full Auto from the Create tab (A4)', () => {
     await user.click(within(helper).getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Cancelled.');
     expect(screen.getByText('2 scene images were saved before it stopped.')).toBeInTheDocument();
-    expect(t.prompts).toEqual(['hero text', 'detail text', 'usage text']);
+    expect(t.prompts).toEqual(['Imagine hero text', 'Imagine detail text', 'Imagine usage text']);
   });
 });
