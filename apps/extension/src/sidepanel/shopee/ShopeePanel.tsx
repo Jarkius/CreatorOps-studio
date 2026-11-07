@@ -1,15 +1,15 @@
 import { ApiError, PRODUCT_LIMITS, type ApiClient, type Product } from '@creatorops/contracts';
 import { Button } from '@creatorops/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { dashboardHref } from '../format.js';
 import { createChromeBrowser } from '../metaai/browser.js';
 import type { MetaAiBrowser } from '../metaai/runner.js';
 import { importShopeeOffers, ShopeeImportError } from './import.js';
 import { earningPerSale, visibleOffers, type OfferSort } from './offers.js';
-import { readShopeeOffers, type ShopeeOffer } from './page.js';
-import { SHOPEE_AFFILIATE_PATTERN } from './selectors.js';
+import { advanceShopeeList, readShopeeOffers, type ShopeeOffer } from './page.js';
+import { SHOPEE_AFFILIATE_PATTERN, SHOPEE_MAX_STEPS, SHOPEE_STEP_DELAY_MS } from './selectors.js';
 
 /** The Shopee Affiliate site, for the shared browser wrapper (D-082). */
 export const SHOPEE_SITE = {
@@ -27,6 +27,9 @@ export interface ShopeePanelProps {
   /** Replaced in tests. */
   readonly browser?: MetaAiBrowser;
   readonly read?: typeof readShopeeOffers;
+  readonly advance?: typeof advanceShopeeList;
+  /** Replaced in tests so the wait between steps is instant. */
+  readonly stepDelayMs?: number;
 }
 
 const baht = (value: number) =>
@@ -55,6 +58,10 @@ export function ShopeePanel(props: ShopeePanelProps) {
   const [minimum, setMinimum] = useState('');
   const [created, setCreated] = useState<Readonly<Record<string, Product>>>({});
   const [copied, setCopied] = useState(false);
+  const [loadMore, setLoadMore] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [stopNote, setStopNote] = useState<string | null>(null);
+  const cancelled = useRef(false);
 
   const minCommission = Number(minimum.trim() === '' ? '0' : minimum);
   const shown = visibleOffers(offers, sort, Number.isFinite(minCommission) ? minCommission : 0);
@@ -65,6 +72,9 @@ export function ShopeePanel(props: ShopeePanelProps) {
     const granted = browser.requestPermission();
     setStatus({ phase: 'reading' });
     setCopied(false);
+    setProgress(null);
+    setStopNote(null);
+    cancelled.current = false;
     void (async () => {
       try {
         if (!(await granted)) {
@@ -76,7 +86,23 @@ export function ShopeePanel(props: ShopeePanelProps) {
           });
           return;
         }
-        const found = await importShopeeOffers({ browser, read: props.read ?? readShopeeOffers });
+        const found = await importShopeeOffers({
+          browser,
+          read: props.read ?? readShopeeOffers,
+          ...(loadMore
+            ? {
+                loadMore: {
+                  advance: props.advance ?? advanceShopeeList,
+                  maxSteps: SHOPEE_MAX_STEPS,
+                  delayMs: props.stepDelayMs ?? SHOPEE_STEP_DELAY_MS,
+                  cancelled: () => cancelled.current,
+                  onProgress: (count: number, step: number) =>
+                    setProgress(`Step ${step} of ${SHOPEE_MAX_STEPS}: ${count} products read`),
+                  onStop: (reason: string) => setStopNote(reason),
+                },
+              }
+            : {}),
+        });
         setOffers(found);
         setStatus({ phase: 'idle' });
       } catch (error) {
@@ -114,9 +140,20 @@ export function ShopeePanel(props: ShopeePanelProps) {
       <h2 className="text-base font-semibold">Shopee Affiliate</h2>
       <p className="mt-1 text-sm text-[var(--co-text-muted)]">
         Open your Shopee Affiliate product list in a tab, then import it here. The importer only
-        reads what the page shows: it clicks nothing and never signs in. Chrome asks once to allow
-        Shopee Affiliate.
+        reads what the page shows and never signs in. With "Load more" ticked it also scrolls down
+        the list and presses the page's own Next button, a few steps with a fixed wait, in the tab
+        you can see; it stops at a Shopee check, a slow-down notice or a sign-in page and never gets
+        past them. Chrome asks once to allow Shopee Affiliate.
       </p>
+      <label className="mt-2 flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={loadMore}
+          disabled={status.phase === 'reading'}
+          onChange={(event) => setLoadMore(event.target.checked)}
+        />
+        {`Load more of the list (up to ${SHOPEE_MAX_STEPS} steps)`}
+      </label>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button disabled={status.phase === 'reading'} onClick={runImport}>
           {status.phase === 'reading'
@@ -125,7 +162,22 @@ export function ShopeePanel(props: ShopeePanelProps) {
               ? 'Import from Shopee affiliate page'
               : 'Import again'}
         </Button>
+        {status.phase === 'reading' && loadMore ? (
+          <Button variant="secondary" onClick={() => (cancelled.current = true)}>
+            Stop loading
+          </Button>
+        ) : null}
       </div>
+      {progress !== null && status.phase === 'reading' ? (
+        <p role="status" className="mt-2 text-sm">
+          {progress}
+        </p>
+      ) : null}
+      {stopNote !== null && status.phase !== 'reading' ? (
+        <p role="status" className="mt-2 text-sm">
+          {stopNote}
+        </p>
+      ) : null}
       {status.phase === 'failed' ? (
         <div className="mt-2 space-y-1">
           <p role="alert" className="text-sm text-[var(--co-danger)] [overflow-wrap:anywhere]">

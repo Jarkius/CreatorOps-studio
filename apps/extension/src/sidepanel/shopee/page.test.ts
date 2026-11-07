@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { readShopeeOffers } from './page.js';
+import { advanceShopeeList, readShopeeOffers } from './page.js';
 import { SHOPEE_HINTS } from './selectors.js';
 
 const read = (max = 200) => readShopeeOffers(SHOPEE_HINTS, max);
@@ -112,5 +112,52 @@ describe('readShopeeOffers', () => {
     expect(result.offers[0]?.link).not.toContain('?');
     expect(result.offers[0]?.link).not.toContain('sp_atk');
     expect(result.path).toBe('/offer/product_offer');
+  });
+});
+
+describe('advanceShopeeList', () => {
+  const visible = () =>
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 10,
+      height: 10,
+    } as DOMRect);
+  afterEach(() => vi.restoreAllMocks());
+
+  it('scrolls to the bottom first, without clicking anything', () => {
+    document.body.innerHTML = '<button aria-label="Next">Next</button>';
+    const clicked = vi.fn();
+    document.querySelector('button')?.addEventListener('click', clicked);
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 5000,
+    });
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as never;
+    expect(advanceShopeeList()).toBe('scrolled');
+    expect(scrollTo).toHaveBeenCalled();
+    expect(clicked).not.toHaveBeenCalled();
+    Reflect.deleteProperty(document.documentElement, 'scrollHeight');
+  });
+
+  it('presses an enabled, visible Next button once the bottom is reached', () => {
+    visible();
+    document.body.innerHTML =
+      '<button aria-label="Previous">Previous</button><button aria-label="Next">›</button>';
+    const clicked = vi.fn();
+    document.querySelectorAll('button')[1]?.addEventListener('click', clicked);
+    expect(advanceShopeeList()).toBe('next');
+    expect(clicked).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not press a disabled Next button, and says there is nothing left', () => {
+    visible();
+    document.body.innerHTML =
+      '<button aria-label="Next" disabled>Next</button><a href="/x">Buy</a>';
+    expect(advanceShopeeList()).toBe('none');
+  });
+
+  it('does not press hidden buttons or unrelated ones', () => {
+    document.body.innerHTML = '<button aria-label="Next">Next</button><button>Buy now</button>';
+    expect(advanceShopeeList()).toBe('none');
   });
 });

@@ -135,4 +135,89 @@ describe('importShopeeOffers', () => {
       expect(text).not.toContain('shopee.co.th/fan');
     }
   });
+
+  describe('load more', () => {
+    const offer = (n: number) => ({
+      ...READY.offers[0]!,
+      name: `Fan ${n}`,
+      link: `https://shopee.co.th/f${n}-i.1.${n}`,
+    });
+    function loader(over: Partial<import('./import.js').LoadMoreOptions> = {}) {
+      const stops: string[] = [];
+      return {
+        stops,
+        more: {
+          advance: () => 'scrolled' as const,
+          maxSteps: 10,
+          delayMs: 2000,
+          sleep: () => Promise.resolve(),
+          onStop: (reason: string) => stops.push(reason),
+          ...over,
+        },
+      };
+    }
+
+    it('merges new products from each step, without duplicates', async () => {
+      const { fake } = browser();
+      let call = 0;
+      const read = () => {
+        call += 1;
+        return { ...READY, offers: [offer(1), ...(call > 1 ? [offer(call)] : [])] };
+      };
+      const { more, stops } = loader({ maxSteps: 3 });
+      const result = await importShopeeOffers({ browser: fake, read, loadMore: more });
+      expect(result.map((o) => o.name)).toEqual(['Fan 1', 'Fan 2', 'Fan 3', 'Fan 4']);
+      expect(stops).toEqual(['Stopped after 3 steps.']);
+    });
+
+    it('waits the fixed delay after each step', async () => {
+      const { fake } = browser();
+      const waits: number[] = [];
+      const { more } = loader({ maxSteps: 2, sleep: (ms) => (waits.push(ms), Promise.resolve()) });
+      await importShopeeOffers({ browser: fake, read: () => READY, loadMore: more });
+      expect(waits).toEqual([2000, 2000]);
+    });
+
+    it('stops at the end of the list', async () => {
+      const { fake } = browser();
+      const { more, stops } = loader({ advance: () => 'none' });
+      const result = await importShopeeOffers({ browser: fake, read: () => READY, loadMore: more });
+      expect(result).toHaveLength(1);
+      expect(stops).toEqual(['Reached the end of the list.']);
+    });
+
+    it('stops after three steps with nothing new', async () => {
+      const { fake } = browser();
+      let steps = 0;
+      const { more, stops } = loader({ advance: () => ((steps += 1), 'scrolled') });
+      await importShopeeOffers({ browser: fake, read: () => READY, loadMore: more });
+      expect(steps).toBe(3);
+      expect(stops).toEqual(['No new products after three steps.']);
+    });
+
+    it('stops at once when cancelled, keeping what was read', async () => {
+      const { fake } = browser();
+      const { more, stops } = loader({ cancelled: () => true });
+      const result = await importShopeeOffers({ browser: fake, read: () => READY, loadMore: more });
+      expect(result).toHaveLength(1);
+      expect(stops).toEqual(['Stopped by you.']);
+    });
+
+    it('stops at a check, a slow-down or a sign-in page, keeps the products, and focuses only for a check or sign-in', async () => {
+      for (const [state, focused] of [
+        ['challenge', 1],
+        ['login', 1],
+        ['limit', 0],
+      ] as const) {
+        const { fake, calls } = browser();
+        let call = 0;
+        const read = () => ((call += 1) === 1 ? READY : { ...READY, state, offers: [] });
+        const { more, stops } = loader();
+        const result = await importShopeeOffers({ browser: fake, read, loadMore: more });
+        expect(result).toHaveLength(1);
+        expect(stops).toHaveLength(1);
+        expect(calls.focused).toBe(focused);
+      }
+    });
+  });
 });

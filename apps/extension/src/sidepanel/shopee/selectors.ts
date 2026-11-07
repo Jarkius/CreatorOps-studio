@@ -26,3 +26,6 @@ export const SHOPEE_HINTS: ShopeeHints = {
   ],
   limitHints: ['too many requests', 'ทำรายการบ่อยเกินไป', 'try again later'],
 };
+/** Scroll or next-page steps per import when "load more" is ticked, and the fixed wait after each. */
+export const SHOPEE_MAX_STEPS = 10;
+export const SHOPEE_STEP_DELAY_MS = 2000;

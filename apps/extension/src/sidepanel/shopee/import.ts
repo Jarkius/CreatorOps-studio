@@ -1,5 +1,5 @@
 import type { MetaAiBrowser } from '../metaai/runner.js';
-import type { ShopeeHints, ShopeeOffer, ShopeeRead } from './page.js';
+import type { AdvanceResult, ShopeeHints, ShopeeOffer, ShopeeRead } from './page.js';
 import { SHOPEE_HINTS, SHOPEE_MAX_OFFERS, SHOPEE_OFFER_URL } from './selectors.js';
 
 export type ShopeeImportCode =
@@ -23,10 +23,26 @@ export class ShopeeImportError extends Error {
   }
 }
 
+/** Optional: scroll and page down the list, visibly, within fixed limits (the owner's request). */
+export interface LoadMoreOptions {
+  readonly advance: () => AdvanceResult;
+  /** At most this many scroll or next-page steps. */
+  readonly maxSteps: number;
+  /** A fixed wait after each step so the page can load (not randomised, not disguised). */
+  readonly delayMs: number;
+  readonly sleep?: (ms: number) => Promise<void>;
+  /** Checked before every step; true stops and keeps what was read. */
+  readonly cancelled?: () => boolean;
+  /** Called with the number of products read so far, and a stop reason when loading ends. */
+  readonly onProgress?: (count: number, step: number) => void;
+  readonly onStop?: (reason: string) => void;
+}
+
 export interface ImportOptions {
   readonly browser: MetaAiBrowser;
   readonly read: (hints: ShopeeHints, maxItems: number) => ShopeeRead;
   readonly hints?: ShopeeHints;
+  readonly loadMore?: LoadMoreOptions;
 }
 
 function describe(read: ShopeeRead | null, note: string): string {
@@ -113,5 +129,57 @@ export async function importShopeeOffers(options: ImportOptions): Promise<readon
       describe(read, 'no products'),
     );
   }
-  return read.offers;
+  const more = options.loadMore;
+  if (more === undefined) return read.offers;
+
+  const byLink = new Map<string, ShopeeOffer>(read.offers.map((offer) => [offer.link, offer]));
+  const sleep = more.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
+  let quiet = 0;
+  for (let step = 1; step <= more.maxSteps; step += 1) {
+    if (more.cancelled?.() === true) return stop(more, byLink, 'Stopped by you.');
+    if (byLink.size >= SHOPEE_MAX_OFFERS) {
+      return stop(more, byLink, `Reached the limit of ${SHOPEE_MAX_OFFERS} products.`);
+    }
+    let moved: AdvanceResult;
+    try {
+      moved = await browser.run(tab, more.advance, []);
+    } catch {
+      return stop(more, byLink, 'The tab could not be scrolled. Kept what was read.');
+    }
+    if (moved === 'none') return stop(more, byLink, 'Reached the end of the list.');
+    await sleep(more.delayMs);
+    let next: ShopeeRead;
+    try {
+      next = await browser.run(tab, options.read, [hints, SHOPEE_MAX_OFFERS]);
+    } catch {
+      return stop(more, byLink, 'The tab could not be read. Kept what was read.');
+    }
+    if (next.state === 'challenge' || next.state === 'limit' || next.state === 'login') {
+      if (next.state !== 'limit') await browser.focusTab?.(tab).catch(() => undefined);
+      return stop(
+        more,
+        byLink,
+        next.state === 'challenge'
+          ? 'Shopee is showing a check. Loading stopped; finish the check in that tab yourself.'
+          : next.state === 'limit'
+            ? 'Shopee says to slow down. Loading stopped; wait a while before importing again.'
+            : 'Shopee asked you to sign in. Loading stopped.',
+      );
+    }
+    const before = byLink.size;
+    for (const offer of next.offers) if (!byLink.has(offer.link)) byLink.set(offer.link, offer);
+    more.onProgress?.(byLink.size, step);
+    quiet = byLink.size === before ? quiet + 1 : 0;
+    if (quiet >= 3) return stop(more, byLink, 'No new products after three steps.');
+  }
+  return stop(more, byLink, `Stopped after ${more.maxSteps} steps.`);
+}
+
+function stop(
+  more: LoadMoreOptions,
+  byLink: ReadonlyMap<string, ShopeeOffer>,
+  reason: string,
+): readonly ShopeeOffer[] {
+  more.onStop?.(reason);
+  return Array.from(byLink.values());
 }

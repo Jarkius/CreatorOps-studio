@@ -89,6 +89,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-062 | Phase 4 text provider: OpenAI-compatible adapter, MaxPlus gateway for development and pilot only | ACCEPTED (owner choice 2026-11-04) |
 | D-063 | Phase 4 spend control: 100 credits, enforced in the app and on the key, fail closed | ACCEPTED |
 | D-066 | Provider key entered in a dashboard settings screen, stored encrypted on the server | ACCEPTED (owner request 2026-11-04) |
+| D-083 | Shopee importer "Load more": visible auto-scroll and Next-page presses, bounded | ACCEPTED (owner, 2026-11-07) |
 | D-082 | Shopee Affiliate importer: read the owner's own signed-in page (owner decision) | ACCEPTED (owner, 2026-11-05) |
 | D-081 | Shopee affiliate product finder with commission rates (official Open API) | PROPOSED (needs Q-008) |
 | D-080 | Video: Google Flow helper first, then a paid video API (Gemini Omni); media provider choice | ACCEPTED (owner: both, Flow first); API half PLANNED |
@@ -640,6 +641,11 @@ The real provider refuses to start without configured prices (no guessed default
 3. **Not built, on purpose:** the owner's words included "like a normal human". Anything meant to **pass as human** to Shopee's bot checks (fake typing rhythm, random pauses, fingerprint or proxy tricks) is not built: `CLAUDE.md` forbids detection evasion. CDP through the `debugger` permission was not used either: it shows a warning banner and gives far more access than reading one page needs. Shopee's traffic check (`/verify/traffic`, seen on 2026-11-05 when a signed-out headless browser was redirected there) stops the import with "finish it in that tab"; it is never solved or bypassed.
 4. **Unknowns and risks accepted by the owner:** Shopee's terms on automated reading were not read; the account could be restricted; the signed-in page was never seen, so products are found by content (a Shopee product link, the nearest block with a ฿ price, the % next to a commission label, discounts ignored), and "Copy diagnostics" reports counts only (no names, no links). The first real test is the owner's.
 5. **Tests:** the reader in jsdom (Thai and English cards, discounts, duplicates, cap, look-alike hosts, tracking query removed, check and sign-in pages), the import decisions, sorting and earnings, the panel (permission first, read-only members cannot create), and an e2e against a fake Shopee Affiliate page.
+
+## D-083 — Shopee importer "Load more" (owner decision, 2026-11-07)
+**Status:** ACCEPTED by the owner ("go ahead with auto-scroll and paging"). Extends D-082 item 2 (the reader itself still only reads).
+**Decision:** an opt-in tick "Load more of the list" on the Shopee section. After the first read, the panel repeats up to 10 steps (`SHOPEE_MAX_STEPS`): `advanceShopeeList` scrolls the owner's visible tab to the bottom, or, when already there, presses the page's own enabled "Next" button once; then a **fixed** 2 s wait (`SHOPEE_STEP_DELAY_MS`, not randomised), then a read, merged by product link. It stops at: the end of the list, 200 products, three steps with nothing new, the owner pressing **Stop loading**, or the first sign of a Shopee check, a slow-down notice or a sign-in page (the tab is brought forward for a check or sign-in; nothing is solved, retried or worked around). Products read so far are kept and the stop reason is shown. It types nothing and fills no form.
+**Still not built:** anything that imitates a person (random timing, mouse paths), and any retry after a check. Untested on the real site (Next-button detection is a guess from labels and classes; "Copy diagnostics" has no step log yet).
 
 ## D-081 — Shopee affiliate product finder (2026-11-05)
 **Status:** PROPOSED; superseded as the first route by D-082 (the page importer). The owner asked for a list of Shopee items with their commission rate, like AutoGenX.

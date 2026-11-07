@@ -1,6 +1,6 @@
 /**
  * Runs inside the owner's own Shopee Affiliate tab through `chrome.scripting.executeScript`
- * (D-082). It only READS what the page already shows: it clicks nothing, types nothing, makes no
+ * (D-082). `readShopeeOffers` only READS what the page already shows: it clicks nothing, types nothing, makes no
  * request, and reads no cookies or storage. It must be self-contained (no imports, no closure
  * variables), because it is serialised and sent to the page.
  *
@@ -146,4 +146,41 @@ export function readShopeeOffers(hints: ShopeeHints, maxItems: number): ShopeeRe
     offers,
     linksSeen: productAnchors.length,
   };
+}
+
+export type AdvanceResult = 'scrolled' | 'next' | 'none';
+
+/**
+ * One visible step down the owner's list (the owner asked for this and starts it with a click).
+ * Does what a person does: scroll to the bottom, and when already there, press the page's own
+ * "next page" button once. It types nothing, fills no form and makes no request of its own. Like
+ * `readShopeeOffers` it is serialised into the page, so it must stay self-contained.
+ */
+export function advanceShopeeList(): AdvanceResult {
+  const root = document.scrollingElement ?? document.documentElement;
+  const atBottom = root.scrollTop + window.innerHeight >= root.scrollHeight - 40;
+  if (!atBottom) {
+    window.scrollTo({ top: root.scrollHeight });
+    return 'scrolled';
+  }
+  const NEXT_TEXT = /^(next|next page|ถัดไป|หน้าถัดไป|›|>)$/i;
+  const candidates = Array.from(
+    document.querySelectorAll('button, a, [role="button"], li[class*="next"]'),
+  );
+  for (const node of candidates) {
+    if (!(node instanceof HTMLElement)) continue;
+    const label = (node.getAttribute('aria-label') ?? node.textContent ?? '').trim();
+    const byClass = /icon-button--right|pagination.*next|next-page/i.test(node.className);
+    if (!NEXT_TEXT.test(label) && !byClass) continue;
+    const disabled =
+      node.hasAttribute('disabled') ||
+      node.getAttribute('aria-disabled') === 'true' ||
+      /disabled/i.test(node.className);
+    const rect = node.getBoundingClientRect();
+    const visible = rect.width > 0 && rect.height > 0;
+    if (disabled || !visible) continue;
+    node.click();
+    return 'next';
+  }
+  return 'none';
 }

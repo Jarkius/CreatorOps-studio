@@ -57,6 +57,7 @@ function setup(
     read?: () => ShopeeRead;
     createProduct?: (ws: string, body: unknown) => Promise<unknown>;
     order?: string[];
+    advance?: () => 'scrolled' | 'next' | 'none';
   } = {},
 ) {
   const order = options.order ?? [];
@@ -91,6 +92,8 @@ function setup(
         canCreate={options.canCreate ?? true}
         browser={browser}
         read={(options.read ?? read()) as never}
+        advance={options.advance ?? (() => 'none')}
+        stepDelayMs={0}
       />
     </QueryClientProvider>,
   );
@@ -212,5 +215,30 @@ describe('Shopee products in the side panel', () => {
     await user.click(section().getByRole('button', { name: 'Copy diagnostics' }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     expect(writeText.mock.calls[0]?.[0]).toContain('state: challenge');
+  });
+
+  it('loads more only when ticked, reports the stop reason, and keeps the list', async () => {
+    const user = userEvent.setup();
+    let call = 0;
+    setup({
+      advance: () => 'scrolled',
+      read: () => {
+        call += 1;
+        return { ...read()(), offers: OFFERS.slice(0, Math.min(call, OFFERS.length)) };
+      },
+    });
+    await user.click(section().getByRole('checkbox', { name: /Load more of the list/ }));
+    await importNow(user);
+    await waitFor(() => expect(offerNames()).toHaveLength(4));
+    expect(await screen.findByText(/Stopped after 10 steps|No new products/)).toBeInTheDocument();
+  });
+
+  it('does not scroll or page when the box is not ticked', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn(() => 'scrolled' as const);
+    setup({ advance });
+    await importNow(user);
+    await waitFor(() => expect(offerNames()).toHaveLength(4));
+    expect(advance).not.toHaveBeenCalled();
   });
 });
