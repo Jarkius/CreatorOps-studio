@@ -8,6 +8,7 @@ import { LocalFsStorage } from './storage/local-fs.js';
 import { BullMqJobQueue, startQueueWorker } from './modules/jobs/bullmq-queue.js';
 import { processJob } from './modules/jobs/process.js';
 import { RECONCILE_INTERVAL_MS, reconcile } from './modules/jobs/reconcile.js';
+import { runTool } from './modules/video/ffmpeg.js';
 import { prepare } from './startup.js';
 
 /** Jobs one worker process runs at the same time. */
@@ -42,6 +43,23 @@ if (!prepared.ok) {
           prepared.config.SECRETS_ENCRYPTION_KEY,
           prepared.config.SECRETS_ENCRYPTION_KEY_ID,
         );
+  const videoTools = {
+    ffmpeg: prepared.config.FFMPEG_PATH,
+    ffprobe: prepared.config.FFPROBE_PATH,
+    subtitleFont: prepared.config.SUBTITLE_FONT,
+  };
+  // Say once whether the final video can be made; the job itself fails plainly without ffmpeg.
+  runTool(videoTools.ffmpeg, ['-version'], {
+    cwd: process.cwd(),
+    signal: AbortSignal.timeout(10_000),
+  }).then(
+    () => logger.info({ event: 'video.tools_found' }, 'ffmpeg found: final videos can be made'),
+    () =>
+      logger.warn(
+        { event: 'video.tools_missing' },
+        'ffmpeg not found: the final video will fail until it is installed (see the user guide)',
+      ),
+  );
   const deps = {
     db,
     provider: fallback,
@@ -51,6 +69,7 @@ if (!prepared.ok) {
     queue,
     log: logger,
     storage,
+    videoTools,
   };
 
   const worker = startQueueWorker({

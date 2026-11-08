@@ -1,0 +1,6 @@
+ALTER TABLE "jobs" DROP CONSTRAINT "jobs_type_check";--> statement-breakpoint
+ALTER TABLE "jobs" DROP CONSTRAINT "jobs_error_code_check";--> statement-breakpoint
+ALTER TABLE "jobs" DROP CONSTRAINT "jobs_target_matches_type";--> statement-breakpoint
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_type_check" CHECK ("jobs"."type" in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts', 'assemble_video'));--> statement-breakpoint
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_error_code_check" CHECK ("jobs"."error_code" is null or "jobs"."error_code" in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'PROVIDER_COST_HOLD', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'VIDEO_TOOL_MISSING', 'VIDEO_FAILED', 'CANCELLED', 'INTERNAL'));--> statement-breakpoint
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_target_matches_type" CHECK (("jobs"."type" = 'generate_brief' and "jobs"."campaign_id" is not null) or ("jobs"."type" = 'regenerate_section' and "jobs"."draft_id" is not null) or ("jobs"."type" = 'export_package' and "jobs"."draft_id" is not null) or ("jobs"."type" = 'generate_video_prompts' and "jobs"."draft_id" is not null) or ("jobs"."type" = 'assemble_video' and "jobs"."draft_id" is not null));

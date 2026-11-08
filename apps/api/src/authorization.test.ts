@@ -139,6 +139,10 @@ beforeAll(async () => {
         draftId: victimDraftId,
         draftVersion: 1,
       },
+      'POST /api/v1/workspaces/:workspaceId/jobs/assemble-video': {
+        draftId: victimDraftId,
+        draftVersion: 1,
+      },
       'PATCH /api/v1/workspaces/:workspaceId/drafts/:draftId': {
         version: 1,
         sections: { hook: 'Pwned' },

@@ -54,6 +54,7 @@ import {
   type JobListQuery,
   type JobListResponse,
   type GenerateVideoPromptsJobRequest,
+  type AssembleVideoJobRequest,
   type RegenerateSectionJobRequest,
   type TemplateListResponse,
   type UpdateCampaignRequest,
@@ -220,6 +221,12 @@ export interface ApiClient {
     generateVideoPrompts(
       workspaceId: string,
       body: GenerateVideoPromptsJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+    /** Joins the draft's scene clips into one video with Thai subtitles. Same key rules. */
+    assembleVideo(
+      workspaceId: string,
+      body: AssembleVideoJobRequest,
       idempotencyKey: string,
     ): Promise<Job>;
     /** Same key rules as `generateBrief`. `expectedRev` is the section revision the user saw. */
@@ -523,6 +530,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         }),
       generateVideoPrompts: (workspaceId, body, idempotencyKey) =>
         send('POST', `${base(workspaceId)}/jobs/generate-video-prompts`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+      assembleVideo: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/assemble-video`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
       regenerateSection: (workspaceId, body, idempotencyKey) =>

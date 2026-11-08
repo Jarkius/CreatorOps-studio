@@ -58,6 +58,11 @@ export const apiEnvSchema = z
       .min(1)
       .default('.data/media')
       .transform((value) => (isAbsolute(value) ? value : resolve(repoRoot(process.cwd()), value))),
+    // The owner's own ffmpeg and ffprobe for the final video (D-086); a name on PATH or a full path.
+    FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
+    FFPROBE_PATH: z.string().min(1).default('ffprobe'),
+    // Font for the burned-in Thai subtitles; missing Thai glyphs fall back to an installed font.
+    SUBTITLE_FONT: z.string().min(1).max(80).default('Sans'),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
     // Reverse-proxy hops to trust for the client address (X-Forwarded-For). 0 trusts none, so a
     // client cannot spoof its address. Set it to the number of proxies in front of the API.

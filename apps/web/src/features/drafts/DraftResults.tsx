@@ -6,6 +6,7 @@ import { Button, LoadingState } from '@creatorops/ui';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 import { AttachFiles } from './AttachFiles.js';
+import { FinalVideo } from './FinalVideo.js';
 import { describeError } from '../errors.js';
 import { isTerminalJobStatus, useJob } from '../jobs/jobQueries.js';
 import { formatDate } from '../products/format.js';
@@ -54,6 +55,7 @@ export function DraftResults({
       <Files workspaceId={workspaceId} draftId={draft.id} />
       {canWrite ? <AttachPicker workspaceId={workspaceId} draft={draft} /> : null}
       <CaptionCopy draft={draft} />
+      {canWrite ? <FinalVideo workspaceId={workspaceId} draft={draft} /> : null}
       <ExportPackage workspaceId={workspaceId} draft={draft} canWrite={canWrite} />
     </section>
   );

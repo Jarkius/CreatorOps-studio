@@ -21,6 +21,7 @@
 - **Thai quality:** nobody has reviewed the real Thai copy (Q-005); the mock copy is placeholder text.
 - **Money:** a retried generate job can pay again for variants it already made. A call that costs far more than your prices predict now **pauses new AI calls** until an owner or admin acknowledges it in Settings (D-084); the monthly limit is still optional.
 - **Logging:** per-call provider lines (`provider.call`, `provider.call_failed`) and demo log files were added 2026-11-07; tested, but never seen on a real MaxPlus call. Still missing: a log from the extension itself (only Copy diagnostics) and a trace tying a panel action to its job.
+- **Final video (D-086):** joins scene clips with Thai subtitles; verified with real ffmpeg here (tests and a live run, frames checked by eye), not on the owner's machine; no voice audio yet.
 - **GitHub Actions** has never run. **Hosted deployment** does not exist (see the guide).
 
 ## Owner checklist (in this order)

@@ -8,9 +8,12 @@ import {
 } from '@creatorops/provider-core';
 
 import type { Db, DbOrTx } from '../../db/client.js';
-import { contentDrafts, draftExports } from '../../db/schema.js';
+import { assets, contentDrafts, draftExports } from '../../db/schema.js';
 import type { Storage } from '../../storage/storage.js';
+import { listLinked, replaceLinks } from '../draft-assets/repo.js';
 import { findDraftIn, updateDraftRow } from '../drafts/repo.js';
+import type { VideoTools } from '../video/ffmpeg.js';
+import { ASSEMBLED_GENERATOR, buildAssembledVideo, type AssembleResult } from './assemble-video.js';
 import { applySectionChanges, readDraftContent } from '../drafts/state.js';
 import { buildExport, type ExportResult } from './export-package.js';
 import { generateBrief, PermanentJobFailure, type GenerationResult } from './generate-brief.js';
@@ -43,6 +46,8 @@ export interface WorkerSettings {
   readonly heartbeatMs: number;
   /** The longest one provider call may take; a job that makes several calls gets that per call. */
   readonly providerTimeoutMs: number;
+  /** The longest the final-video job may take (re-encoding a 1080x1920 video takes minutes). */
+  readonly videoTimeoutMs: number;
 }
 
 export const DEFAULT_WORKER_SETTINGS: WorkerSettings = {
@@ -51,6 +56,7 @@ export const DEFAULT_WORKER_SETTINGS: WorkerSettings = {
   // One generate job may make up to three sequential real calls, so the whole-job limit is longer
   // than one call is expected to take. The lease is renewed by the heartbeat meanwhile.
   providerTimeoutMs: 90_000,
+  videoTimeoutMs: 10 * 60_000,
 };
 
 export interface WorkerDeps {
@@ -68,6 +74,8 @@ export interface WorkerDeps {
   readonly log: WorkerLog;
   /** Where export packages are written. Without it an export job fails with a plain message. */
   readonly storage?: Storage;
+  /** The owner's ffmpeg and ffprobe for the final video (D-086). */
+  readonly videoTools?: VideoTools;
   readonly settings?: Partial<WorkerSettings>;
   /** Replaceable so tests can make the retry delay exact. */
   readonly random?: () => number;
@@ -140,6 +148,7 @@ export async function processJob(deps: WorkerDeps, jobId: string): Promise<Proce
  * would fail a healthy slow provider on the last variant and then charge for the retry.
  */
 export function jobTimeoutMs(job: { type: string; input: unknown }, settings: WorkerSettings) {
+  if (job.type === 'assemble_video') return settings.videoTimeoutMs;
   if (job.type !== 'generate_brief') return settings.providerTimeoutMs;
   const variants = (job.input as { variants?: unknown } | null)?.variants;
   const calls = typeof variants === 'number' && Number.isInteger(variants) ? variants : 3;
@@ -192,6 +201,19 @@ async function run(
         kind: 'export_package',
         ...(await buildExport(deps.db, deps.storage, job, signal)),
       };
+    } else if (job.type === 'assemble_video') {
+      if (deps.storage === undefined || deps.videoTools === undefined) {
+        throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
+      }
+      result = {
+        kind: 'assemble_video',
+        ...(await buildAssembledVideo(
+          deps.db,
+          { storage: deps.storage, tools: deps.videoTools, log: deps.log },
+          job,
+          signal,
+        )),
+      };
     } else {
       throw new PermanentJobFailure('INTERNAL', 'This job type is not supported.');
     }
@@ -204,8 +226,12 @@ async function run(
     return settleFailure(deps, job, attempt, failure);
   }
   const outcome = await settleSuccess(deps, job, attempt, result);
-  if (result.kind === 'export_package' && outcome !== 'succeeded' && deps.storage !== undefined) {
-    // The job was cancelled or taken over, so no row points at the file: remove it now.
+  if (
+    (result.kind === 'export_package' || result.kind === 'assemble_video') &&
+    outcome !== 'succeeded' &&
+    deps.storage !== undefined
+  ) {
+    // The job was cancelled, taken over or refused at settlement, so no row points at the file.
     await deps.storage.delete(result.storageKey).catch(() => undefined);
   }
   return outcome;
@@ -215,7 +241,8 @@ type JobResult =
   | ({ readonly kind: 'generate_brief' } & GenerationResult)
   | ({ readonly kind: 'regenerate_section' } & RegenerationResult)
   | ({ readonly kind: 'generate_video_prompts' } & VideoPromptsResult)
-  | ({ readonly kind: 'export_package' } & ExportResult);
+  | ({ readonly kind: 'export_package' } & ExportResult)
+  | ({ readonly kind: 'assemble_video' } & AssembleResult);
 
 async function settleSuccess(
   deps: WorkerDeps,
@@ -236,6 +263,9 @@ async function settleSuccess(
     }
     if (result.kind === 'export_package') {
       return settleExport(tx, job, result);
+    }
+    if (result.kind === 'assemble_video') {
+      return settleAssembly(tx, job, result);
     }
     if (result.kind === 'generate_video_prompts') {
       await markSucceeded(tx, job.id, {
@@ -368,6 +398,87 @@ async function settleExport(
       sizeBytes: result.sizeBytes,
     },
     provider: 'export',
+  });
+  return 'succeeded';
+}
+
+/**
+ * Records the final video (D-086): the asset row and its place on the draft are written with the
+ * job's success in one transaction, under the draft's row lock (the same lock the attachments
+ * route takes). The previous final video leaves the draft (it stays in the library); the new one
+ * goes last. A draft that is full or gone fails the job and the caller deletes the file.
+ */
+async function settleAssembly(
+  tx: DbOrTx,
+  job: JobRow,
+  result: AssembleResult,
+): Promise<ProcessOutcome> {
+  const draft = await findDraftIn(tx, job.workspaceId, result.draftId, { forUpdate: true });
+  if (draft === null) {
+    await markFailed(tx, job.id, {
+      code: 'INTERNAL',
+      message: 'The draft is no longer available.',
+    });
+    return 'failed';
+  }
+  const linked = await listLinked(tx, job.workspaceId, draft.id);
+  const kept = linked.filter(
+    (item) =>
+      !(
+        item.link.generator === ASSEMBLED_GENERATOR &&
+        item.link.scene === null &&
+        item.asset.type === 'video'
+      ),
+  );
+  if (kept.length + 1 > EXPORT_LIMITS.maxAssetsPerDraft) {
+    await markFailed(tx, job.id, {
+      code: 'VIDEO_FAILED',
+      message: `The draft already holds ${EXPORT_LIMITS.maxAssetsPerDraft} files. Remove one, then try again.`,
+    });
+    return 'failed';
+  }
+  await tx.insert(assets).values({
+    id: result.assetId,
+    workspaceId: job.workspaceId,
+    productId: draft.productId,
+    type: 'video',
+    status: 'ready',
+    mimeType: 'video/mp4',
+    sizeBytes: result.sizeBytes,
+    width: 1080,
+    height: 1920,
+    durationMs: result.durationMs,
+    originalFilename: `final-video-${draft.id.slice(0, 8)}.mp4`,
+    sha256: result.sha256,
+    storageKey: result.storageKey,
+    source: 'generated',
+    createdBy: job.createdBy,
+  });
+  await replaceLinks(tx, job.workspaceId, draft.id, [
+    ...kept.map((item, index) => ({ ...item.link, sortOrder: index })),
+    {
+      workspaceId: job.workspaceId,
+      draftId: draft.id,
+      assetId: result.assetId,
+      role: 'media',
+      sortOrder: kept.length,
+      scene: null,
+      aiGenerated: true,
+      generator: ASSEMBLED_GENERATOR,
+      createdBy: job.createdBy,
+    },
+  ]);
+  await markSucceeded(tx, job.id, {
+    output: {
+      draftId: draft.id,
+      assetId: result.assetId,
+      durationMs: result.durationMs,
+      clipCount: result.clipCount,
+      subtitles: result.subtitles,
+      skippedScenes: [...result.skippedScenes],
+      srt: result.srt,
+    },
+    provider: 'ffmpeg',
   });
   return 'succeeded';
 }

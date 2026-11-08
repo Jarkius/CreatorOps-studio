@@ -1707,7 +1707,8 @@
                                   "generate_brief",
                                   "regenerate_section",
                                   "export_package",
-                                  "generate_video_prompts"
+                                  "generate_video_prompts",
+                                  "assemble_video"
                                 ]
                               },
                               "status": {
@@ -1744,6 +1745,8 @@
                                   "SECTION_CHANGED",
                                   "ASSET_UNAVAILABLE",
                                   "EXPORT_TOO_LARGE",
+                                  "VIDEO_TOOL_MISSING",
+                                  "VIDEO_FAILED",
                                   "CANCELLED",
                                   "INTERNAL"
                                 ]
@@ -3232,7 +3235,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3269,6 +3273,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3353,7 +3359,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3390,6 +3397,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3547,7 +3556,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3584,6 +3594,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3668,7 +3680,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3705,6 +3718,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3849,7 +3864,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3886,6 +3902,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3970,7 +3988,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4007,6 +4026,316 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/jobs/assemble-video": {
+      "post": {
+        "summary": "Start joining the draft's scene videos into one final video (requires an Idempotency-Key header)",
+        "tags": [
+          "jobs"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "draftVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "draftId",
+                  "draftVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4151,7 +4480,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4188,6 +4518,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4272,7 +4604,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4309,6 +4642,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4406,7 +4741,8 @@
                 "generate_brief",
                 "regenerate_section",
                 "export_package",
-                "generate_video_prompts"
+                "generate_video_prompts",
+                "assemble_video"
               ]
             },
             "in": "query",
@@ -4492,7 +4828,8 @@
                               "generate_brief",
                               "regenerate_section",
                               "export_package",
-                              "generate_video_prompts"
+                              "generate_video_prompts",
+                              "assemble_video"
                             ]
                           },
                           "status": {
@@ -4529,6 +4866,8 @@
                               "SECTION_CHANGED",
                               "ASSET_UNAVAILABLE",
                               "EXPORT_TOO_LARGE",
+                              "VIDEO_TOOL_MISSING",
+                              "VIDEO_FAILED",
                               "CANCELLED",
                               "INTERNAL"
                             ]
@@ -4658,7 +4997,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4695,6 +5035,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4812,7 +5154,8 @@
                         "generate_brief",
                         "regenerate_section",
                         "export_package",
-                        "generate_video_prompts"
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4849,6 +5192,8 @@
                         "SECTION_CHANGED",
                         "ASSET_UNAVAILABLE",
                         "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]

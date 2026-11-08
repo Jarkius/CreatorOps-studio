@@ -45,6 +45,10 @@ export const FAILURE_MESSAGES: Readonly<Record<JobErrorCode, string>> = {
   ASSET_UNAVAILABLE:
     'An attached file is missing or no longer available. Check the attachments and try again.',
   EXPORT_TOO_LARGE: 'The package is too large to export. Remove some attachments and try again.',
+  VIDEO_TOOL_MISSING:
+    'The final video needs ffmpeg on the machine that runs the worker. Install it (see the user guide), then try again.',
+  VIDEO_FAILED:
+    'The final video could not be made from these clips. Check that each scene video plays, then try again.',
   CANCELLED: 'Cancelled by a user.',
   INTERNAL: 'The job failed unexpectedly.',
 };

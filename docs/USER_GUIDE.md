@@ -30,7 +30,9 @@ This starts PostgreSQL and Redis locally, builds the dashboard and the extension
 - **Shopee Affiliate:** open your affiliate product list in a tab, press Import. Tick **Load more of the list** to scroll and press Next up to 10 steps (fixed 2 s wait, Stop loading button). It stops at any Shopee check, slow-down notice or sign-in page; finish those yourself. Sort by commission or earning per sale, then **Create product**: it also saves that product's photo from your tab as the product's cover (if the photo cannot be saved, the product is still made and the row says why).
 - Any failure: **Copy diagnostics** and send it.
 
-**Dashboard (full workspace):** Products (Shopee imports are marked), Asset library, Campaigns and drafts (edit, regenerate a section, status, claim warnings, video prompts, attach pictures, **Export ZIP package** and download), Costs (per campaign and per month), Settings.
+**Dashboard (full workspace):** Products (Shopee imports are marked), Asset library, Campaigns and drafts (edit, regenerate a section, status, claim warnings, video prompts, attach pictures, **Make final video**, **Export ZIP package** and download), Costs (per campaign and per month), Settings.
+
+**Final video:** after Flow has made the scene videos (side panel, Scenes) and Write video prompts has run for this version of the draft, open the draft in the dashboard and press **Make final video**. It joins the scene videos in order into one 9:16 MP4 with Thai subtitles from the voiceover lines, adds it to the draft's files (and the ZIP), and offers **Copy subtitles (.srt)**. It needs ffmpeg on the computer that runs the worker: macOS `brew install ffmpeg`; Windows `winget install Gyan.FFmpeg`; Ubuntu `sudo apt install ffmpeg fonts-thai-tlwg`. Optional: `SUBTITLE_FONT` (macOS Thonburi, Windows Leelawadee UI). There is no voice audio yet: record the voiceover yourself or add it in CapCut. Posting to TikTok and Shopee stays manual.
 
 ## Logs and debugging
 
@@ -53,6 +55,7 @@ This starts PostgreSQL and Redis locally, builds the dashboard and the extension
 |---|---|
 | "Sign-in is not configured yet" in the panel | load the demo build (`pnpm demo` builds it), not a plain `pnpm build` |
 | Settings says a key cannot be saved | set `SECRETS_ENCRYPTION_KEY` for the API and the worker, restart |
+| "The final video needs ffmpeg" | install ffmpeg (above), restart the worker; the worker log says `ffmpeg found` at start |
 | A job fails with "Paused: an earlier call cost much more than expected" | a call cost far more than your prices predict. Settings, Usage: check the prices and the plan, then press "I checked it, continue" (owner or admin) |
 | Generation stays "Waiting to start" | the worker is not running or has no `REDIS_URL` |
 | `ECONNREFUSED 5432` | PostgreSQL is down: `pnpm dev:db` |

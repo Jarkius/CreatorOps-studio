@@ -104,6 +104,7 @@ describe('enum tuples', () => {
       'regenerate_section',
       'export_package',
       'generate_video_prompts',
+      'assemble_video',
     ]);
     expect(JOB_STATUS_VALUES).toEqual(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
     expect(JOB_ERROR_CODES).toEqual([
@@ -118,6 +119,8 @@ describe('enum tuples', () => {
       'SECTION_CHANGED',
       'ASSET_UNAVAILABLE',
       'EXPORT_TOO_LARGE',
+      'VIDEO_TOOL_MISSING',
+      'VIDEO_FAILED',
       'CANCELLED',
       'INTERNAL',
     ]);

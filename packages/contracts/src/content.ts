@@ -36,6 +36,7 @@ export const JOB_TYPE_VALUES = [
   'regenerate_section',
   'export_package',
   'generate_video_prompts',
+  'assemble_video',
 ] as const;
 export const JobTypeSchema = z.enum(JOB_TYPE_VALUES);
 export type JobType = z.infer<typeof JobTypeSchema>;
@@ -57,6 +58,8 @@ export const JOB_ERROR_CODES = [
   'SECTION_CHANGED',
   'ASSET_UNAVAILABLE',
   'EXPORT_TOO_LARGE',
+  'VIDEO_TOOL_MISSING',
+  'VIDEO_FAILED',
   'CANCELLED',
   'INTERNAL',
 ] as const;
@@ -355,6 +358,30 @@ export const GenerateVideoPromptsJobRequestSchema = z
   .object({ draftId: idString, draftVersion: z.number().int().min(1) })
   .strict();
 export type GenerateVideoPromptsJobRequest = z.infer<typeof GenerateVideoPromptsJobRequestSchema>;
+
+/**
+ * POST /api/v1/workspaces/:workspaceId/jobs/assemble-video: joins the draft's scene clips, in scene
+ * order, into one 1080x1920 MP4 with Thai subtitles from the saved voiceover lines (D-086).
+ */
+export const AssembleVideoJobRequestSchema = z
+  .object({ draftId: idString, draftVersion: z.number().int().min(1) })
+  .strict();
+export type AssembleVideoJobRequest = z.infer<typeof AssembleVideoJobRequestSchema>;
+
+/** What a succeeded assemble_video job stores in `output`. */
+export const AssembleVideoOutputSchema = z.object({
+  draftId: z.string(),
+  assetId: z.string(),
+  durationMs: z.number().int(),
+  clipCount: z.number().int(),
+  /** False when there were no saved voiceover lines for this draft version. */
+  subtitles: z.boolean(),
+  /** Scenes without a clip, left out of the video. */
+  skippedScenes: z.array(z.string()),
+  /** The same subtitles as an .srt file, empty without subtitles. */
+  srt: z.string(),
+});
+export type AssembleVideoOutput = z.infer<typeof AssembleVideoOutputSchema>;
 
 export const VIDEO_PROMPT_SCENES = ['product_hero', 'detail', 'usage', 'final_shot'] as const;
 

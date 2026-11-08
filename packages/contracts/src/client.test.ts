@@ -451,6 +451,16 @@ describe('content: campaigns, drafts, jobs', () => {
     expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
   });
 
+  it('starts the final video with the idempotency key', async () => {
+    const { calls, client } = make(() => json({ ...JOB, type: 'assemble_video' }, 202));
+    await client.jobs.assembleVideo('w1', { draftId: 'd1', draftVersion: 3 }, 'key-videos-1');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/assemble-video'],
+    ]);
+    expect(calls[0]?.headers['idempotency-key']).toBe('key-videos-1');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({ draftId: 'd1', draftVersion: 3 });
+  });
+
   it('calls the provider settings and usage routes, and sends the key only in the save body', async () => {
     const settings = {
       configured: true,

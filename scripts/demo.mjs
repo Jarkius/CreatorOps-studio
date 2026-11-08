@@ -170,6 +170,7 @@ console.log(`
    2. Asset library: upload a PNG or JPG for the product.
    3. Campaigns > New campaign > Generate content. The worker writes the drafts.
    4. Open a draft: edit a section, Regenerate one section, Copy.
+   5. Final video: needs ffmpeg installed (the [worker] line says "ffmpeg found").
 
  Side panel (Chrome): open chrome://extensions, turn on Developer mode,
  "Load unpacked", choose:  ${path.join(root, 'apps', 'extension', 'dist')}

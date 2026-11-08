@@ -417,6 +417,7 @@ export const JOB_TYPES = [
   'regenerate_section',
   'export_package',
   'generate_video_prompts',
+  'assemble_video',
 ] as const;
 export const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 export const JOB_ERROR_CODES = [
@@ -431,6 +432,8 @@ export const JOB_ERROR_CODES = [
   'SECTION_CHANGED',
   'ASSET_UNAVAILABLE',
   'EXPORT_TOO_LARGE',
+  'VIDEO_TOOL_MISSING',
+  'VIDEO_FAILED',
   'CANCELLED',
   'INTERNAL',
 ] as const;
@@ -488,7 +491,7 @@ export const jobs = pgTable(
     }),
     check(
       'jobs_type_check',
-      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts')`,
+      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts', 'assemble_video')`,
     ),
     check(
       'jobs_status_check',
@@ -496,7 +499,7 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_error_code_check',
-      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'PROVIDER_COST_HOLD', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'CANCELLED', 'INTERNAL')`,
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'PROVIDER_COST_HOLD', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'VIDEO_TOOL_MISSING', 'VIDEO_FAILED', 'CANCELLED', 'INTERNAL')`,
     ),
     check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
     check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),
@@ -524,7 +527,7 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_target_matches_type',
-      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null) or (${t.type} = 'generate_video_prompts' and ${t.draftId} is not null)`,
+      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null) or (${t.type} = 'generate_video_prompts' and ${t.draftId} is not null) or (${t.type} = 'assemble_video' and ${t.draftId} is not null)`,
     ),
     index('jobs_claim_idx').on(t.status, t.runAfter),
     index('jobs_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
