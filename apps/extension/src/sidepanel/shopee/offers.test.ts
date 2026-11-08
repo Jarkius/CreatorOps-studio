@@ -9,6 +9,7 @@ const offer = (name: string, over: Partial<ShopeeOffer> = {}): ShopeeOffer => ({
   commissionPercent: 10,
   sales: null,
   link: `https://shopee.co.th/${name}-i.1.1`,
+  imageUrl: null,
   ...over,
 });
 

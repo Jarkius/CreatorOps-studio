@@ -16,6 +16,7 @@ const READY: ShopeeRead = {
       commissionPercent: 8,
       sales: '10k',
       link: 'https://shopee.co.th/fan-i.1.2',
+      imageUrl: null,
     },
   ],
 };

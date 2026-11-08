@@ -26,6 +26,8 @@ export interface ShopeeOffer {
   readonly sales: string | null;
   /** The product link without query string or fragment. */
   readonly link: string;
+  /** The card's product photo (https only; data and blob placeholders are ignored), or null. */
+  readonly imageUrl: string | null;
 }
 
 export interface ShopeeRead {
@@ -116,6 +118,13 @@ export function readShopeeOffers(hints: ShopeeHints, maxItems: number): ShopeeRe
       )
       .sort((a, b) => b.length - a.length)[0];
     const image = card.querySelector('img');
+    let imageUrl: string | null = null;
+    try {
+      const source = new URL(image?.currentSrc || image?.getAttribute('src') || '', location.href);
+      if (source.protocol === 'https:') imageUrl = source.href.slice(0, 2048);
+    } catch {
+      imageUrl = null;
+    }
     const name = (anchor.title || image?.alt || nameFromLines || '').trim().slice(0, 200);
     if (name === '') continue;
     seen.add(link);
@@ -126,6 +135,7 @@ export function readShopeeOffers(hints: ShopeeHints, maxItems: number): ShopeeRe
         commission !== null && commission > 0 && commission <= 100 ? commission : null,
       sales: salesMatch === null ? null : (salesMatch[1] ?? '').trim(),
       link,
+      imageUrl,
     });
   }
 

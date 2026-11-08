@@ -7,6 +7,7 @@ import { dashboardHref } from '../format.js';
 import { createChromeBrowser } from '../metaai/browser.js';
 import type { MetaAiBrowser } from '../metaai/runner.js';
 import { importShopeeOffers, ShopeeImportError } from './import.js';
+import { saveShopeePhoto, ShopeePhotoError } from './photo.js';
 import { earningPerSale, visibleOffers, type OfferSort } from './offers.js';
 import { advanceShopeeList, readShopeeOffers, type ShopeeOffer } from './page.js';
 import { SHOPEE_AFFILIATE_PATTERN, SHOPEE_MAX_STEPS, SHOPEE_STEP_DELAY_MS } from './selectors.js';
@@ -30,7 +31,13 @@ export interface ShopeePanelProps {
   readonly advance?: typeof advanceShopeeList;
   /** Replaced in tests so the wait between steps is instant. */
   readonly stepDelayMs?: number;
+  /** Replaced in tests: the upload PUT. */
+  readonly fetchImpl?: typeof fetch;
 }
+
+type PhotoNote =
+  | { readonly saved: true }
+  | { readonly saved: false; readonly message: string; readonly diagnostics: string };
 
 const baht = (value: number) =>
   new Intl.NumberFormat('th-TH', {
@@ -57,6 +64,7 @@ export function ShopeePanel(props: ShopeePanelProps) {
   const [sort, setSort] = useState<OfferSort>('commission');
   const [minimum, setMinimum] = useState('');
   const [created, setCreated] = useState<Readonly<Record<string, Product>>>({});
+  const [photos, setPhotos] = useState<Readonly<Record<string, PhotoNote>>>({});
   const [copied, setCopied] = useState(false);
   const [loadMore, setLoadMore] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -117,19 +125,44 @@ export function ShopeePanel(props: ShopeePanelProps) {
     })();
   };
 
+  // One click does it all, in order, so the photo download (one slot in the tab) never overlaps:
+  // create the product, then save its photo and make it the cover. A failed photo never undoes or
+  // blocks the product (D-085).
   const create = useMutation({
-    mutationFn: (offer: ShopeeOffer) =>
-      api.products.create(workspaceId, {
+    mutationFn: async (offer: ShopeeOffer) => {
+      const product = await api.products.create(workspaceId, {
         name: offer.name.slice(0, PRODUCT_LIMITS.name),
         ...(offer.priceThb === null
           ? {}
           : { priceAmount: offer.priceThb.toFixed(2), currency: 'THB' }),
         sourceUrl: offer.link,
-      }),
-    onSuccess: (product, offer) => {
+      });
       setCreated((previous) => ({ ...previous, [offer.link]: product }));
-      void queryClient.invalidateQueries({ queryKey: ['products', workspaceId] });
+      if (offer.imageUrl === null) return product;
+      try {
+        await saveShopeePhoto({
+          api,
+          workspaceId,
+          product,
+          imageUrl: offer.imageUrl,
+          browser: props.browser ?? createChromeBrowser(SHOPEE_SITE),
+          ...(props.fetchImpl === undefined ? {} : { fetchImpl: props.fetchImpl }),
+        });
+        setPhotos((previous) => ({ ...previous, [offer.link]: { saved: true } }));
+      } catch (error) {
+        const known = error instanceof ShopeePhotoError ? error : null;
+        setPhotos((previous) => ({
+          ...previous,
+          [offer.link]: {
+            saved: false,
+            message: `Product created; photo not saved: ${known?.message ?? 'something went wrong'}. Add it in the Asset library.`,
+            diagnostics: known?.diagnostics ?? 'unexpected error',
+          },
+        }));
+      }
+      return product;
     },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['products', workspaceId] }),
   });
 
   return (
@@ -140,10 +173,11 @@ export function ShopeePanel(props: ShopeePanelProps) {
       <h2 className="text-base font-semibold">Shopee Affiliate</h2>
       <p className="mt-1 text-sm text-[var(--co-text-muted)]">
         Open your Shopee Affiliate product list in a tab, then import it here. The importer only
-        reads what the page shows and never signs in. With "Load more" ticked it also scrolls down
-        the list and presses the page's own Next button, a few steps with a fixed wait, in the tab
-        you can see; it stops at a Shopee check, a slow-down notice or a sign-in page and never gets
-        past them. Chrome asks once to allow Shopee Affiliate.
+        reads what the page shows and never signs in. Create product also saves that product's photo
+        from your tab as its cover. With "Load more" ticked it also scrolls down the list and
+        presses the page's own Next button, a few steps with a fixed wait, in the tab you can see;
+        it stops at a Shopee check, a slow-down notice or a sign-in page and never gets past them.
+        Chrome asks once to allow Shopee Affiliate.
       </p>
       <label className="mt-2 flex items-center gap-2 text-sm">
         <input
@@ -279,7 +313,37 @@ export function ShopeePanel(props: ShopeePanelProps) {
                           : 'Create product'}
                       </Button>
                     ) : null}
+                    {product !== undefined && photos[offer.link]?.saved === true ? (
+                      <span role="status" className="text-sm">
+                        Photo saved as the cover
+                      </span>
+                    ) : null}
+                    {product !== undefined &&
+                    create.isPending &&
+                    create.variables?.link === offer.link ? (
+                      <span role="status" className="text-sm">
+                        Saving the photo…
+                      </span>
+                    ) : null}
                   </div>
+                  {(() => {
+                    const note = photos[offer.link];
+                    if (note === undefined || note.saved) return null;
+                    return (
+                      <div className="mt-1 space-y-1">
+                        <p role="alert" className="text-sm text-[var(--co-danger)]">
+                          {note.message}
+                        </p>
+                        <Button
+                          variant="secondary"
+                          aria-label={`Copy photo diagnostics for ${offer.name}`}
+                          onClick={() => void navigator.clipboard.writeText(note.diagnostics)}
+                        >
+                          Copy diagnostics
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   {create.isError && create.variables?.link === offer.link ? (
                     <p role="alert" className="mt-1 text-sm text-[var(--co-danger)]">
                       {create.error instanceof ApiError

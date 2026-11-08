@@ -15,6 +15,7 @@ const OFFERS: ShopeeOffer[] = [
     commissionPercent: 3,
     sales: '10k',
     link: 'https://shopee.co.th/low-i.1.1',
+    imageUrl: null,
   },
   {
     name: 'High mug',
@@ -22,6 +23,7 @@ const OFFERS: ShopeeOffer[] = [
     commissionPercent: 15,
     sales: '1.2พัน',
     link: 'https://shopee.co.th/high-i.1.2',
+    imageUrl: null,
   },
   {
     name: 'Mid lamp',
@@ -29,6 +31,7 @@ const OFFERS: ShopeeOffer[] = [
     commissionPercent: 8,
     sales: '87',
     link: 'https://shopee.co.th/mid-i.1.3',
+    imageUrl: null,
   },
   {
     name: 'No commission',
@@ -36,6 +39,7 @@ const OFFERS: ShopeeOffer[] = [
     commissionPercent: null,
     sales: null,
     link: 'https://shopee.co.th/none-i.1.4',
+    imageUrl: null,
   },
 ];
 

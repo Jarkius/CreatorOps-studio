@@ -1,5 +1,6 @@
-import { ASSET_LIMITS, UPLOAD_MIME_VALUES, type UploadMime } from '@creatorops/contracts';
+import { ASSET_LIMITS, type UploadMime } from '@creatorops/contracts';
 
+import { downloadFromTab, TabDownloadError } from './download.js';
 import type { PageProbe, StashInfo, SubmitResult } from './page.js';
 import type { SelectorSet } from './selectors.js';
 import { META_AI_SITE, type HelperKind, type HelperSite } from './sites.js';
@@ -118,17 +119,6 @@ export interface RunOptions {
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-function isUploadMime(value: string): value is UploadMime {
-  return (UPLOAD_MIME_VALUES as readonly string[]).includes(value);
-}
-
-function fromBase64(text: string): Uint8Array {
-  const binary = atob(text);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
 /** Fails fast on a page that is not ready, with the reason the owner needs. */
 function assertUsable(probe: PageProbe, name: string): void {
   if (probe.state === 'login') {
@@ -231,7 +221,6 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
     }
   }
   const tab = tabId;
-  const stashed = { value: false };
   const signingIn = { value: false };
 
   try {
@@ -336,39 +325,31 @@ export async function runMetaAiScene(options: RunOptions): Promise<MetaAiResult>
         `No ${kind === 'video' ? 'video' : 'image'} was found.`,
       );
     }
-    let info: StashInfo;
-    try {
-      info = await inTab(tab, page.stashMedia, [target]);
-      stashed.value = true;
-    } catch {
-      throw new MetaAiError(
-        'MEDIA_FAILED',
-        `The helper could not download the ${kind === 'video' ? 'video' : 'image'} from ${site.name}. Use Copy diagnostics and send it for a fix.`,
-      );
-    }
-    note('collecting', `file ${info.size} bytes, type ${info.type}`);
     const limitBytes = kind === 'video' ? ASSET_LIMITS.videoBytes : ASSET_LIMITS.imageBytes;
-    if (!isUploadMime(info.type) || info.size < 1 || info.size > limitBytes) {
+    try {
+      return await downloadFromTab({
+        run: (func, args) => inTab(tab, func, args),
+        page,
+        url: target,
+        chunkBytes: site.chunkBytes,
+        maxBytes: limitBytes,
+        checkAborted,
+        onInfo: (info) => note('collecting', `file ${info.size} bytes, type ${info.type}`),
+      });
+    } catch (error) {
+      if (!(error instanceof TabDownloadError)) throw error;
+      const thing = kind === 'video' ? 'video' : 'image';
       throw new MetaAiError(
         'MEDIA_FAILED',
-        `${site.name} gave a file this app cannot accept (type or size).`,
+        error.step === 'fetch'
+          ? `The helper could not download the ${thing} from ${site.name}. Use Copy diagnostics and send it for a fix.`
+          : error.step === 'read'
+            ? `${site.name} gave more data than expected.`
+            : `${site.name} gave a file this app cannot accept (type or size).`,
       );
     }
-    const bytes = new Uint8Array(info.size);
-    for (let offset = 0; offset < info.size; offset += site.chunkBytes) {
-      checkAborted();
-      const chunk = fromBase64(await inTab(tab, page.readStash, [offset, site.chunkBytes]));
-      if (offset + chunk.length > info.size) {
-        throw new MetaAiError('MEDIA_FAILED', `${site.name} gave more data than expected.`);
-      }
-      bytes.set(chunk, offset);
-    }
-    return { bytes, mimeType: info.type };
   } finally {
     if (signingIn.value) options.onWaitingForSignIn?.(false);
-    if (stashed.value) {
-      await browser.run(tab, page.clearStash, []).catch(() => false);
-    }
     note('end', 'finished');
   }
 }

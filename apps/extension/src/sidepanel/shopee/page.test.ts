@@ -39,6 +39,7 @@ describe('readShopeeOffers', () => {
         commissionPercent: 12.5,
         sales: '1.2พัน',
         link: `https://shopee.co.th/${encodeURIComponent('เครื่องชงกาแฟพกพา')}-i.123.1`,
+        imageUrl: 'https://cf.shopee.co.th/1.jpg',
       },
       expect.objectContaining({ name: 'พัดลมตั้งโต๊ะ', commissionPercent: 12.5 }),
     ]);
@@ -56,7 +57,23 @@ describe('readShopeeOffers', () => {
         commissionPercent: 8,
         sales: '10k',
         link: 'https://shopee.co.th/product/55/66',
+        imageUrl: null,
       },
+    ]);
+  });
+
+  it('keeps only https product photos; data and blob placeholders count as no photo', () => {
+    page(`<main>
+      <div><a href="https://shopee.co.th/a-i.1.1"><img alt="A" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></a><span>฿10</span></div>
+      <div><a href="https://shopee.co.th/b-i.1.2"><img alt="B" src="blob:https://affiliate.shopee.co.th/x"></a><span>฿20</span></div>
+      <div><a href="https://shopee.co.th/c-i.1.3"><img alt="C" src="http://cf.shopee.co.th/c.jpg"></a><span>฿30</span></div>
+      <div><a href="https://shopee.co.th/d-i.1.4"><img alt="D" src="https://down-th.img.susercontent.com/file/d"></a><span>฿40</span></div>
+    </main>`);
+    expect(read().offers.map((o) => o.imageUrl)).toEqual([
+      null,
+      null,
+      null,
+      'https://down-th.img.susercontent.com/file/d',
     ]);
   });
 

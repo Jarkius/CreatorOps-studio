@@ -1,6 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test';
 
 import { expect, test } from './fixtures.js';
+import { pngBytes } from './png.js';
 import { api, API_URL } from './seed.js';
 
 const card = (id: number, name: string, price: string, commission: string, sold: string) => `
@@ -151,4 +152,82 @@ test('Load more stops at a Shopee check, keeps the products already read and doe
   const list = region.getByRole('list', { name: 'Shopee offers' });
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await expect(list).toContainText('สินค้าหน้า1-1');
+});
+
+/** The photo lives on a separate CDN-style host, like Shopee's, so the download is cross-origin. */
+const CDN_PHOTO = 'https://down-th.img.susercontent.com/file/fake-mug';
+const photoList = (
+  name: string,
+) => `<!doctype html><html><head><meta charset="utf-8"><title>Shopee Affiliate</title></head><body><main>
+  <div class="offer">
+    <a href="https://shopee.co.th/mug-i.777.9"><img alt="${name}" src="${CDN_PHOTO}"></a>
+    <div><span>${name}</span></div><div><span>฿159</span></div>
+    <div><span>ค่าคอมมิชชั่น</span><span>10%</span></div>
+  </div></main></body></html>`;
+
+async function createWithPhoto(
+  context: BrowserContext,
+  extensionId: string,
+  allowed: boolean,
+  name: string,
+) {
+  // A fulfilled route passes Chrome's CORS check even without the header (checked 2026-11-08), so
+  // a refused download is modelled as a failed request, which is what fetch sees on a CORS refusal.
+  // Whether Shopee's real CDN allows the download is only known from the owner's run.
+  await context.route(CDN_PHOTO, (route) =>
+    allowed
+      ? route.fulfill({
+          status: 200,
+          contentType: 'image/png',
+          headers: { 'access-control-allow-origin': '*' },
+          body: pngBytes(),
+        })
+      : route.abort('failed'),
+  );
+  await fakeShopee(context, photoList(name));
+  const panel = await context.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  const region = panel.getByRole('region', { name: 'Shopee Affiliate' });
+  await region.getByRole('button', { name: 'Import from Shopee affiliate page' }).click();
+  await region.getByRole('button', { name: `Create product from ${name}` }).click();
+  await expect(region.getByRole('link', { name: 'Product created: open it' })).toBeVisible();
+  return region;
+}
+
+async function productNamed(request: Parameters<typeof api>[0], name: string) {
+  const { token } = (await (await request.post(`${API_URL}/api/v1/auth/mock-token`)).json()) as {
+    token: string;
+  };
+  const me = await api<{ workspaces: { id: string }[] }>(request, token, 'GET', '/api/v1/me');
+  const products = await api<{ items: { name: string; primaryAssetId: string | null }[] }>(
+    request,
+    token,
+    'GET',
+    `/api/v1/workspaces/${me.workspaces[0]?.id}/products?limit=20`,
+  );
+  return products.items.find((item) => item.name === name);
+}
+
+test('Create product saves the Shopee photo from a CDN that allows it, as the cover', async ({
+  context,
+  extensionId,
+  request,
+}) => {
+  const region = await createWithPhoto(context, extensionId, true, 'แก้วมัคมีรูป');
+  await expect(region.getByText('Photo saved as the cover')).toBeVisible();
+  expect((await productNamed(request, 'แก้วมัคมีรูป'))?.primaryAssetId).toBeTruthy();
+});
+
+test('when the photo download fails, the product is still created and the panel says why', async ({
+  context,
+  extensionId,
+  request,
+}) => {
+  const region = await createWithPhoto(context, extensionId, false, 'แก้วมัคไม่มีรูป');
+  await expect(region.getByRole('alert')).toContainText(
+    'photo not saved: Shopee did not let the photo be downloaded',
+  );
+  const made = await productNamed(request, 'แก้วมัคไม่มีรูป');
+  expect(made).toBeTruthy();
+  expect(made?.primaryAssetId).toBeNull();
 });

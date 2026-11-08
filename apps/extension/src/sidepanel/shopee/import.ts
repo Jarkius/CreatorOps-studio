@@ -60,6 +60,7 @@ function describe(read: ShopeeRead | null, note: string): string {
           `products read: ${read.offers.length}`,
           `with a commission: ${read.offers.filter((o) => o.commissionPercent !== null).length}`,
           `with a price: ${read.offers.filter((o) => o.priceThb !== null).length}`,
+          `with an image: ${read.offers.filter((o) => o.imageUrl !== null).length}`,
         ]),
   ].join('\n');
 }
