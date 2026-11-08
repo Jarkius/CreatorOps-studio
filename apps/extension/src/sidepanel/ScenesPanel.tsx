@@ -9,6 +9,7 @@ import { useFlowHelper, useMetaAiHelper, type HelperDeps } from './metaai/useMet
 import { attachedByScene, scenesFromSections, type SceneItem } from './scenes.js';
 import { useSavedVideoPrompts, useVideoPromptsRun } from './videoPromptHooks.js';
 import { VideoPromptsSection } from './VideoPromptsSection.js';
+import { withSpokenLine } from './flowSpeech.js';
 
 export interface ScenesPanelProps {
   readonly api: ApiClient;
@@ -111,8 +112,15 @@ function SceneList({
     savedVideo.data?.scenes.get(scene)?.prompt ?? null;
   const videoPromptOf = (scene: DraftScene): string | null =>
     videoEdits[scene] ?? generatedVideoPrompt(scene);
-  // Flow gets the video prompt of a scene when there is one, else the scene text.
-  const flowPromptOf = (item: SceneItem): string => videoPromptOf(item.scene) ?? promptOf(item);
+  // Flow gets the video prompt of a scene when there is one, else the scene text; with "speak the
+  // voiceover" on, the scene's Thai line is added as speech so the clip carries the voice.
+  const [speakVoiceover, setSpeakVoiceover] = useState(true);
+  const flowPromptOf = (item: SceneItem): string => {
+    const prompt = videoPromptOf(item.scene) ?? promptOf(item);
+    return speakVoiceover
+      ? withSpokenLine(prompt, savedVideo.data?.scenes.get(item.scene)?.voiceover)
+      : prompt;
+  };
   const missing = scenes.filter(
     (item) => !attached.has(item.scene) && promptOf(item).trim() !== '',
   );
@@ -162,6 +170,18 @@ function SceneList({
             shape in that tab first: the helper uses what is selected there and changes none of
             Flow's settings. Chrome asks once to allow Flow.
           </p>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={speakVoiceover}
+              onChange={(event) => setSpeakVoiceover(event.target.checked)}
+            />
+            <span>
+              Flow speaks the Thai voiceover in each clip (uses the lines from Write video prompts;
+              choose a Flow model that makes sound)
+            </span>
+          </label>
           {missingVideos.length > 0 ? (
             <Button
               variant="secondary"

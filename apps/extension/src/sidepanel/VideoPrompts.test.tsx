@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CampaignsPanel } from './CampaignsPanel.js';
+import { withSpokenLine } from './flowSpeech.js';
 import type { PageProbe } from './metaai/page.js';
 import type { MetaAiBrowser, PageFunctions } from './metaai/runner.js';
 import type { HelperDeps } from './metaai/useMetaAi.js';
@@ -265,7 +266,7 @@ describe('video prompts in the scene list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Make video for Usage in Flow' }));
     await screen.findByText('Saved the video to Usage.');
-    expect(t.flow.prompts).toEqual(['My own usage prompt']);
+    expect(t.flow.prompts).toEqual([withSpokenLine('My own usage prompt', 'พากย์ old usage')]);
 
     await user.click(section.getByRole('button', { name: 'Reset video prompt for Usage' }));
     expect(box).toHaveValue(
@@ -281,6 +282,26 @@ describe('video prompts in the scene list', () => {
     await user.click(await screen.findByRole('button', { name: 'Make all videos in Flow' }));
     await screen.findByText('Saved 4 scene videos.');
     expect(withPrompts.flow.prompts).toEqual(
+      SCENES.map((scene) =>
+        withSpokenLine(
+          `Vertical 9:16 video. old ${scene} shot of the product on a desk. No on-screen text, no logos, no watermarks.`,
+          `พากย์ old ${scene}`,
+        ),
+      ),
+    );
+    expect(withPrompts.flow.prompts[0]).toContain('in Thai: "พากย์ old product_hero"');
+  });
+
+  it('sends the plain video prompts when "Flow speaks the Thai voiceover" is off', async () => {
+    const user = userEvent.setup();
+    const t = setup({ saved: [videoJob('vj-old', outputOf('old'))] });
+    await openScenes(user);
+    await user.click(
+      await screen.findByRole('checkbox', { name: /Flow speaks the Thai voiceover/ }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Make all videos in Flow' }));
+    await screen.findByText('Saved 4 scene videos.');
+    expect(t.flow.prompts).toEqual(
       SCENES.map(
         (scene) =>
           `Vertical 9:16 video. old ${scene} shot of the product on a desk. No on-screen text, no logos, no watermarks.`,
