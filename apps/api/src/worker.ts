@@ -8,7 +8,7 @@ import { LocalFsStorage } from './storage/local-fs.js';
 import { BullMqJobQueue, startQueueWorker } from './modules/jobs/bullmq-queue.js';
 import { processJob } from './modules/jobs/process.js';
 import { RECONCILE_INTERVAL_MS, reconcile } from './modules/jobs/reconcile.js';
-import { runTool } from './modules/video/ffmpeg.js';
+import { capabilitiesOf } from './modules/video/ffmpeg.js';
 import { prepare } from './startup.js';
 
 /** Jobs one worker process runs at the same time. */
@@ -49,11 +49,16 @@ if (!prepared.ok) {
     subtitleFont: prepared.config.SUBTITLE_FONT,
   };
   // Say once whether the final video can be made; the job itself fails plainly without ffmpeg.
-  runTool(videoTools.ffmpeg, ['-version'], {
-    cwd: process.cwd(),
-    signal: AbortSignal.timeout(10_000),
-  }).then(
-    () => logger.info({ event: 'video.tools_found' }, 'ffmpeg found: final videos can be made'),
+  capabilitiesOf(videoTools, AbortSignal.timeout(10_000)).then(
+    (can) =>
+      logger.info(
+        { event: 'video.tools_found', h264: can.h264, subtitles: can.subtitles },
+        can.h264
+          ? can.subtitles
+            ? 'ffmpeg found: final videos can be made, with subtitles'
+            : 'ffmpeg found, but it cannot draw subtitles (no libass): final videos come without burned-in subtitles'
+          : 'ffmpeg found, but it has no H.264 encoder (libx264): final videos will fail; install a full build',
+      ),
     () =>
       logger.warn(
         { event: 'video.tools_missing' },

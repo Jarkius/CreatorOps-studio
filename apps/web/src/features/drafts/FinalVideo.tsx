@@ -28,10 +28,14 @@ export function finalVideoText(job: Job): string {
   if (!output.success) return 'The final video is ready. It is in the files above.';
   const seconds = Math.round(output.data.durationMs / 1000);
   const parts = [
-    `The final video is ready (${String(output.data.clipCount)} scenes, ${String(seconds)} s). It is in the files above and in the ZIP package.`,
+    `The final video is ready (${String(output.data.clipCount)} scenes, ${String(seconds)} s). It is in the files above; press Export ZIP package again to put it in a package.`,
   ];
   if (!output.data.subtitles) {
-    parts.push('It has no subtitles: write the video prompts again for this version of the draft.');
+    parts.push(
+      output.data.subtitleIssue === 'no_subtitle_filter'
+        ? 'It has no burned-in subtitles: your ffmpeg cannot draw them. Copy the .srt below into CapCut, or install the full ffmpeg build (see the user guide).'
+        : 'It has no subtitles: write the video prompts again for this version of the draft.',
+    );
   }
   if (output.data.skippedScenes.length > 0) {
     parts.push(

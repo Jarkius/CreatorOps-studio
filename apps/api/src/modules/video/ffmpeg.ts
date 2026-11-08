@@ -9,6 +9,41 @@ export interface VideoTools {
   readonly ffprobe: string;
   /** Font family for the Thai subtitles; fontconfig or CoreText fills in missing glyphs. */
   readonly subtitleFont: string;
+  /** Tests only: what the ffmpeg build can do, instead of asking it. */
+  readonly capabilities?: VideoCapabilities;
+}
+
+/** What this ffmpeg build can do for the final video. */
+export interface VideoCapabilities {
+  /** The libx264 encoder (H.264): required. */
+  readonly h264: boolean;
+  /** The libass `subtitles` filter: without it the video is made without burned-in subtitles. */
+  readonly subtitles: boolean;
+}
+
+/** Reads `ffmpeg -filters` and `ffmpeg -encoders` output. */
+export function parseCapabilities(filters: string, encoders: string): VideoCapabilities {
+  return {
+    subtitles: /^\s*[.A-Z|]+\s+subtitles\s/m.test(filters),
+    h264: /^\s*V[.A-Z]*\s+libx264\s/m.test(encoders),
+  };
+}
+
+const known = new Map<string, Promise<VideoCapabilities>>();
+
+/** Asks the ffmpeg build once per process (a failed ask is asked again next time). */
+export function capabilitiesOf(tools: VideoTools, signal: AbortSignal): Promise<VideoCapabilities> {
+  if (tools.capabilities !== undefined) return Promise.resolve(tools.capabilities);
+  const cached = known.get(tools.ffmpeg);
+  if (cached !== undefined) return cached;
+  const options = { cwd: process.cwd(), signal };
+  const asked = Promise.all([
+    runTool(tools.ffmpeg, ['-hide_banner', '-filters'], options),
+    runTool(tools.ffmpeg, ['-hide_banner', '-encoders'], options),
+  ]).then(([filters, encoders]) => parseCapabilities(filters, encoders));
+  known.set(tools.ffmpeg, asked);
+  asked.catch(() => known.delete(tools.ffmpeg));
+  return asked;
 }
 
 /** The tool is not installed (or not where FFMPEG_PATH says). Permanent: a retry cannot help. */

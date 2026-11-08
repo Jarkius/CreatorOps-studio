@@ -16,6 +16,7 @@ import { originalKey } from '../assets/service.js';
 import { listLinked } from '../draft-assets/repo.js';
 import {
   assembleArgs,
+  capabilitiesOf,
   probe,
   runTool,
   VideoToolFailed,
@@ -64,6 +65,8 @@ export interface AssembleResult {
   readonly durationMs: number;
   readonly clipCount: number;
   readonly subtitles: boolean;
+  /** Why there are no burned-in subtitles, or null when there are. */
+  readonly subtitleIssue: 'no_lines' | 'no_subtitle_filter' | null;
   readonly skippedScenes: readonly string[];
   readonly srt: string;
 }
@@ -114,6 +117,13 @@ export async function buildAssembledVideo(
 
   const dir = await mkdtemp(path.join(os.tmpdir(), 'creatorops-video-'));
   try {
+    const can = await capabilitiesOf(deps.tools, signal);
+    if (!can.h264) {
+      throw new PermanentJobFailure(
+        'VIDEO_FAILED',
+        'Your ffmpeg has no H.264 encoder (libx264). Install a full ffmpeg build (see the user guide), then try again.',
+      );
+    }
     const clips: {
       file: string;
       durationMs: number;
@@ -151,7 +161,9 @@ export async function buildAssembledVideo(
     }
 
     const cues = cuesFor(clips);
-    const withSubtitles = input.subtitles && cues.length > 0;
+    const hasLines = input.subtitles && cues.length > 0;
+    // Without the libass filter the video is still made; the .srt is offered instead.
+    const withSubtitles = hasLines && can.subtitles;
     if (withSubtitles) {
       await writeFile(path.join(dir, 'subs.ass'), buildAss(cues, deps.tools.subtitleFont));
     }
@@ -177,8 +189,9 @@ export async function buildAssembledVideo(
       durationMs: out.durationMs,
       clipCount: clips.length,
       subtitles: withSubtitles,
+      subtitleIssue: !hasLines ? 'no_lines' : withSubtitles ? null : 'no_subtitle_filter',
       skippedScenes: input.skippedScenes,
-      srt: withSubtitles ? buildSrt(cues) : '',
+      srt: hasLines ? buildSrt(cues) : '',
     };
   } catch (error) {
     if (error instanceof VideoToolMissing) {

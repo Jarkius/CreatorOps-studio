@@ -374,11 +374,13 @@ export const AssembleVideoOutputSchema = z.object({
   assetId: z.string(),
   durationMs: z.number().int(),
   clipCount: z.number().int(),
-  /** False when there were no saved voiceover lines for this draft version. */
+  /** True when Thai subtitles are burned into the video. */
   subtitles: z.boolean(),
+  /** Why not: no voiceover lines for this draft version, or an ffmpeg without the subtitle filter. */
+  subtitleIssue: z.enum(['no_lines', 'no_subtitle_filter']).nullish(),
   /** Scenes without a clip, left out of the video. */
   skippedScenes: z.array(z.string()),
-  /** The same subtitles as an .srt file, empty without subtitles. */
+  /** The subtitles as an .srt file (also when they could not be burned in); empty without lines. */
   srt: z.string(),
 });
 export type AssembleVideoOutput = z.infer<typeof AssembleVideoOutputSchema>;

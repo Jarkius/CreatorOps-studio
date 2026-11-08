@@ -5,8 +5,34 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { assembleArgs, probe, runTool, VideoToolMissing, type VideoTools } from './ffmpeg.js';
+import {
+  assembleArgs,
+  parseCapabilities,
+  probe,
+  runTool,
+  VideoToolMissing,
+  type VideoTools,
+} from './ffmpeg.js';
 import { buildAss, buildSrt, cleanText, cuesFor, wrapLines } from './subtitles.js';
+
+describe('parseCapabilities', () => {
+  // Lines as ffmpeg 6.1 prints them.
+  const filters =
+    ' ... scale             V->V       Scale the input video size and/or convert the image format.\n ... subtitles         V->V       Render text subtitles onto input video using the libass library.\n';
+  const encoders =
+    ' V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)\n A....D aac                  AAC (Advanced Audio Coding)\n';
+  it('finds libx264 and the subtitles filter', () => {
+    expect(parseCapabilities(filters, encoders)).toEqual({ h264: true, subtitles: true });
+  });
+  it('reports a build without them', () => {
+    expect(
+      parseCapabilities(
+        ' ... scale  V->V  Scale\n',
+        ' A....D aac  AAC\n V....D libx264rgb  libx264 RGB\n',
+      ),
+    ).toEqual({ h264: false, subtitles: false });
+  });
+});
 
 describe('subtitles', () => {
   it('neutralises ASS commands and folds line breaks', () => {

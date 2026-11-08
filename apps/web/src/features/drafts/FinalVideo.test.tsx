@@ -24,13 +24,21 @@ describe('finalVideoText', () => {
   const job = (over: Partial<Job>) => makeJob({ id: 'j', type: 'assemble_video', ...over });
   it('says where the video is, what was left out, and when there are no subtitles', () => {
     expect(finalVideoText(job({ status: 'succeeded', output: OUTPUT }))).toBe(
-      'The final video is ready (3 scenes, 24 s). It is in the files above and in the ZIP package. Left out (no video yet): Usage.',
+      'The final video is ready (3 scenes, 24 s). It is in the files above; press Export ZIP package again to put it in a package. Left out (no video yet): Usage.',
     );
     expect(
       finalVideoText(
         job({ status: 'succeeded', output: { ...OUTPUT, subtitles: false, skippedScenes: [] } }),
       ),
     ).toContain('It has no subtitles');
+    expect(
+      finalVideoText(
+        job({
+          status: 'succeeded',
+          output: { ...OUTPUT, subtitles: false, subtitleIssue: 'no_subtitle_filter' },
+        }),
+      ),
+    ).toContain('your ffmpeg cannot draw them. Copy the .srt below into CapCut');
   });
   it('shows the failure message from the job', () => {
     expect(

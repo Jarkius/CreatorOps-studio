@@ -317,6 +317,39 @@ describe.skipIf(!HAS_FFMPEG)('assemble_video job (D-086)', () => {
     expect(row.error_message).toContain('ffmpeg');
   });
 
+  it('fails for good, naming the encoder, when the ffmpeg build has no libx264', async () => {
+    const { draftId } = await newDraft();
+    await attachClip(draftId, 'product_hero', soundClip, 0);
+    const jobId = (await start(draftId)).json().id as string;
+    const tools = { ...TOOLS, capabilities: { h264: false, subtitles: true } };
+    expect(await processJob(deps({ videoTools: tools }), jobId)).toBe('failed');
+    const row = await job(jobId);
+    expect(row).toMatchObject({ error_code: 'VIDEO_FAILED', attempts: 1 });
+    expect(row.error_message).toContain('libx264');
+  });
+
+  it('without the subtitles filter, still makes the video and offers the .srt', async () => {
+    const { draftId } = await newDraft();
+    await attachClip(draftId, 'product_hero', soundClip, 0);
+    await savePrompts(draftId, 1);
+    const jobId = (await start(draftId)).json().id as string;
+    const tools = { ...TOOLS, capabilities: { h264: true, subtitles: false } };
+    expect(await processJob(deps({ videoTools: tools }), jobId)).toBe('succeeded');
+    const output = (await job(jobId)).output;
+    expect(output).toMatchObject({ subtitles: false, subtitleIssue: 'no_subtitle_filter' });
+    expect(String(output.srt).replace(/\n/g, '')).toContain('แนะนำโคมไฟตั้งโต๊ะถนอมสายตา');
+  });
+
+  it('running out of time fails for good with a video message, not a retried text-provider timeout', async () => {
+    const { draftId } = await newDraft();
+    await attachClip(draftId, 'product_hero', soundClip, 0);
+    const jobId = (await start(draftId)).json().id as string;
+    expect(await processJob(deps({ settings: { videoTimeoutMs: 1 } }), jobId)).toBe('failed');
+    const row = await job(jobId);
+    expect(row).toMatchObject({ error_code: 'VIDEO_FAILED', attempts: 1 });
+    expect(row.error_message).toContain('took too long');
+  });
+
   it('a worker that lost its lease attaches nothing and removes the file it wrote', async () => {
     const { draftId } = await newDraft();
     await attachClip(draftId, 'product_hero', soundClip, 0);

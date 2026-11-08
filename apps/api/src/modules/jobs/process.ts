@@ -221,8 +221,16 @@ async function run(
     if (controller.signal.aborted) {
       return controller.signal.reason === 'lease' ? 'lost' : settleCancelled(deps, job, attempt);
     }
+    // A final video that runs out of time would run out again: fail it for good, plainly.
     const failure =
-      timeout.aborted && !isProviderError(error) ? new ProviderError('TIMEOUT') : error;
+      timeout.aborted && !isProviderError(error)
+        ? job.type === 'assemble_video'
+          ? new PermanentJobFailure(
+              'VIDEO_FAILED',
+              'Making the final video took too long. Try fewer or shorter scene videos, then try again.',
+            )
+          : new ProviderError('TIMEOUT')
+        : error;
     return settleFailure(deps, job, attempt, failure);
   }
   const outcome = await settleSuccess(deps, job, attempt, result);
@@ -475,6 +483,7 @@ async function settleAssembly(
       durationMs: result.durationMs,
       clipCount: result.clipCount,
       subtitles: result.subtitles,
+      subtitleIssue: result.subtitleIssue,
       skippedScenes: [...result.skippedScenes],
       srt: result.srt,
     },
