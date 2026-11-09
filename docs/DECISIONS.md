@@ -41,7 +41,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-014 | No browser automation of consumer AI websites | ACCEPTED |
 | D-015 | Thai is the default content language | ACCEPTED |
 | D-016 | No billing; usage events and budget caps from Phase 4 | ACCEPTED |
-| D-017 | Git: branch `ccr-14958772-bzlatd`; commits when asked; no pull request unless requested | ACCEPTED |
+| D-017 | Git: branch `ccr-14958772-bzlatd`; commits when asked; no pull request unless requested | SUPERSEDED by D-062 (branch name only; the commit and PR rules stand) |
 | D-018 | Greenfield repository; scaffolding starts at Phase 0 on owner go-ahead | ACCEPTED |
 | D-019 | Extension-first UX with a thin extension shell in Phase 1 | ACCEPTED |
 | D-020 | Phase numbering follows `06` (Phases 0–8) | ACCEPTED |
@@ -86,6 +86,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-059 | S3.7 and S3.8 UI direction from market research (`docs/UI_RESEARCH.md`) | ACCEPTED |
 | D-060 | Publishing plan: assisted posting first, official APIs next; no UI-automation posting | ACCEPTED |
 | D-061 | S3.8 side panel: campaigns, generate and job status from the API | ACCEPTED |
+| D-062 | `main` is the integration branch; session branches merge into it by pull request | ACCEPTED |
 | Q-001 | Real text generation provider | OPEN (gate for Phase 4) |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -173,7 +174,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 **Decision:** No billing, credits, or plans before a paid pilot. Usage events and per-workspace budget caps arrive in Phase 4 so pricing can be decided from real data. No "unlimited generation" promises (`06` cost discipline).
 
 ## D-017 — Git policy
-**Status:** ACCEPTED
+**Status:** SUPERSEDED by D-062 for the branch name. The rules to commit when asked and to open no pull request unless requested still apply.
 **Decision:** Work on branch `ccr-14958772-bzlatd`. Commit and push when the owner asks (a stop-hook request counts). No pull request unless explicitly requested.
 
 ## D-018 — Greenfield
@@ -397,6 +398,16 @@ Every slice follows the order in `CLAUDE.md`: contract, backend and tests, UI, s
 - **Errors.** Every failed request shows the API message and request id where present (`ApiError`), never a raw error; `RATE_LIMITED` (cap of 5 active jobs, or 20 starts a minute) shows its message as is.
 - **Out of scope:** streaming, creating campaigns in the panel, editing or viewing draft sections, claim-warning badges, retry of a single section, product images, notifications.
 **Known limit:** the job list shows only the newest 50 generate jobs of the workspace (one page). A campaign whose latest job is older than that shows no status; the link to the dashboard still works. Fixing it needs a `campaignId` filter on `GET /jobs` (a later slice, if the panel needs it).
+
+## D-062 — `main` is the integration branch
+**Status:** ACCEPTED (2026-11-09, owner request). Supersedes the branch name in D-017.
+**Context:** Work was done on session-named branches (`ccr-14958772-bzlatd`, `ccr-186e9c63-3y215n`), and the project documents named different ones. The repository had no `main`.
+**Decision:**
+- `main` is the integration branch and the GitHub default branch. It was created from `ccr-14958772-bzlatd` at commit `41afaec` (the merge of PR #1, S3.0 to S3.8).
+- Session or feature branches (for example `claude/...`) are pushed as the session instructions say and merge into `main` by pull request.
+- The rest of D-017 stands: commit and push when the owner asks (a stop-hook request counts), and open no pull request unless asked.
+- `ccr-14958772-bzlatd` and `ccr-186e9c63-3y215n` are kept until the owner says to delete them.
+**Owner action:** set `main` as the default branch in the GitHub repository settings (Settings, Branches); the agent cannot change that setting.
 
 ## Open questions
 
