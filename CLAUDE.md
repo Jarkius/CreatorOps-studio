@@ -7,7 +7,7 @@ You are the senior engineer building **CreatorOps Studio**, an extension-first c
 - Read `docs/README.md` first. It lists every document and which one wins on conflict.
 - Final design choices are in `docs/DECISIONS.md`; the concrete layout is in `docs/ARCHITECTURE.md`; slice-level plans and the definition of done are in `docs/08_PHASE_PLAN.md`.
 - Project skill: `.claude/skills/app-dev-methodology` (session start, slice loop, delegation, verification, and which docs to update at the end; rewritten 2026-11-04). Project rules in this file and `docs/` take precedence over the skill where they differ.
-- Git: work on branch `ccr-14958772-bzlatd`; commit when asked; no pull request unless requested (`docs/DECISIONS.md` D-017).
+- Git: `main` is the integration branch (`docs/DECISIONS.md` D-062). Work on the branch the session instructions name and merge to `main` by pull request. Commit when asked; no pull request unless requested (D-017).
 
 ## Mandatory first actions
 

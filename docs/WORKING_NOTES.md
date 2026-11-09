@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-04 · **Branch:** this session worked on `ccr-186e9c63-3y215n` (the designated branch in the session instructions); `CLAUDE.md` names `ccr-14958772-bzlatd`. Check which one to push to before pushing. **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.8 done, next S3.9).
+**Last updated:** 2026-11-04 · **Branch:** `main` is the integration branch (D-062); work on the branch the session instructions name and merge by pull request. The old `ccr-*` branches are kept until the owner deletes them. **Phase:** 2 complete; Phase 3 in progress (S3.0 to S3.8 done, next S3.9).
 
 ## Where we are
 
