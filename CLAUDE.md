@@ -18,6 +18,7 @@ The owner wants a **workable MVP delivered consistently**, not perfection. Apply
 - **Do not polish or re-litigate.** No refactors, extra options or doc rewrites that the next MVP step does not need. If something is imperfect but works, note it in `docs/WORKING_NOTES.md` and move on.
 - **Keep the owner's loop short.** What the owner tests (their real Meta AI, Flow and Shopee tabs, the MaxPlus key) matters more than more code against fake pages. Say what to try, take their feedback, fix it.
 - **Short replies.** Say what changed, what to try, and what is still open. Details belong in the docs, not in chat.
+- **End of every slice, even in MVP mode (2 minutes):** a dated section in `docs/IMPLEMENTATION_STATUS.md` (built, tests, what is not verified); a `docs/DECISIONS.md` entry if a choice was made and the `docs/WORKING_NOTES.md` header and next steps; one row in the lessons log (`docs/WORKER_BRIEF_TEMPLATE.md`) only if something went wrong. `pnpm check:docs` warns when this is skipped (it was, 2026-11-05 to 09).
 - **The hard limit stays:** no CAPTCHA or check bypass, no passing as human to evade bot detection, no fingerprint or proxy tricks, no fake engagement (see Compliance boundaries). Everything else the owner decides.
 
 ## Mandatory first actions
