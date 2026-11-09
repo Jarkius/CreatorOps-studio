@@ -1,0 +1,19 @@
+# Test fixtures flagged by the generic-api-key rule (checked 2026-11-09).
+# Every value is a short dummy (15 to 32 characters, with markers such as
+# "abcdef", "WXYZ", "SECRET", "LIVEKEY"; real OpenRouter keys are about 73
+# characters). Entries are per commit, file and line, so a real key added to
+# any file, including a test file, is still reported.
+64fd54cb37c858aa503e9c1701c9eb44f6d706be:packages/provider-core/src/video-prompts.test.ts:generic-api-key:52
+bd0be71c9369959ba6d473c82e7cbe3930e68c18:packages/provider-core/src/video.test.ts:generic-api-key:14
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:packages/contracts/src/client.test.ts:generic-api-key:490
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:apps/web/src/features/settings/SettingsPage.test.tsx:generic-api-key:139
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:apps/web/src/features/settings/providerForm.test.ts:generic-api-key:29
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:apps/web/src/features/settings/providerForm.test.ts:generic-api-key:59
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:apps/web/src/features/settings/providerForm.test.ts:generic-api-key:134
+0fd2ebe82aaa2823ea6427b8ebad527d266269a8:apps/web/src/features/settings/providerForm.test.ts:generic-api-key:138
+cbbc3d2757c8dd9f322e2cb0b94f3a5f7941e8c7:packages/contracts/src/provider.test.ts:generic-api-key:82
+cbbc3d2757c8dd9f322e2cb0b94f3a5f7941e8c7:apps/api/src/authorization.test.ts:generic-api-key:138
+cbbc3d2757c8dd9f322e2cb0b94f3a5f7941e8c7:apps/api/src/platform/secrets.test.ts:generic-api-key:8
+cbbc3d2757c8dd9f322e2cb0b94f3a5f7941e8c7:apps/api/src/platform/redact.test.ts:generic-api-key:177
+cdae8cc8bb6ce31303b67a3ca870c9224855b2f0:apps/api/src/modules/usage/real-provider.test.ts:generic-api-key:32
+d38acc6afe9b3c010ad797d08ab7880b83bc0aea:packages/provider-core/src/openai-compatible.test.ts:generic-api-key:17
