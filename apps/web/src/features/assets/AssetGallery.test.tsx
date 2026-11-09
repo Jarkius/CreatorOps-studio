@@ -107,6 +107,38 @@ describe('AssetGallery on the asset library', () => {
     expect(await screen.findByRole('button', { name: /photo\.png/ })).toBeInTheDocument();
   });
 
+  it('searches by name after a pause in typing, through the URL, and says when nothing matches', async () => {
+    const user = userEvent.setup();
+    const api = createFakeApi({ assets: [photo(), clip()] });
+    const { router } = renderWeb(LIBRARY, api);
+
+    const box = await screen.findByLabelText('Search by name');
+    await screen.findByRole('button', { name: /photo\.png/ });
+    const before = listGets(api);
+    await user.type(box, 'CLI');
+    // One request after the pause, not one per key.
+    await waitFor(() => expect(router.state.location.search).toBe('?q=CLI'));
+    expect(await screen.findByRole('button', { name: /clip\.mp4/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /photo\.png/ })).not.toBeInTheDocument();
+    expect(listGets(api) - before).toBe(1);
+    expect(api.calls.at(-1)?.path).toContain('q=CLI');
+
+    await user.clear(box);
+    await user.type(box, 'zzz');
+    expect(await screen.findByRole('heading', { name: 'No files match' })).toBeInTheDocument();
+
+    await user.clear(box);
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(await screen.findByRole('button', { name: /photo\.png/ })).toBeInTheDocument();
+  });
+
+  it('starts with the search from the URL', async () => {
+    renderWeb(`${LIBRARY}?q=photo`, createFakeApi({ assets: [photo(), clip()] }));
+    expect(await screen.findByRole('button', { name: /photo\.png/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /clip\.mp4/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Search by name')).toHaveValue('photo');
+  });
+
   it('starts filtered when the URL says so, and reports an empty filter', async () => {
     renderWeb(`${LIBRARY}?type=video`, createFakeApi({ assets: [photo()] }));
     expect(await screen.findByRole('heading', { name: 'No videos yet' })).toBeInTheDocument();

@@ -8,15 +8,11 @@ An extension-first content operations tool for Thai solo sellers, affiliate crea
 
 ## Status
 
-Phases 0–2 are built and verified: monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, and media uploads with signed URLs.
-
-Phase 3 (content generation with a mock provider) is in progress. Slices S3.0–S3.8 are done: campaigns, durable jobs with a Redis/BullMQ worker (idempotent create, leases, bounded retries, cancel), content drafts with versioned edits and per-section regenerate, claim warnings, the dashboard campaign and draft screens, and the side-panel campaigns list with job status. **Next is S3.9**, the Phase 3 exit check (campaign and draft e2e with the real API, worker and Redis). Real providers, export and publishing are blocked on open owner questions (Q-001, Q-002, Q-005 in `docs/DECISIONS.md`).
-
-Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. See "Getting started" below to run it locally.
+Built and verified against fake pages and a mock provider (the owner tests the real Meta AI, Flow and Shopee tabs): monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, media uploads, campaigns and drafts with a job worker, real text through an OpenAI-compatible provider, the Meta AI and Flow helpers, the Shopee importer, video prompts and ZIP export. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. See "Getting started" below to run it locally.
 
 ### Screenshots (captured from the running app)
 
-Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, built packages and extension; see the script header). The side panel is loaded as a tab because automation cannot open Chrome's real side panel.
+Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, `REDIS_URL`, built packages and the extension e2e build; see the script header). The side panel is loaded as a tab because automation cannot open Chrome's real side panel.
 
 | Dashboard products | Asset library (uploaded) |
 |---|---|
@@ -26,7 +22,25 @@ Regenerate with `node scripts/capture-screenshots.mjs` (needs `DATABASE_URL`, bu
 |---|---|
 | ![Product detail](docs/screenshots/web-product-detail.png) | ![Side panel](docs/screenshots/extension-side-panel.png) |
 
-More: `web-overview.png`, `web-new-workspace.png` in `docs/screenshots/`.
+| Campaign page | Draft with video prompts and export |
+|---|---|
+| ![Campaign](docs/screenshots/web-campaign-page.png) | ![Draft results](docs/screenshots/web-draft-results.png) |
+
+| Settings (text provider) | Shopee importer in the side panel |
+|---|---|
+| ![Settings](docs/screenshots/web-settings.png) | ![Shopee importer](docs/screenshots/extension-shopee.png) |
+
+The Shopee shot uses a fake Shopee page; the draft uses the free mock text writer. More in `docs/screenshots/`: `web-overview.png`, `web-new-workspace.png`, `extension-create.png`.
+
+## Try it locally (one command)
+
+Needs Node 22+ and pnpm 10 (run `pnpm install` once). Then:
+
+```
+pnpm demo
+```
+
+It starts PostgreSQL and Redis without Docker, builds the dashboard and the extension, creates a `creatorops_demo` database (kept between runs), and runs the API, the worker and the dashboard at <http://localhost:5173>. Sign-in is a local mock and text generation uses the mock provider (Thai copy from templates), so no account, key or paid service is needed. Press Ctrl+C to stop. To use the side panel, load `apps/extension/dist` as an unpacked extension in Chrome (`chrome://extensions`, Developer mode). `pnpm dev:db:stop` and `pnpm dev:redis:stop` stop the databases.
 
 ## How it works
 
@@ -41,11 +55,13 @@ Product workspace → Thai-first copy and script generation → asset upload and
 
 ## What this product will not do
 
-No fake views, likes, comments, or follows. No account warming. No scraping or automating consumer AI sites or social platforms. No CAPTCHA, fingerprint, or proxy evasion. No device-farm control. Publishing only through official APIs after access is confirmed. See `docs/05_SECURITY_AND_COMPLIANCE.md` §6.
+No fake views, likes, comments, or follows. No account warming. No scraping or automating social platforms. The only exceptions are three owner-approved, user-initiated helpers that act in the owner's own signed-in tab, never sign in and never get past a check: Meta AI (D-071), Google Flow (D-080) and the Shopee Affiliate importer (D-082, D-083). No CAPTCHA, fingerprint, or proxy evasion. No device-farm control. Publishing only through official APIs after access is confirmed. See `docs/05_SECURITY_AND_COMPLIANCE.md` §6.
 
 ## Documentation
 
 Start with `docs/README.md`, which lists every document and which one wins when two disagree.
+
+To set up and use the product, read `docs/USER_GUIDE.md`; for whether it is ready for a real test, `docs/READY.md`.
 
 | Document | Purpose |
 |---|---|

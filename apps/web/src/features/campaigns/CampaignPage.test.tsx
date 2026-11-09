@@ -2,9 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import type { Campaign, Draft, Job, Workspace } from '@creatorops/contracts';
+import type { Campaign, Draft, Job, Product, Workspace } from '@creatorops/contracts';
 
-import { createFakeApi, WORKSPACE } from '../../test/fakeApi.js';
+import { createFakeApi, makeProduct, THAI_NAME, WORKSPACE } from '../../test/fakeApi.js';
 import {
   createContentFetch,
   createFakeContentApi,
@@ -27,6 +27,7 @@ interface SetupOptions {
   path?: string;
   role?: Workspace['role'];
   campaigns?: Campaign[];
+  products?: Product[];
   jobs?: Job[];
   drafts?: Draft[];
   loseBriefResponses?: number;
@@ -50,6 +51,7 @@ function setup(options: SetupOptions = {}) {
   });
   const api = createFakeApi({
     workspaces: [{ ...WORKSPACE, role: options.role ?? 'owner' }],
+    products: options.products,
     intercept: content.intercept,
   });
   const wire = createContentFetch(api.fetch);
@@ -71,11 +73,13 @@ async function generate(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('CampaignPage', () => {
-  it('shows the campaign settings, with the product linked by id', async () => {
-    setup();
+  it('shows the campaign settings, with the product linked by its name', async () => {
+    setup({
+      products: [makeProduct({ id: 'prod_1', name: THAI_NAME, workspaceId: WORKSPACE.id })],
+    });
 
     expect(await screen.findByRole('heading', { name: THAI_CAMPAIGN })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'prod_1' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: THAI_NAME })).toHaveAttribute(
       'href',
       `/w/${WORKSPACE.id}/products/prod_1`,
     );
@@ -84,6 +88,15 @@ describe('CampaignPage', () => {
     expect(screen.getByText('30 seconds')).toBeInTheDocument();
     expect(screen.getByText('Thai')).toBeInTheDocument();
     expect(screen.getByText('สนุก เป็นกันเอง')).toBeInTheDocument();
+  });
+
+  it('never shows the product id: the link says View product when the product cannot be loaded', async () => {
+    setup();
+
+    expect(await screen.findByRole('heading', { name: THAI_CAMPAIGN })).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: 'View product' });
+    expect(link).toHaveAttribute('href', `/w/${WORKSPACE.id}/products/prod_1`);
+    expect(screen.queryByText('prod_1')).not.toBeInTheDocument();
   });
 
   it('shows None for an empty tone', async () => {
@@ -101,6 +114,21 @@ describe('CampaignPage', () => {
     expect(briefPosts()).toHaveLength(1);
     expect(briefPosts()[0]?.key).toMatch(KEY_FORMAT);
     expect(router.state.location.search).toBe('?job=job_1');
+  });
+
+  it('updates the cost panel when the generate job finishes', async () => {
+    const user = userEvent.setup();
+    const { content } = setup();
+    const cost = within(await screen.findByRole('region', { name: 'Cost' }));
+    expect(await cost.findByText('No AI calls yet')).toBeInTheDocument();
+    await generate(user);
+    await screen.findByText('Waiting to start');
+    // The worker made one paid call: the ledger now has it.
+    content.aiCost.camp_1 = { calls: 1, costUsd: 0.08 };
+    content.advanceJob('job_1', 'succeeded');
+    await waitFor(() => expect(jobSentence()).toHaveTextContent(/^Done$/), { timeout: 4000 });
+    expect(await cost.findByText('1 call, $0.0800 billed')).toBeInTheDocument();
+    expect(cost.getByLabelText('AI text cost')).toHaveTextContent('฿2.80');
   });
 
   it('cannot start a second job while the first one is queued or running', async () => {

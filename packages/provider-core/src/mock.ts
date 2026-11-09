@@ -1,3 +1,8 @@
+import {
+  validateVideoPrompts,
+  type VideoPromptRequest,
+  type VideoPromptScene,
+} from './video-prompts.js';
 import { ProviderError, type ProviderErrorCode } from './errors.js';
 import {
   SECTION_LIMITS,
@@ -369,6 +374,52 @@ function validateCurrent(current: DraftSections): DraftSections {
   }
 }
 
+const MOCK_SHOT_END = 'No on-screen text, no logos, no watermarks.';
+
+/** One calm, single-shot English prompt per scene, from the product name and its selling points. */
+function mockVideoScenes(
+  req: VideoPromptRequest,
+): { scene: string; prompt: string; voiceover: string }[] {
+  const name = truncateGraphemes(cleanFact(req.product.name), NAME_MAX_GRAPHEMES) || FALLBACK_NAME;
+  const subject = `the product "${name}"`;
+  const point = (index: number) =>
+    truncateGraphemes(cleanFact(req.product.sellingPoints[index] ?? ''), 60) || name;
+  const seconds = req.clipSeconds ?? 8;
+  const say = (th: string, en: string) => (req.language === 'th' ? th : en);
+  const prompt = (body: string) =>
+    `Vertical 9:16 video. ${body} One continuous ${seconds}-second shot. ${MOCK_SHOT_END}`;
+  return [
+    {
+      scene: 'product_hero',
+      prompt: prompt(
+        `${subject} stands alone on a clean surface in a bright studio, the camera slowly pushing in, soft directional light, premium modern style.`,
+      ),
+      voiceover: say(`แนะนำ ${name}`, `Meet ${name}`),
+    },
+    {
+      scene: 'detail',
+      prompt: prompt(
+        `A macro close-up of ${subject} focusing on this feature: ${point(0)}. The camera pans slowly across it, soft rim light, sharp detailed style.`,
+      ),
+      voiceover: say(point(0), point(0)),
+    },
+    {
+      scene: 'usage',
+      prompt: prompt(
+        `A person in everyday clothes uses ${subject} naturally in a bright home setting, the camera gently orbiting, warm daylight, relaxed lifestyle style.`,
+      ),
+      voiceover: say(`ใช้งานง่ายในชีวิตประจำวัน`, `Easy to use every day`),
+    },
+    {
+      scene: 'final_shot',
+      prompt: prompt(
+        `${subject} centred on a light wooden table, the camera calm and still, golden window light, leaving clean space for a call to action.`,
+      ),
+      voiceover: say(`สนใจกดดูรายละเอียดได้เลย`, `Tap to see the details`),
+    },
+  ];
+}
+
 /**
  * Deterministic text provider for development without paid credentials.
  * Every output is a pure function of the request.
@@ -406,6 +457,24 @@ export class MockTextProvider implements TextProvider {
     return {
       output,
       usage: { inputUnits: graphemeLength(JSON.stringify(req)), outputUnits },
+      model: MOCK_MODEL_ID,
+    };
+  }
+
+  /** Template video prompts: built only from the product facts, no model, no cost. */
+  async generateVideoPrompts(
+    req: VideoPromptRequest,
+    opts: ProviderCallOptions = {},
+  ): Promise<{ scenes: VideoPromptScene[]; usage: ProviderUsage; model: string }> {
+    throwIfAborted(opts);
+    const fault = injectedError(req.product.name);
+    if (fault) {
+      throw fault;
+    }
+    const scenes = validateVideoPrompts({ scenes: mockVideoScenes(req) }, req.product);
+    return {
+      scenes,
+      usage: { inputUnits: graphemeLength(JSON.stringify(req)), outputUnits: 400 },
       model: MOCK_MODEL_ID,
     };
   }

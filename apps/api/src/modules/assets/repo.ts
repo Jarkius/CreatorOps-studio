@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, lt, ne, or, sql, sum } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, lt, ne, or, sql, sum } from 'drizzle-orm';
 
 import type { DbOrTx } from '../../db/client.js';
 import { assets, products, uploadIntents, workspaces } from '../../db/schema.js';
@@ -208,6 +208,8 @@ export async function lockReadyImage(
 export interface AssetListOptions {
   readonly productId?: string | undefined;
   readonly type?: 'image' | 'video' | undefined;
+  /** Part of the file name; `%`, `_` and `\` match themselves. */
+  readonly q?: string | undefined;
   readonly limit: number;
   readonly after?: { readonly createdAt: Date; readonly id: string } | undefined;
 }
@@ -229,6 +231,9 @@ export async function listAssets(
         eq(assets.status, 'ready'),
         options.productId === undefined ? undefined : eq(assets.productId, options.productId),
         options.type === undefined ? undefined : eq(assets.type, options.type),
+        options.q === undefined || options.q === ''
+          ? undefined
+          : ilike(assets.originalFilename, `%${options.q.replace(/[\\%_]/g, '\\$&')}%`),
         after === undefined
           ? undefined
           : sql`(${assets.createdAt}, ${assets.id}) < (${after.createdAt}, ${after.id}::uuid)`,

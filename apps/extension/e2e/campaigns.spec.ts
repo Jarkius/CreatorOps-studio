@@ -124,6 +124,42 @@ test('Generate queues a job in the panel, and Cancel stops it', async ({
   );
 });
 
+test('closing the panel does not stop the job; a reopened panel shows the same job', async ({
+  context,
+  extensionId,
+  request,
+}) => {
+  const token = await devToken(request);
+  const workspace = await firstWorkspace(request, token);
+  const name = `E2E reopen ${Date.now()}`;
+  const campaign = await createCampaign(request, token, workspace.id, name);
+
+  const first = await context.newPage();
+  await openPanel(first, extensionId);
+  const firstRow = campaignsRegion(first).getByRole('listitem').filter({ hasText: name });
+  await firstRow.getByRole('button', { name: `Generate ${name}` }).click();
+  await expect(firstRow.getByText('Waiting to start')).toBeVisible();
+
+  // Close the panel entirely, then open a new one: nothing is kept in the page, only in the API.
+  await first.close();
+  const second = await context.newPage();
+  await openPanel(second, extensionId);
+  const row = campaignsRegion(second).getByRole('listitem').filter({ hasText: name });
+  await expect(row.getByText('Waiting to start')).toBeVisible();
+  await expect(row.getByRole('button', { name: `Generating… ${name}` })).toBeDisabled();
+
+  // The job itself was not cancelled by closing the panel.
+  const jobs = await apiGet<{ items: { campaignId: string; status: string }[] }>(
+    request,
+    token,
+    `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/jobs?campaignId=${campaign.id}`,
+  );
+  expect(jobs.items.map((job) => job.status)).toEqual(['queued']);
+
+  await row.getByRole('button', { name: `Cancel generation for ${name}` }).click();
+  await expect(row.getByText('Cancelled', { exact: true }).first()).toBeVisible();
+});
+
 test('an empty workspace shows the campaigns empty state with a dashboard link', async ({
   context,
   extensionId,

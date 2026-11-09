@@ -17,6 +17,8 @@ import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
+import { latestGenerateJobsFor } from '../jobs/repo.js';
+import { toJob } from '../jobs/service.js';
 import { findProduct } from '../products/repo.js';
 import { normalizeText } from '../products/service.js';
 import {
@@ -176,8 +178,20 @@ export async function listCampaigns(
   });
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
+  const latest = new Map(
+    (
+      await latestGenerateJobsFor(
+        db,
+        ctx,
+        page.map((row) => row.id),
+      )
+    ).map((job) => [job.campaignId, toJob(job)]),
+  );
   return {
-    items: page.map(toCampaign),
+    items: page.map((row) => ({
+      ...toCampaign(row),
+      latestGenerateJob: latest.get(row.id) ?? null,
+    })),
     nextCursor: rows.length > query.limit && last !== undefined ? encodeCursor(last) : null,
   };
 }

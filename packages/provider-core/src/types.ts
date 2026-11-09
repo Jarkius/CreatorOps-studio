@@ -1,3 +1,4 @@
+import type { VideoPromptRequest, VideoPromptScene } from './video-prompts.js';
 import type { DraftSections, SectionName, SectionValue } from './sections.js';
 
 export interface ProductFacts {
@@ -33,6 +34,10 @@ export interface RegenerateSectionRequest extends GenerateBriefRequest {
 export interface ProviderUsage {
   inputUnits: number;
   outputUnits: number;
+  /** Cost in USD as reported by the provider, when it reports one. */
+  costUsd?: number;
+  /** Calls made for this result (a real provider bills per call as well as per token). */
+  requests?: number;
 }
 
 export interface ProviderCallOptions {
@@ -41,6 +46,11 @@ export interface ProviderCallOptions {
 
 export interface TextProvider {
   readonly id: string;
+  /** Four single-shot video prompts plus a voiceover line each, for pasting into a video tool. */
+  generateVideoPrompts(
+    req: VideoPromptRequest,
+    opts?: ProviderCallOptions,
+  ): Promise<{ scenes: VideoPromptScene[]; usage: ProviderUsage; model: string }>;
   generateBrief(
     req: GenerateBriefRequest,
     opts?: ProviderCallOptions,

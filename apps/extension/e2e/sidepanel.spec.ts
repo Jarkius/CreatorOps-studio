@@ -26,8 +26,17 @@ test('loads with the pinned development id and exactly the allowed permissions',
   const page = await context.newPage();
   await openPanel(page, extensionId);
   const manifest = await page.evaluate(() => chrome.runtime.getManifest());
-  expect([...(manifest.permissions ?? [])].sort()).toEqual(['sidePanel', 'storage']);
-  expect(manifest.host_permissions).toEqual(['http://localhost:3000/*']);
+  expect([...(manifest.permissions ?? [])].sort()).toEqual(['scripting', 'sidePanel', 'storage']);
+  // This build is the end-to-end build, which grants the helper hosts at install because a test
+  // cannot click Chrome's prompt; a release build lists it only as an optional host permission
+  // (manifest tests and the built-manifest test check that).
+  const helperHosts = [
+    'https://www.meta.ai/*',
+    'https://flow.google.com/*',
+    'https://affiliate.shopee.co.th/*',
+  ];
+  expect(manifest.host_permissions).toEqual(['http://localhost:3000/*', ...helperHosts]);
+  expect(manifest.optional_host_permissions).toEqual(helperHosts);
   expect(manifest).not.toHaveProperty('content_scripts');
   expect(manifest.manifest_version).toBe(3);
 });

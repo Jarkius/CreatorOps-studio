@@ -1,4 +1,7 @@
 import { ConfigError } from '@creatorops/config';
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { validEnv } from '../test/db-url.js';
@@ -21,6 +24,13 @@ describe('loadConfig', () => {
     expect(config.LOG_LEVEL).toBe('info');
     expect(config.AUTH_MODE).toBe('mock');
     expect(config.EXTENSION_ORIGIN).toBeUndefined();
+  });
+
+  it('resolves a relative DATA_DIR against the repo root, whatever the working directory', () => {
+    const fromDefault = loadConfig(validEnv()).DATA_DIR;
+    expect(isAbsolute(fromDefault)).toBe(true);
+    expect(existsSync(resolve(fromDefault, '..', '..', 'pnpm-workspace.yaml'))).toBe(true);
+    expect(loadConfig({ ...validEnv(), DATA_DIR: '/var/media' }).DATA_DIR).toBe('/var/media');
   });
 
   it('returns a frozen object', () => {
@@ -131,5 +141,28 @@ describe('loadConfig', () => {
     const error = failure(validEnv({ REDIS_URL: 'http://user:topsecret@host' }));
     expect(error.issues.map((issue) => issue.variable)).toContain('REDIS_URL');
     expect(error.message).not.toContain('topsecret');
+  });
+
+  it('accepts SECRETS_ENCRYPTION_KEY only as 32 base64 bytes, never echoes it, and defaults its id', () => {
+    const good = Buffer.alloc(32, 7).toString('base64');
+    expect(loadConfig(validEnv()).SECRETS_ENCRYPTION_KEY).toBeUndefined();
+    expect(loadConfig(validEnv()).SECRETS_ENCRYPTION_KEY_ID).toBe('k1');
+    expect(loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: good })).SECRETS_ENCRYPTION_KEY).toBe(
+      good,
+    );
+    for (const bad of [
+      Buffer.alloc(16).toString('base64'),
+      'not-base64!',
+      'short',
+      good.slice(0, -1),
+    ]) {
+      expect(() => loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: bad }))).toThrow();
+      try {
+        loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY: bad }));
+      } catch (error) {
+        expect(String(error)).not.toContain(bad);
+      }
+    }
+    expect(() => loadConfig(validEnv({ SECRETS_ENCRYPTION_KEY_ID: 'Bad Id!' }))).toThrow();
   });
 });

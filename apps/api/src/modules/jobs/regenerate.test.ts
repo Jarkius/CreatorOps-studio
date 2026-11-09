@@ -70,6 +70,9 @@ class ScriptedProvider implements TextProvider {
     const answer = await this.script(request, options);
     return { ...answer, usage: { inputUnits: 1, outputUnits: 1 }, model: 'scripted-1' };
   }
+  generateVideoPrompts(): never {
+    throw new Error('not used');
+  }
 }
 
 const deps = (provider: TextProvider): WorkerDeps => ({

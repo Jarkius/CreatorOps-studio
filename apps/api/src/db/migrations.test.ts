@@ -9,7 +9,7 @@ import { createTestDb, type TestDb } from '../test/test-db.js';
 import { SECRET_FOR_TESTS } from '../test/db-url.js';
 
 // One entry per committed SQL migration in infra/migrations.
-const MIGRATION_COUNT = 6;
+const MIGRATION_COUNT = 15;
 
 let testDb: TestDb;
 
@@ -29,11 +29,16 @@ describe('database schema', () => {
     expect(tables.rows.map((row) => row.table_name)).toEqual([
       'assets',
       'audit_events',
+      'campaign_costs',
       'campaigns',
       'content_drafts',
+      'draft_assets',
+      'draft_exports',
       'jobs',
       'products',
+      'provider_credentials',
       'upload_intents',
+      'usage_events',
       'users',
       'workspace_members',
       'workspaces',
@@ -498,5 +503,211 @@ describe('campaigns, drafts and jobs integrity (S3.2, D-037, D-045, D-047)', () 
     await expect(testDb.pool.query('delete from products where id = $1', [p])).rejects.toThrow(
       /campaigns_product_fk/,
     );
+  });
+});
+
+describe('draft assets and exports integrity (S5.2, D-067)', () => {
+  const hash = 'c'.repeat(64);
+
+  async function one(sql: string, values: unknown[]): Promise<string> {
+    return (await testDb.pool.query<{ id: string }>(sql, values)).rows[0]!.id;
+  }
+
+  async function setup() {
+    const tag = Math.random().toString(36).slice(2, 7);
+    const alice = await createPerson(testDb.db, SECRET_FOR_TESTS, `alice-${tag}`);
+    const bob = await createPerson(testDb.db, SECRET_FOR_TESTS, `bob-${tag}`);
+    let n = 0;
+    const product = (workspaceId: string) =>
+      one('insert into products (workspace_id, name) values ($1, $2) returning id', [
+        workspaceId,
+        'P',
+      ]);
+    const asset = (person: { workspaceId: string; userId: string }) => {
+      n += 1;
+      return one(
+        `insert into assets (workspace_id, type, mime_type, size_bytes, original_filename, sha256, storage_key, created_by)
+         values ($1, 'image', 'image/png', 10, 'a.png', $2, $3, $4) returning id`,
+        [
+          person.workspaceId,
+          'a'.repeat(64),
+          `ws/${person.workspaceId}/${tag}-${n}/original.png`,
+          person.userId,
+        ],
+      );
+    };
+    const draft = async (person: { workspaceId: string; userId: string }) => {
+      const productId = await product(person.workspaceId);
+      const campaignId = await one(
+        `insert into campaigns (workspace_id, product_id, name, template_id, template_version, language, duration_seconds, created_by)
+         values ($1, $2, 'C', 'product-showcase', 1, 'th', 30, $3) returning id`,
+        [person.workspaceId, productId, person.userId],
+      );
+      return one(
+        `insert into content_drafts (workspace_id, campaign_id, product_id, sections, section_state)
+         values ($1, $2, $3, '{}', '{}') returning id`,
+        [person.workspaceId, campaignId, productId],
+      );
+    };
+    const attach = (
+      person: { workspaceId: string; userId: string },
+      draftId: string,
+      assetId: string,
+      sortOrder: number,
+      role = 'media',
+      workspaceId = person.workspaceId,
+    ) =>
+      testDb.pool.query(
+        `insert into draft_assets (workspace_id, draft_id, asset_id, role, sort_order, created_by)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [workspaceId, draftId, assetId, role, sortOrder, person.userId],
+      );
+    const exportJob = (person: { workspaceId: string; userId: string }, draftId: string) =>
+      one(
+        `insert into jobs (workspace_id, type, input, created_by, idempotency_key, request_hash, draft_id)
+         values ($1, 'export_package', '{}', $2, $3, $4, $5) returning id`,
+        [person.workspaceId, person.userId, `key-${tag}-${(n += 1)}-abcdef`, hash, draftId],
+      );
+    const exportRow = (
+      person: { workspaceId: string; userId: string },
+      draftId: string,
+      jobId: string,
+      extra: {
+        status?: string;
+        size?: number;
+        sha?: string;
+        key?: string;
+        workspaceId?: string;
+      } = {},
+    ) =>
+      testDb.pool.query(
+        `insert into draft_exports (workspace_id, draft_id, job_id, created_by, status, draft_version, file_count, size_bytes, sha256, filename, storage_key, manifest, expires_at)
+         values ($1, $2, $3, $4, $5, 1, 1, $6, $7, 'p.zip', $8, '{}', now() + interval '7 days')`,
+        [
+          extra.workspaceId ?? person.workspaceId,
+          draftId,
+          jobId,
+          person.userId,
+          extra.status ?? 'ready',
+          extra.size ?? 5,
+          extra.sha ?? hash,
+          extra.key ?? `exports/${tag}-${(n += 1)}.zip`,
+        ],
+      );
+    return { alice, bob, asset, draft, attach, exportJob, exportRow };
+  }
+
+  it('links an asset to a draft inside one workspace, and refuses any cross-workspace link', async () => {
+    const { alice, bob, asset, draft, attach } = await setup();
+    const aliceDraft = await draft(alice);
+    const aliceAsset = await asset(alice);
+    const bobAsset = await asset(bob);
+    const bobDraft = await draft(bob);
+    await attach(alice, aliceDraft, aliceAsset, 0);
+    await expect(attach(alice, aliceDraft, bobAsset, 1)).rejects.toThrow(/draft_assets_asset_fk/);
+    await expect(attach(alice, bobDraft, aliceAsset, 0)).rejects.toThrow(/draft_assets_draft_fk/);
+    // Even when the row claims Bob's workspace, Alice's draft and asset are not Bob's.
+    const spare = await asset(alice);
+    await expect(attach(bob, aliceDraft, spare, 2, 'media', bob.workspaceId)).rejects.toThrow(
+      /draft_assets_(draft|asset)_fk/,
+    );
+  });
+
+  it('allows one cover per draft, one row per asset and per position, and positions 0 to 9', async () => {
+    const { alice, asset, draft, attach } = await setup();
+    const d = await draft(alice);
+    const [a, b, c] = [await asset(alice), await asset(alice), await asset(alice)];
+    await attach(alice, d, a, 0, 'cover');
+    await expect(attach(alice, d, b, 1, 'cover')).rejects.toThrow(/draft_assets_one_cover_idx/);
+    await expect(attach(alice, d, a, 2)).rejects.toThrow(/draft_assets_pk/);
+    await expect(attach(alice, d, b, 0)).rejects.toThrow(/draft_assets_order_unique/);
+    await expect(attach(alice, d, c, 10)).rejects.toThrow(/draft_assets_sort_order_check/);
+    await expect(attach(alice, d, c, -1)).rejects.toThrow(/draft_assets_sort_order_check/);
+    await expect(attach(alice, d, c, 1, 'poster')).rejects.toThrow(/draft_assets_role_check/);
+    await attach(alice, d, c, 9);
+  });
+
+  it('accepts only the four storyboard scenes and a generator name of at most 60 characters', async () => {
+    const { alice, asset, draft } = await setup();
+    const d = await draft(alice);
+    const insert = (
+      assetId: string,
+      order: number,
+      scene: string | null,
+      generator: string | null,
+    ) =>
+      testDb.pool.query(
+        `insert into draft_assets (workspace_id, draft_id, asset_id, sort_order, scene, ai_generated, generator, created_by)
+         values ($1, $2, $3, $4, $5, true, $6, $7)`,
+        [alice.workspaceId, d, assetId, order, scene, generator, alice.userId],
+      );
+    await insert(await asset(alice), 0, 'product_hero', 'Meta AI');
+    await insert(await asset(alice), 1, null, null);
+    await expect(insert(await asset(alice), 2, 'intro', null)).rejects.toThrow(
+      /draft_assets_scene_check/,
+    );
+    await expect(insert(await asset(alice), 3, 'usage', 'x'.repeat(61))).rejects.toThrow(
+      /draft_assets_generator_length/,
+    );
+  });
+
+  it('refuses to hard-delete an attached asset', async () => {
+    const { alice, asset, draft, attach } = await setup();
+    const d = await draft(alice);
+    const a = await asset(alice);
+    await attach(alice, d, a, 0);
+    await expect(testDb.pool.query('delete from assets where id = $1', [a])).rejects.toThrow(
+      /draft_assets_asset_fk/,
+    );
+  });
+
+  it('accepts an export job only with a draft, and an export row only for its own draft and job', async () => {
+    const { alice, bob, draft, exportJob, exportRow } = await setup();
+    const d = await draft(alice);
+    const bobDraft = await draft(bob);
+    await expect(
+      testDb.pool.query(
+        `insert into jobs (workspace_id, type, input, created_by, idempotency_key, request_hash)
+         values ($1, 'export_package', '{}', $2, 'key-nodraft-abcdef', $3)`,
+        [alice.workspaceId, alice.userId, hash],
+      ),
+    ).rejects.toThrow(/jobs_target_matches_type/);
+    const job = await exportJob(alice, d);
+    await exportRow(alice, d, job);
+    await expect(exportRow(alice, d, job)).rejects.toThrow(/draft_exports_job_unique/);
+    const other = await exportJob(alice, d);
+    await expect(exportRow(alice, bobDraft, other)).rejects.toThrow(/draft_exports_draft_fk/);
+    await expect(exportRow(alice, d, other, { key: 'exports/same.zip' })).resolves.toBeDefined();
+    const third = await exportJob(alice, d);
+    await expect(exportRow(alice, d, third, { key: 'exports/same.zip' })).rejects.toThrow(
+      /draft_exports_storage_key_unique/,
+    );
+  });
+
+  it('refuses export rows with a bad status, size or hash', async () => {
+    const { alice, draft, exportJob, exportRow } = await setup();
+    const d = await draft(alice);
+    await expect(
+      exportRow(alice, d, await exportJob(alice, d), { status: 'gone' }),
+    ).rejects.toThrow(/draft_exports_status_check/);
+    await expect(exportRow(alice, d, await exportJob(alice, d), { size: -1 })).rejects.toThrow(
+      /draft_exports_counts_check/,
+    );
+    await expect(exportRow(alice, d, await exportJob(alice, d), { sha: 'xyz' })).rejects.toThrow(
+      /draft_exports_sha_format|value too long/,
+    );
+  });
+
+  it('refuses to hard-delete a draft or job that an export references', async () => {
+    const { alice, draft, exportJob, exportRow } = await setup();
+    const d = await draft(alice);
+    const job = await exportJob(alice, d);
+    await exportRow(alice, d, job);
+    await expect(testDb.pool.query('delete from jobs where id = $1', [job])).rejects.toThrow(
+      /draft_exports_job_fk/,
+    );
+    await expect(
+      testDb.pool.query('delete from content_drafts where id = $1', [d]),
+    ).rejects.toThrow(/draft_exports_draft_fk|jobs_draft_fk/);
   });
 });

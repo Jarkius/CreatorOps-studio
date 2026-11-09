@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -411,15 +412,28 @@ export const contentDrafts = pgTable(
   ],
 );
 
-export const JOB_TYPES = ['generate_brief', 'regenerate_section'] as const;
+export const JOB_TYPES = [
+  'generate_brief',
+  'regenerate_section',
+  'export_package',
+  'generate_video_prompts',
+  'assemble_video',
+] as const;
 export const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 export const JOB_ERROR_CODES = [
   'PROVIDER_TIMEOUT',
   'PROVIDER_UNAVAILABLE',
   'PROVIDER_RATE_LIMITED',
   'INVALID_PROVIDER_OUTPUT',
+  'PROVIDER_AUTH',
+  'PROVIDER_BUDGET',
+  'PROVIDER_COST_HOLD',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
+  'ASSET_UNAVAILABLE',
+  'EXPORT_TOO_LARGE',
+  'VIDEO_TOOL_MISSING',
+  'VIDEO_FAILED',
   'CANCELLED',
   'INTERNAL',
 ] as const;
@@ -475,14 +489,17 @@ export const jobs = pgTable(
       columns: [t.workspaceId, t.draftId],
       foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
     }),
-    check('jobs_type_check', sql`${t.type} in ('generate_brief', 'regenerate_section')`),
+    check(
+      'jobs_type_check',
+      sql`${t.type} in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts', 'assemble_video')`,
+    ),
     check(
       'jobs_status_check',
       sql`${t.status} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`,
     ),
     check(
       'jobs_error_code_check',
-      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'CANCELLED', 'INTERNAL')`,
+      sql`${t.errorCode} is null or ${t.errorCode} in ('PROVIDER_TIMEOUT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'INVALID_PROVIDER_OUTPUT', 'PROVIDER_AUTH', 'PROVIDER_BUDGET', 'PROVIDER_COST_HOLD', 'CONTENT_REFUSED', 'SECTION_CHANGED', 'ASSET_UNAVAILABLE', 'EXPORT_TOO_LARGE', 'VIDEO_TOOL_MISSING', 'VIDEO_FAILED', 'CANCELLED', 'INTERNAL')`,
     ),
     check('jobs_error_message_length', sql`char_length(${t.errorMessage}) <= 500`),
     check('jobs_input_object', sql`jsonb_typeof(${t.input}) = 'object'`),
@@ -510,10 +527,263 @@ export const jobs = pgTable(
     ),
     check(
       'jobs_target_matches_type',
-      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null)`,
+      sql`(${t.type} = 'generate_brief' and ${t.campaignId} is not null) or (${t.type} = 'regenerate_section' and ${t.draftId} is not null) or (${t.type} = 'export_package' and ${t.draftId} is not null) or (${t.type} = 'generate_video_prompts' and ${t.draftId} is not null) or (${t.type} = 'assemble_video' and ${t.draftId} is not null)`,
     ),
     index('jobs_claim_idx').on(t.status, t.runAfter),
     index('jobs_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
     index('jobs_workspace_status_idx').on(t.workspaceId, t.status),
+  ],
+);
+
+export const DRAFT_ASSET_ROLES = ['cover', 'media'] as const;
+
+/**
+ * Assets attached to a draft, in package order (D-067). Both foreign keys carry the workspace, so
+ * an asset or a draft of another workspace cannot be linked. At most one cover per draft, at most
+ * ten rows per draft (sort_order 0 to 9, unique per draft).
+ */
+export const draftAssets = pgTable(
+  'draft_assets',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    draftId: uuid('draft_id').notNull(),
+    assetId: uuid('asset_id').notNull(),
+    role: text('role').notNull().default('media'),
+    sortOrder: integer('sort_order').notNull(),
+    /** The storyboard scene this file is for (D-071), or null for a general attachment. */
+    scene: text('scene'),
+    /** True when the file was made by an AI tool; exports label it (D-068). */
+    aiGenerated: boolean('ai_generated').notNull().default(false),
+    /** Free text naming the tool, for example `Meta AI`. */
+    generator: text('generator'),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    primaryKey({ name: 'draft_assets_pk', columns: [t.draftId, t.assetId] }),
+    foreignKey({
+      name: 'draft_assets_draft_fk',
+      columns: [t.workspaceId, t.draftId],
+      foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'draft_assets_asset_fk',
+      columns: [t.workspaceId, t.assetId],
+      foreignColumns: [assets.workspaceId, assets.id],
+    }),
+    unique('draft_assets_order_unique').on(t.draftId, t.sortOrder),
+    check('draft_assets_role_check', sql`${t.role} in ('cover', 'media')`),
+    check(
+      'draft_assets_scene_check',
+      sql`${t.scene} is null or ${t.scene} in ('product_hero', 'detail', 'usage', 'final_shot')`,
+    ),
+    check('draft_assets_generator_length', sql`char_length(${t.generator}) <= 60`),
+    check('draft_assets_sort_order_check', sql`${t.sortOrder} between 0 and 9`),
+    uniqueIndex('draft_assets_one_cover_idx')
+      .on(t.draftId)
+      .where(sql`${t.role} = 'cover'`),
+    index('draft_assets_asset_idx').on(t.workspaceId, t.assetId),
+  ],
+);
+
+export const EXPORT_STATUSES = ['ready', 'expired'] as const;
+
+/**
+ * A finished export package (D-067). The file lives in object storage under `storage_key`; the row
+ * is written in the same transaction that settles the export job, so a row always has a finished
+ * job. `expired` rows keep their metadata after the file is deleted.
+ */
+export const draftExports = pgTable(
+  'draft_exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    draftId: uuid('draft_id').notNull(),
+    jobId: uuid('job_id').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull().default('ready'),
+    draftVersion: integer('draft_version').notNull(),
+    fileCount: integer('file_count').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    sha256: char('sha256', { length: 64 }).notNull(),
+    filename: text('filename').notNull(),
+    storageKey: text('storage_key').notNull(),
+    manifest: jsonb('manifest').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    unique('draft_exports_workspace_id_id_unique').on(t.workspaceId, t.id),
+    unique('draft_exports_job_unique').on(t.jobId),
+    unique('draft_exports_storage_key_unique').on(t.storageKey),
+    foreignKey({
+      name: 'draft_exports_draft_fk',
+      columns: [t.workspaceId, t.draftId],
+      foreignColumns: [contentDrafts.workspaceId, contentDrafts.id],
+    }),
+    foreignKey({
+      name: 'draft_exports_job_fk',
+      columns: [t.workspaceId, t.jobId],
+      foreignColumns: [jobs.workspaceId, jobs.id],
+    }),
+    check('draft_exports_status_check', sql`${t.status} in ('ready', 'expired')`),
+    check('draft_exports_counts_check', sql`${t.fileCount} >= 0 and ${t.sizeBytes} >= 0`),
+    check('draft_exports_sha_format', sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check('draft_exports_manifest_object', sql`jsonb_typeof(${t.manifest}) = 'object'`),
+    index('draft_exports_workspace_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
+    index('draft_exports_draft_idx').on(t.workspaceId, t.draftId),
+    index('draft_exports_expiry_idx').on(t.status, t.expiresAt),
+  ],
+);
+
+export const PROVIDER_PRESETS = ['openrouter', 'custom'] as const;
+
+/**
+ * The text provider a workspace chose (D-066). One row per workspace and purpose. The API key is
+ * stored only as `key_encrypted` (AES-256-GCM, bound to the workspace id); `key_last4` is what the
+ * screen may show. `pricing` and `monthly_cap_usd` feed the usage ledger (D-077).
+ */
+export const providerCredentials = pgTable(
+  'provider_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    purpose: text('purpose').notNull().default('text'),
+    provider: text('provider').notNull(),
+    baseUrl: text('base_url').notNull(),
+    model: text('model').notNull(),
+    keyEncrypted: text('key_encrypted').notNull(),
+    keyLast4: text('key_last4').notNull().default(''),
+    pricing: jsonb('pricing'),
+    monthlyCapUsd: numeric('monthly_cap_usd', { precision: 12, scale: 2 }),
+    version: integer('version').notNull().default(1),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    updatedBy: uuid('updated_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    unique('provider_credentials_workspace_purpose_unique').on(t.workspaceId, t.purpose),
+    check('provider_credentials_purpose_check', sql`${t.purpose} = 'text'`),
+    check('provider_credentials_provider_check', sql`${t.provider} in ('openrouter', 'custom')`),
+    check('provider_credentials_version_check', sql`${t.version} >= 1`),
+    check(
+      'provider_credentials_pricing_object',
+      sql`${t.pricing} is null or jsonb_typeof(${t.pricing}) = 'object'`,
+    ),
+    check(
+      'provider_credentials_cap_check',
+      sql`${t.monthlyCapUsd} is null or ${t.monthlyCapUsd} >= 0`,
+    ),
+  ],
+);
+
+export const USAGE_STATUSES = ['reserved', 'settled', 'released'] as const;
+export const USAGE_COST_SOURCES = ['reported', 'computed', 'reserved'] as const;
+
+/**
+ * One provider call, recorded before it is made (D-077). `reserved_usd` is the worst case that was
+ * set aside under the workspace lock; `cost_usd` is what the call turned out to cost. Nothing here
+ * holds prompts, product text or outputs. A call that crashed before settling stays `reserved` and
+ * keeps counting at its worst case, so the monthly limit fails closed.
+ */
+export const usageEvents = pgTable(
+  'usage_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    jobId: uuid('job_id').notNull(),
+    attempt: integer('attempt').notNull(),
+    callIndex: integer('call_index').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    status: text('status').notNull().default('reserved'),
+    requests: integer('requests').notNull().default(1),
+    inputUnits: integer('input_units').notNull().default(0),
+    outputUnits: integer('output_units').notNull().default(0),
+    reservedUsd: numeric('reserved_usd', { precision: 14, scale: 6 }).notNull().default('0'),
+    costUsd: numeric('cost_usd', { precision: 14, scale: 6 }),
+    costSource: text('cost_source'),
+    /** True when the provider's reported cost was far above what the owner's prices predict. */
+    anomaly: boolean('anomaly').notNull().default(false),
+    /** When an owner or admin acknowledged this anomaly. An unacknowledged one holds new calls. */
+    anomalyAckedAt: timestamp('anomaly_acked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('usage_events_call_unique').on(t.jobId, t.attempt, t.callIndex),
+    foreignKey({
+      name: 'usage_events_job_fk',
+      columns: [t.workspaceId, t.jobId],
+      foreignColumns: [jobs.workspaceId, jobs.id],
+    }),
+    check('usage_events_status_check', sql`${t.status} in ('reserved', 'settled', 'released')`),
+    check(
+      'usage_events_source_check',
+      sql`${t.costSource} is null or ${t.costSource} in ('reported', 'computed', 'reserved')`,
+    ),
+    check(
+      'usage_events_amounts_check',
+      sql`${t.requests} >= 0 and ${t.inputUnits} >= 0 and ${t.outputUnits} >= 0 and ${t.reservedUsd} >= 0 and (${t.costUsd} is null or ${t.costUsd} >= 0)`,
+    ),
+    check(
+      'usage_events_settled_check',
+      sql`(${t.status} = 'reserved' and ${t.settledAt} is null) or (${t.status} <> 'reserved' and ${t.settledAt} is not null)`,
+    ),
+    index('usage_events_workspace_month_idx').on(t.workspaceId, t.createdAt),
+  ],
+);
+
+/**
+ * A cost the owner typed in by hand for a campaign (a paid image tool, a freelancer), in Thai baht.
+ * AI text cost is never stored here: it comes from `usage_events`. The composite foreign key keeps
+ * a line inside its campaign's workspace; a deleted line is gone (nothing else refers to it).
+ */
+export const campaignCosts = pgTable(
+  'campaign_costs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    campaignId: uuid('campaign_id').notNull(),
+    scene: text('scene'),
+    label: text('label').notNull(),
+    amountThb: numeric('amount_thb', { precision: 12, scale: 2 }).notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(nowMs),
+  },
+  (t) => [
+    foreignKey({
+      name: 'campaign_costs_campaign_fk',
+      columns: [t.workspaceId, t.campaignId],
+      foreignColumns: [campaigns.workspaceId, campaigns.id],
+    }).onDelete('cascade'),
+    check(
+      'campaign_costs_scene_check',
+      sql`${t.scene} is null or ${t.scene} in ('product_hero', 'detail', 'usage', 'final_shot')`,
+    ),
+    check('campaign_costs_label_length', sql`char_length(${t.label}) between 1 and 80`),
+    check('campaign_costs_amount_range', sql`${t.amountThb} > 0 and ${t.amountThb} <= 1000000`),
+    index('campaign_costs_campaign_idx').on(t.workspaceId, t.campaignId, t.createdAt),
   ],
 );

@@ -58,6 +58,8 @@ export interface DraftSetupOptions {
   failDraftGet?: boolean;
   /** Answers the regenerate POST with a 500. */
   failRegenerate?: boolean;
+  /** Answers first; return undefined to fall through to the content fake. */
+  extra?: (call: RecordedCall) => Promise<Response | undefined> | Response | undefined;
 }
 
 /** The draft screen wired to the content fake, with every request's Idempotency-Key recorded. */
@@ -70,6 +72,8 @@ export function renderDraft(options: DraftSetupOptions = {}) {
     regenerateValue: options.regenerateValue,
   });
   const intercept = async (call: RecordedCall) => {
+    const extra = await options.extra?.(call);
+    if (extra !== undefined) return extra;
     if (call.method === 'GET' && options.failDraftGet && call.path.startsWith(DRAFT_API)) {
       return json(
         { error: { code: 'INTERNAL_ERROR', message: 'Boom.', requestId: 'req-test' } },

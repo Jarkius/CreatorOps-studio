@@ -8,7 +8,7 @@ import {
 } from '@creatorops/contracts';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../app.js';
 import { schema } from '../../db/client.js';
@@ -587,6 +587,135 @@ describe('POST /jobs/regenerate-section', () => {
       .select()
       .from(schema.jobs)
       .where(eq(schema.jobs.type, 'regenerate_section'));
+    expect(rows.filter((row) => row.draftId === mine.draftId)).toHaveLength(0);
+    expect(rows.filter((row) => row.draftId === archived.draftId)).toHaveLength(0);
+  });
+});
+
+const videoPrompts = (person: Person | null, payload: unknown, key: string | null = newKey()) =>
+  call(person, 'POST', `${base(person?.workspaceId ?? '')}/jobs/generate-video-prompts`, {
+    payload,
+    ...(key === null ? {} : { key }),
+  });
+
+describe('POST /jobs/generate-video-prompts', () => {
+  // Jobs left queued by other tests count against the workspace's cap of active jobs.
+  beforeEach(async () => {
+    await testDb.pool.query('delete from jobs');
+  });
+
+  it('creates a queued job with a snapshot of the campaign language, tone and platform', async () => {
+    const { draftId } = await seedDraft(alice);
+    queue.enqueued.length = 0;
+    const response = await videoPrompts(alice, { draftId, draftVersion: 1 });
+    expect(response.statusCode, response.body).toBe(202);
+    const job = JobSchema.parse(response.json());
+    expect(job).toMatchObject({
+      type: 'generate_video_prompts',
+      status: 'queued',
+      draftId,
+      campaignId: null,
+      input: { draftId, draftVersion: 1, language: 'th', platform: 'tiktok', clipSeconds: 8 },
+    });
+    expect(queue.enqueued).toEqual([{ jobId: job.id, attempt: 1 }]);
+    const audit = await testDb.pool.query(
+      `select metadata from audit_events where resource_id = $1 and action = 'job.create'`,
+      [job.id],
+    );
+    expect(JSON.stringify(audit.rows)).not.toContain('พัดลม'); // ids and counts only, no product text
+  });
+
+  it('replays the same key with 200 and no second job, and refuses the key for another request', async () => {
+    const { draftId } = await seedDraft(alice);
+    const key = newKey();
+    const first = await videoPrompts(alice, { draftId, draftVersion: 1 }, key);
+    const again = await videoPrompts(alice, { draftId, draftVersion: 1 }, key);
+    expect(first.statusCode).toBe(202);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().id).toBe(first.json().id);
+    const other = await seedDraft(alice);
+    const conflict = await videoPrompts(alice, { draftId: other.draftId, draftVersion: 1 }, key);
+    expect(conflict.statusCode).toBe(409);
+    expect(ErrorBodySchema.parse(conflict.json()).error.code).toBe('IDEMPOTENCY_CONFLICT');
+    const rows = await testDb.db.select().from(schema.jobs).where(eq(schema.jobs.draftId, draftId));
+    expect(rows.filter((row) => row.type === 'generate_video_prompts')).toHaveLength(1);
+  });
+
+  it('treats the same key for a newer draft version as a different request', async () => {
+    const { draftId } = await seedDraft(alice);
+    const key = newKey();
+    expect((await videoPrompts(alice, { draftId, draftVersion: 1 }, key)).statusCode).toBe(202);
+    await testDb.pool.query('update content_drafts set version = 2 where id = $1', [draftId]);
+    const reused = await videoPrompts(alice, { draftId, draftVersion: 2 }, key);
+    expect(reused.statusCode).toBe(409);
+    expect(ErrorBodySchema.parse(reused.json()).error.code).toBe('IDEMPOTENCY_CONFLICT');
+  });
+
+  it('refuses a draft version the person was not looking at', async () => {
+    const { draftId } = await seedDraft(alice);
+    const stale = await videoPrompts(alice, { draftId, draftVersion: 2 });
+    expect(stale.statusCode).toBe(409);
+    expect(ErrorBodySchema.parse(stale.json()).error.code).toBe('CONFLICT');
+  });
+
+  it('validates the body and the key', async () => {
+    const { draftId } = await seedDraft(alice);
+    const bad: unknown[] = [
+      {},
+      { draftId },
+      { draftId, draftVersion: 0 },
+      { draftId, draftVersion: 1.5 },
+      { draftId, draftVersion: 1, extra: 1 },
+      { draftId: '', draftVersion: 1 },
+    ];
+    for (const body of bad) {
+      expect((await videoPrompts(alice, body)).statusCode, JSON.stringify(body)).toBe(400);
+    }
+    expect((await videoPrompts(alice, { draftId, draftVersion: 1 }, null)).statusCode).toBe(400);
+    expect((await videoPrompts(alice, { draftId, draftVersion: 1 }, 'short')).statusCode).toBe(400);
+  });
+
+  it('refuses an unknown draft, a stranger, a read-only member and an archived campaign', async () => {
+    const mine = await seedDraft(alice);
+    const body = { draftId: mine.draftId, draftVersion: 1 };
+    expect(
+      (
+        await videoPrompts(alice, {
+          draftId: '00000000-0000-4000-8000-000000000000',
+          draftVersion: 1,
+        })
+      ).statusCode,
+    ).toBe(400);
+    // Bob names Alice's draft inside his own workspace: it does not exist there.
+    expect((await videoPrompts(bob, body)).statusCode).toBe(400);
+    const foreign = await call(
+      bob,
+      'POST',
+      `${base(alice.workspaceId)}/jobs/generate-video-prompts`,
+      {
+        payload: body,
+        key: newKey(),
+      },
+    );
+    expect(foreign.statusCode).toBe(404);
+    for (const person of [viewer, reviewer]) {
+      const response = await call(
+        person,
+        'POST',
+        `${base(alice.workspaceId)}/jobs/generate-video-prompts`,
+        { payload: body, key: newKey() },
+      );
+      expect(response.statusCode).toBe(403);
+    }
+    const archived = await seedDraft(alice, { campaignStatus: 'archived' });
+    expect(
+      (await videoPrompts(alice, { draftId: archived.draftId, draftVersion: 1 })).statusCode,
+    ).toBe(409);
+    expect((await videoPrompts(null, body)).statusCode).toBe(401);
+    const rows = await testDb.db
+      .select()
+      .from(schema.jobs)
+      .where(eq(schema.jobs.type, 'generate_video_prompts'));
     expect(rows.filter((row) => row.draftId === mine.draftId)).toHaveLength(0);
     expect(rows.filter((row) => row.draftId === archived.draftId)).toHaveLength(0);
   });

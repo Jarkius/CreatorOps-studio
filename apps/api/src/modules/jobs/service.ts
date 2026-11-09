@@ -5,22 +5,35 @@ import {
   JOB_ERROR_CODES,
   JOB_STATUS_VALUES,
   JOB_TYPE_VALUES,
+  DRAFT_SCENE_VALUES,
+  EXPORT_LIMITS,
+  VideoPromptsOutputSchema,
+  type AssembleVideoJobRequest,
+  type CreateExportRequest,
   type GenerateBriefJobRequest,
+  type GenerateVideoPromptsJobRequest,
   type RegenerateSectionJobRequest,
   type Job,
   type JobListQueryParsed,
   type JobListResponse,
 } from '@creatorops/contracts';
 
+import { and, desc, eq } from 'drizzle-orm';
+
 import type { Db, DbOrTx } from '../../db/client.js';
+import { jobs as jobsTable } from '../../db/schema.js';
 import { decodeCursor, encodeCursor } from '../../platform/cursor.js';
 import { AppError } from '../../platform/errors.js';
 import { recordAuditEvent } from '../audit/repo.js';
 import { findCampaign } from '../campaigns/repo.js';
 import { findDraft } from '../drafts/repo.js';
 import { readDraftContent } from '../drafts/state.js';
+import { listLinked } from '../draft-assets/repo.js';
+import { countLiveExports } from '../export/repo.js';
+import type { ExportInput } from '../export/input.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
+import { ASSEMBLED_GENERATOR, type AssembleInput } from './assemble-video.js';
 import type { JobQueue } from './queue.js';
 import {
   cancelQueuedJob,
@@ -66,6 +79,7 @@ export function toJob(row: JobRow): Job {
 }
 
 const notFound = () => new AppError('NOT_FOUND', 'Job not found.');
+const SCENE_VALUES = DRAFT_SCENE_VALUES;
 
 function invalid(path: string, message: string): AppError {
   return new AppError('VALIDATION_ERROR', 'The request is not valid.', [{ path, message }]);
@@ -96,7 +110,12 @@ export interface CreateJobResult {
 
 /** What a job type decides itself; everything else about creating a job is shared. */
 interface JobSpec {
-  readonly type: 'generate_brief' | 'regenerate_section';
+  readonly type:
+    | 'generate_brief'
+    | 'regenerate_section'
+    | 'export_package'
+    | 'generate_video_prompts'
+    | 'assemble_video';
   /** Identifies the request: the type plus its target, never the key itself. */
   readonly hashTarget: string;
   /** Runs inside the creation transaction, after the replay check; throws to refuse the job. */
@@ -219,6 +238,170 @@ export function createGenerateBriefJob(
 }
 
 /**
+ * Starts writing video prompts for a draft (D-080). The prompts come from the draft's product, so
+ * the job carries the campaign's language, tone and platform as a snapshot. `draftVersion` is the
+ * version the person was looking at: a newer one is refused, as for an export.
+ */
+export function createVideoPromptsJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: GenerateVideoPromptsJobRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'generate_video_prompts',
+      hashTarget: `${draftId}:${body.draftVersion}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        if (draft.version !== body.draftVersion) {
+          throw new AppError(
+            'CONFLICT',
+            'This draft was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const campaign = await findCampaign(tx, ctx, draft.campaignId);
+        if (campaign === null) throw new Error(`Campaign of draft ${draft.id} is missing`);
+        if (campaign.status === 'archived') {
+          throw new AppError('CONFLICT', 'Archived campaigns cannot be generated.');
+        }
+        return {
+          input: {
+            draftId: draft.id,
+            draftVersion: draft.version,
+            campaignId: campaign.id,
+            language: campaign.language,
+            tone: campaign.tone,
+            platform: campaign.platform,
+            clipSeconds: 8,
+          },
+          campaignId: null,
+          draftId: draft.id,
+          audit: { draftId: draft.id, draftVersion: draft.version },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
+/**
+ * Starts joining the draft's scene clips into one final video (D-086). The job carries a snapshot
+ * of the clips (one video per scene, in scene order, with their hashes) and of the saved voiceover
+ * lines, because attaching a file does not change the draft version. Voiceover lines written for
+ * an older version of the draft are not used: the video is made without subtitles and says so.
+ */
+export function createAssembleVideoJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: AssembleVideoJobRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'assemble_video',
+      hashTarget: `${draftId}:${body.draftVersion}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        if (draft.version !== body.draftVersion) {
+          throw new AppError(
+            'CONFLICT',
+            'This draft was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const linked = await listLinked(tx, ctx.workspaceId, draft.id);
+        const others = linked.filter(
+          (item) =>
+            !(
+              item.link.generator === ASSEMBLED_GENERATOR &&
+              item.link.scene === null &&
+              item.asset.type === 'video'
+            ),
+        );
+        if (others.length + 1 > EXPORT_LIMITS.maxAssetsPerDraft) {
+          throw new AppError(
+            'CONFLICT',
+            `The draft already holds ${EXPORT_LIMITS.maxAssetsPerDraft} files. Remove one, then try again.`,
+          );
+        }
+        const prompts = await tx
+          .select({ output: jobsTable.output })
+          .from(jobsTable)
+          .where(
+            and(
+              eq(jobsTable.workspaceId, ctx.workspaceId),
+              eq(jobsTable.draftId, draft.id),
+              eq(jobsTable.type, 'generate_video_prompts'),
+              eq(jobsTable.status, 'succeeded'),
+            ),
+          )
+          .orderBy(desc(jobsTable.finishedAt))
+          .limit(1);
+        const parsed = VideoPromptsOutputSchema.safeParse(prompts[0]?.output);
+        const voiceovers =
+          parsed.success && parsed.data.draftVersion === draft.version
+            ? new Map(parsed.data.scenes.map((scene) => [scene.scene, scene.voiceover]))
+            : null;
+        const clips: AssembleInput['clips'] = [];
+        const skippedScenes: AssembleInput['skippedScenes'] = [];
+        for (const scene of DRAFT_SCENE_VALUES) {
+          const video = others
+            .filter((item) => item.link.scene === scene && item.asset.type === 'video')
+            .at(-1);
+          if (video === undefined) {
+            skippedScenes.push(scene);
+            continue;
+          }
+          clips.push({
+            scene,
+            assetId: video.asset.id,
+            sha256: video.asset.sha256,
+            sizeBytes: video.asset.sizeBytes,
+            voiceover: voiceovers?.get(scene) ?? null,
+          });
+        }
+        if (clips.length === 0) {
+          throw new AppError(
+            'CONFLICT',
+            'There are no scene videos yet. Make them in Flow from the side panel (Scenes), then try again.',
+          );
+        }
+        const snapshot: AssembleInput = {
+          draftId: draft.id,
+          draftVersion: draft.version,
+          clips,
+          skippedScenes,
+          subtitles: voiceovers !== null,
+        };
+        return {
+          input: snapshot as unknown as Record<string, unknown>,
+          campaignId: null,
+          draftId: draft.id,
+          audit: { draftId: draft.id, clipCount: clips.length, subtitles: snapshot.subtitles },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
+/**
  * Starts regenerating one section of a draft (D-050, D-058). `expectedRev` is the revision of
  * that section the client was looking at. It is checked here for a fast answer and again by the
  * worker when it stores the result, so an edit made in between always wins.
@@ -282,6 +465,86 @@ export function createRegenerateSectionJob(
   );
 }
 
+/**
+ * Starts building the export package of a draft (D-067). The job carries a snapshot of the text and
+ * of the attached files (with their hashes), so a retry builds the same package and a later edit
+ * cannot race it. `draftVersion` is the version the user is looking at: a newer one is refused.
+ */
+export function createExportPackageJob(
+  db: Db,
+  queue: JobQueue,
+  log: JobLog,
+  ctx: RequestContext,
+  body: CreateExportRequest,
+  idempotencyKeyHeader: string | string[] | undefined,
+): Promise<CreateJobResult> {
+  const draftId = body.draftId.toLowerCase();
+  return createJob(
+    db,
+    queue,
+    log,
+    ctx,
+    {
+      type: 'export_package',
+      hashTarget: `${draftId}:${body.draftVersion}`,
+      prepare: async (tx) => {
+        const draft = await findDraft(tx, ctx, draftId);
+        if (draft === null) throw invalid('draftId', 'Draft not found');
+        if (draft.version !== body.draftVersion) {
+          throw new AppError(
+            'CONFLICT',
+            'This draft was changed since you loaded it. Reload the draft and try again.',
+          );
+        }
+        const content = readDraftContent(draft);
+        if (content === null)
+          throw new Error(`Draft ${draft.id} does not match the content contract`);
+        const linked = await listLinked(tx, ctx.workspaceId, draft.id);
+        const total = linked.reduce((sum, item) => sum + item.asset.sizeBytes, 0);
+        if (linked.length > EXPORT_LIMITS.maxMediaFiles || total > EXPORT_LIMITS.maxPackageBytes) {
+          throw new AppError(
+            'CONFLICT',
+            'The attached files are too large to export. Remove some and try again.',
+          );
+        }
+        if ((await countLiveExports(tx, ctx)) >= EXPORT_LIMITS.maxLivePerWorkspace) {
+          throw new AppError(
+            'RATE_LIMITED',
+            'This workspace has too many packages. Wait for older ones to expire.',
+          );
+        }
+        const snapshot: ExportInput = {
+          draftId: draft.id,
+          draftVersion: draft.version,
+          status:
+            draft.status === 'approved' || draft.status === 'in_review' ? draft.status : 'draft',
+          needsReview: draft.needsReview,
+          claimWarningCount: content.claimWarnings.length,
+          sections: content.sections,
+          media: linked.map(({ link, asset }) => ({
+            assetId: asset.id,
+            role: link.role === 'cover' ? 'cover' : 'media',
+            scene: SCENE_VALUES.find((scene) => scene === link.scene) ?? null,
+            aiGenerated: link.aiGenerated,
+            generator: link.generator,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            sha256: asset.sha256,
+          })),
+        };
+        return {
+          input: snapshot as unknown as Record<string, unknown>,
+          campaignId: null,
+          draftId: draft.id,
+          // Counts only: never text, names or URLs.
+          audit: { draftId: draft.id, draftVersion: draft.version, files: linked.length },
+        };
+      },
+    },
+    idempotencyKeyHeader,
+  );
+}
+
 function errorName(error: unknown): string {
   return error instanceof Error ? error.name : 'Error';
 }
@@ -300,6 +563,8 @@ export async function listJobs(
   const rows = await listJobRows(db, ctx, {
     status: query.status,
     type: query.type,
+    campaignId: query.campaignId,
+    draftId: query.draftId,
     limit: query.limit + 1,
     after: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
   });

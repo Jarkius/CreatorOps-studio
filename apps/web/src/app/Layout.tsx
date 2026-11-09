@@ -3,12 +3,14 @@ import { Link, NavLink, Outlet, matchPath, useLocation, useNavigate } from 'reac
 import { buttonClassName } from '@creatorops/ui';
 
 import { assetsPath } from '../features/assets/paths.js';
+import { settingsPath } from '../features/settings/paths.js';
 import { campaignsPath } from '../features/campaigns/paths.js';
+import { costsPath } from '../features/costs/paths.js';
 import { productsPath } from '../features/products/paths.js';
 import { NEW_WORKSPACE_PATH } from '../features/workspaces/WorkspaceRequired.js';
 import { useWorkspaces } from '../features/workspaces/useWorkspaces.js';
 
-const DISABLED_ITEMS = ['Content drafts', 'Calendar', 'Publishing', 'Usage', 'Settings'] as const;
+const DISABLED_ITEMS = ['Content drafts', 'Calendar', 'Publishing'] as const;
 
 const linkClass =
   'flex min-h-11 items-center rounded-md px-3 py-2 font-medium leading-relaxed hover:bg-[var(--co-surface)]';
@@ -108,11 +110,39 @@ export function Layout() {
                   aria-disabled="true"
                   className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
                 >
+                  Costs
+                </span>
+              ) : (
+                <NavLink to={costsPath(current.id)} className={linkClass}>
+                  Costs
+                </NavLink>
+              )}
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
                   Asset library
                 </span>
               ) : (
                 <NavLink to={assetsPath(current.id)} className={linkClass}>
                   Asset library
+                </NavLink>
+              )}
+            </li>
+            <li>
+              {current === undefined ? (
+                <span
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center rounded-md px-3 py-2 leading-relaxed text-[var(--co-text-muted)]"
+                >
+                  Settings
+                </span>
+              ) : (
+                <NavLink to={settingsPath(current.id)} className={linkClass}>
+                  Settings
                 </NavLink>
               )}
             </li>

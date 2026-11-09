@@ -13,8 +13,15 @@ Read in this order before changing code:
 9. `DECISIONS.md`
 10. `IMPLEMENTATION_STATUS.md`
 11. `WORKING_NOTES.md` (compact handoff: state, commands, gotchas; read first when resuming)
+11b. `READY.md` (is it ready for the owner's real test: verified, not verified, checklist) and `USER_GUIDE.md` (setup, usage, deployment, troubleshooting)
 12. `UI_RESEARCH.md` (market research behind the Phase 3 UI direction, D-059)
 13. `WORKER_BRIEF_TEMPLATE.md` (start every Haiku worker spec from it; lessons log at the bottom)
+14. `MAXPLUS_PRICING.md` (the owner's MaxPlus gateway price notes, unverified; D-077)
+14b. `MAXPLUS_MODELS.md` (models per pool as the gateway returned them, test results, price gaps; companion to the pricing notes)
+14d. `SHOPEE_AFFILIATE.md` (Shopee Affiliate Open API facts and the proposed product finder; D-081, Q-008)
+14c. `MEDIA_PROVIDERS.md` (Google Flow and Gemini API video: what was read from Google's pages on 2026-11-05, what is unverified; D-080)
+15. `reference/affiliate-product-incubator.skill.md` (the owner's 5-phase affiliate framework, kept as a reference for studio templates; D-078)
+16. `skills/` (reusable copies of the project skills `app-dev-methodology` and `maxplus-gateway`; the live ones are in `.claude/skills/`)
 
 ## Which document wins
 

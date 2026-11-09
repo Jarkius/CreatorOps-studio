@@ -1,9 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 
 import type { ApiClient, Asset, AssetType, Product } from '@creatorops/contracts';
-import { Button, EmptyState, ErrorState, LoadingState, SelectField } from '@creatorops/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SelectField,
+  TextField,
+} from '@creatorops/ui';
 
 import { useDashboard } from '../../app/dashboard-context.js';
 import { describeError } from '../errors.js';
@@ -11,6 +18,9 @@ import { useAssetList, useMediaRefresh } from './assetQueries.js';
 import type { AssetScope } from './assetQueries.js';
 import { AssetPreviewDialog } from './AssetPreviewDialog.js';
 import { formatBytes } from './uploadFile.js';
+
+/** How long the search box waits after the last key before it asks the server. */
+export const SEARCH_DELAY_MS = 300;
 
 export type AssetTypeFilter = 'all' | AssetType;
 
@@ -101,9 +111,12 @@ export function AssetGallery({ workspaceId, productId, product }: AssetGalleryPr
   const { client } = useDashboard();
   const [params, setParams] = useSearchParams();
   const typeFilter = typeFilterFromParam(params.get('type'));
+  const query = (params.get('q') ?? '').trim();
+  const [search, setSearch] = useState(params.get('q') ?? '');
   const scope: AssetScope = {
     ...(productId === undefined ? {} : { productId }),
     ...(typeFilter === 'all' ? {} : { type: typeFilter }),
+    ...(query === '' ? {} : { q: query }),
   };
   const list = useAssetList(workspaceId, scope);
   const refreshMedia = useMediaRefresh(workspaceId);
@@ -112,6 +125,23 @@ export function AssetGallery({ workspaceId, productId, product }: AssetGalleryPr
 
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
   const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  // The search box writes to the URL a moment after typing stops, so a request is not sent per key.
+  useEffect(() => {
+    if (search.trim() === query) return;
+    const timer = setTimeout(() => {
+      setParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (search.trim() === '') next.delete('q');
+          else next.set('q', search.trim());
+          return next;
+        },
+        { replace: true },
+      );
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [search, query, setParams]);
 
   const setTypeFilter = (value: string) => {
     setParams(
@@ -141,16 +171,22 @@ export function AssetGallery({ workspaceId, productId, product }: AssetGalleryPr
     body = <LoadingState label="Loading files…" />;
   } else if (items.length === 0) {
     const noun = typeFilter === 'image' ? 'images' : typeFilter === 'video' ? 'videos' : 'files';
-    body = (
-      <EmptyState
-        title={typeFilter === 'all' ? 'No files yet' : `No ${noun} yet`}
-        description={
-          productId === undefined
-            ? 'Upload images or videos above. They appear here.'
-            : 'Upload images or videos above. Then choose one as the cover.'
-        }
-      />
-    );
+    body =
+      query !== '' ? (
+        <EmptyState
+          title="No files match"
+          description={`Nothing has a name containing “${query}”. Clear the search to see every file.`}
+        />
+      ) : (
+        <EmptyState
+          title={typeFilter === 'all' ? 'No files yet' : `No ${noun} yet`}
+          description={
+            productId === undefined
+              ? 'Upload images or videos above. They appear here.'
+              : 'Upload images or videos above. Then choose one as the cover.'
+          }
+        />
+      );
   } else {
     body = (
       <div className="space-y-4">
@@ -193,7 +229,14 @@ export function AssetGallery({ workspaceId, productId, product }: AssetGalleryPr
 
   return (
     <div ref={galleryRef} tabIndex={-1} className="space-y-4 focus:outline-none">
-      <div className="max-w-xs">
+      <div className="flex max-w-xl flex-wrap items-end gap-3">
+        <TextField
+          label="Search by name"
+          type="search"
+          value={search}
+          maxLength={100}
+          onChange={(event) => setSearch(event.target.value)}
+        />
         <SelectField
           label="Type"
           options={TYPE_OPTIONS}

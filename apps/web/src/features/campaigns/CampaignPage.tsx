@@ -8,11 +8,13 @@ import { draftKeys, useDraftList } from '../drafts/draftQueries.js';
 import { draftPath } from '../drafts/paths.js';
 import { formatDate } from '../products/format.js';
 import { productPath } from '../products/paths.js';
+import { useProduct } from '../products/productQueries.js';
 import { NotFoundNotice } from '../products/ProductStates.js';
 import { JobPanel } from '../jobs/JobPanel.js';
 import { useGenerateBrief, useJobReader } from '../jobs/jobQueries.js';
 import { Button, EmptyState, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
-import { useCampaign } from './campaignQueries.js';
+import { CampaignCostPanel } from './CampaignCostPanel.js';
+import { costKeys, useCampaign } from './campaignQueries.js';
 import { campaignsPath } from './paths.js';
 import { useCanWrite } from './useCanWrite.js';
 
@@ -31,6 +33,10 @@ export function CampaignPage() {
   const queryClient = useQueryClient();
   const campaignQuery = useCampaign(workspaceId, campaignId);
   const canWrite = useCanWrite(workspaceId);
+  // Only the product's name is needed here; until it loads (or if it fails) the link says "View product".
+  const product = useProduct(workspaceId, campaignQuery.data?.productId ?? '', {
+    enabled: campaignQuery.data !== undefined,
+  });
   const generate = useGenerateBrief(workspaceId);
   const drafts = useDraftList(workspaceId, campaignId);
 
@@ -43,6 +49,7 @@ export function CampaignPage() {
 
   const handleFinished = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: draftKeys.list(workspaceId, campaignId) });
+    void queryClient.invalidateQueries({ queryKey: costKeys.detail(workspaceId, campaignId) });
   }, [queryClient, workspaceId, campaignId]);
 
   const startGeneration = async () => {
@@ -172,7 +179,7 @@ export function CampaignPage() {
                 to={productPath(workspaceId, campaign.productId)}
                 className="text-[var(--co-accent)] underline underline-offset-4 [overflow-wrap:anywhere]"
               >
-                {campaign.productId}
+                {product.data?.name ?? 'View product'}
               </Link>
             </dd>
           </div>
@@ -236,6 +243,13 @@ export function CampaignPage() {
             onRetry={() => void startGeneration()}
           />
         )}
+      </section>
+
+      <section aria-labelledby="cost-heading" className="space-y-3">
+        <h2 id="cost-heading" className="text-base font-semibold">
+          Cost
+        </h2>
+        <CampaignCostPanel workspaceId={workspaceId} campaignId={campaignId} canWrite={canWrite} />
       </section>
 
       <section aria-labelledby="drafts-heading" className="space-y-3">

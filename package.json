@@ -23,7 +23,14 @@
     "db:generate": "pnpm --filter @creatorops/api db:generate",
     "db:migrate": "pnpm build && pnpm --filter @creatorops/api db:migrate",
     "db:seed": "pnpm build && pnpm --filter @creatorops/api db:seed",
-    "e2e": "pnpm build && pnpm -r --workspace-concurrency=1 --if-present e2e"
+    "e2e": "pnpm build && pnpm -r --workspace-concurrency=1 --if-present e2e",
+    "demo": "node scripts/demo.mjs",
+    "eval:text": "node scripts/eval-text.mjs",
+    "prompts:video": "node scripts/video-prompts.mjs",
+    "check:docs": "node scripts/check-docs.mjs",
+    "backup": "node scripts/db-backup.mjs backup",
+    "backup:check": "node scripts/db-backup.mjs check",
+    "restore": "node scripts/db-backup.mjs restore"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

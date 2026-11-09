@@ -224,7 +224,7 @@ interface BodyCall extends Call {
   body: string | undefined;
 }
 
-function recordingFetch(respond: () => Response) {
+function recordingFetch(respond: (url: string) => Response) {
   const calls: BodyCall[] = [];
   const impl = (async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({
@@ -233,7 +233,7 @@ function recordingFetch(respond: () => Response) {
       headers: (init?.headers ?? {}) as Record<string, string>,
       body: typeof init?.body === 'string' ? init.body : undefined,
     });
-    return respond();
+    return respond(String(input));
   }) as typeof fetch;
   return { calls, impl };
 }
@@ -381,7 +381,7 @@ describe('content: campaigns, drafts, jobs', () => {
     startedAt: null,
     finishedAt: null,
   };
-  const make = (respond: () => Response) => {
+  const make = (respond: (url: string) => Response) => {
     const { calls, impl } = recordingFetch(respond);
     return {
       calls,
@@ -413,6 +413,109 @@ describe('content: campaigns, drafts, jobs', () => {
     expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
   });
 
+  it('calls the export routes, with the key only on the job', async () => {
+    const exportRow = {
+      id: 'e1',
+      workspaceId: 'w1',
+      draftId: 'd1',
+      jobId: 'j1',
+      status: 'ready',
+      draftVersion: 2,
+      fileCount: 3,
+      sizeBytes: 10,
+      sha256: 'a'.repeat(64),
+      filename: 'creatorops-20261104-abcd1234.zip',
+      createdAt: '2026-11-04T00:00:00.000Z',
+      expiresAt: '2026-11-11T00:00:00.000Z',
+    };
+    const { calls, client } = make((url) =>
+      url.endsWith('/download-url')
+        ? json({ url: '/api/v1/exports/e1/download?u=1', expiresAt: 'x', filename: 'f.zip' })
+        : url.includes('/jobs/')
+          ? json(JOB, 202)
+          : url.includes('/exports?')
+            ? json({ items: [exportRow], nextCursor: null })
+            : json(exportRow),
+    );
+    await client.jobs.exportPackage('w1', { draftId: 'd1', draftVersion: 2 }, 'key-12345678');
+    expect((await client.exports.list('w1', { draftId: 'd1' })).items[0]?.id).toBe('e1');
+    expect((await client.exports.get('w1', 'e 1')).filename).toMatch(/\.zip$/);
+    expect((await client.exports.downloadUrl('w1', 'e1')).url).toContain('/download');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/export-package'],
+      ['GET', 'http://x/api/v1/workspaces/w1/exports?draftId=d1'],
+      ['GET', 'http://x/api/v1/workspaces/w1/exports/e%201'],
+      ['POST', 'http://x/api/v1/workspaces/w1/exports/e1/download-url'],
+    ]);
+    expect(calls[0]?.headers['idempotency-key']).toBe('key-12345678');
+    expect(calls[3]?.headers['idempotency-key']).toBeUndefined();
+  });
+
+  it('starts the final video with the idempotency key', async () => {
+    const { calls, client } = make(() => json({ ...JOB, type: 'assemble_video' }, 202));
+    await client.jobs.assembleVideo('w1', { draftId: 'd1', draftVersion: 3 }, 'key-videos-1');
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['POST', 'http://x/api/v1/workspaces/w1/jobs/assemble-video'],
+    ]);
+    expect(calls[0]?.headers['idempotency-key']).toBe('key-videos-1');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({ draftId: 'd1', draftVersion: 3 });
+  });
+
+  it('calls the provider settings and usage routes, and sends the key only in the save body', async () => {
+    const settings = {
+      configured: true,
+      source: 'workspace',
+      provider: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'm',
+      keyLast4: 'ABCD',
+      pricing: null,
+      monthlyCapUsd: null,
+      canStoreKey: true,
+      version: 1,
+      updatedAt: '2026-11-05T00:00:00.000Z',
+    };
+    const { calls, client } = make((url) =>
+      url.endsWith('/check')
+        ? json({ ok: true, code: null, message: 'Connected.' })
+        : url.includes('/usage')
+          ? json({
+              month: '2026-11',
+              calls: 0,
+              inputUnits: 0,
+              outputUnits: 0,
+              spentUsd: 0,
+              reservedUsd: 0,
+              capUsd: null,
+              countedUsd: 0,
+              anomalies: 0,
+              costHold: false,
+              byModel: [],
+            })
+          : json(settings),
+    );
+    expect((await client.providerSettings.get('w1')).keyLast4).toBe('ABCD');
+    await client.providerSettings.save('w1', {
+      provider: 'openrouter',
+      model: 'm',
+      apiKey: 'sk-test-12345678',
+    });
+    await client.providerSettings.remove('w1');
+    expect((await client.providerSettings.check('w1')).ok).toBe(true);
+    expect((await client.usage.get('w1')).month).toBe('2026-11');
+    expect((await client.usage.acknowledgeAnomalies('w1')).costHold).toBe(false);
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['PUT', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['DELETE', 'http://x/api/v1/workspaces/w1/provider-settings'],
+      ['POST', 'http://x/api/v1/workspaces/w1/provider-settings/check'],
+      ['GET', 'http://x/api/v1/workspaces/w1/usage'],
+      ['POST', 'http://x/api/v1/workspaces/w1/usage/acknowledge-anomalies'],
+    ]);
+    expect(calls[1]?.body).toContain('sk-test-12345678');
+    expect(calls.filter((call) => call.body?.includes('sk-test')).length).toBe(1);
+  });
+
   it('accepts both 200 (replay) and 202 (new) job responses', async () => {
     for (const status of [200, 202]) {
       const { client } = make(() => json(JOB, status));
@@ -420,6 +523,23 @@ describe('content: campaigns, drafts, jobs', () => {
         'j1',
       );
     }
+  });
+
+  it('reads and replaces the files attached to a draft', async () => {
+    const { calls, client } = make(() => json({ items: [] }));
+    expect(await client.drafts.listAssets('w1', 'd 1')).toEqual({ items: [] });
+    await client.drafts.setAssets('w1', 'd1', {
+      assets: [{ assetId: 'a1', scene: 'usage', aiGenerated: true, generator: 'Meta AI' }],
+    });
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'http://x/api/v1/workspaces/w1/drafts/d%201/assets'],
+      ['PUT', 'http://x/api/v1/workspaces/w1/drafts/d1/assets'],
+    ]);
+    expect(calls[1]?.body).toBe(
+      JSON.stringify({
+        assets: [{ assetId: 'a1', scene: 'usage', aiGenerated: true, generator: 'Meta AI' }],
+      }),
+    );
   });
 
   it('reads and edits drafts with the version, and exposes currentVersion on a conflict', async () => {

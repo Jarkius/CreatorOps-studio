@@ -43,6 +43,69 @@
       "when": 1793757669753,
       "tag": "0005_content_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793803429474,
+      "tag": "0006_phase5_export",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793807051128,
+      "tag": "0007_draft_asset_scene",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793840820515,
+      "tag": "0008_provider_error_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793841107276,
+      "tag": "0009_provider_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793841479613,
+      "tag": "0010_usage_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793856049689,
+      "tag": "0011_perpetual_silver_fox",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793872123873,
+      "tag": "0012_greedy_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794072765908,
+      "tag": "0013_cost_hold",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794112569318,
+      "tag": "0014_assemble_video",
+      "breakpoints": true
     }
   ]
 }

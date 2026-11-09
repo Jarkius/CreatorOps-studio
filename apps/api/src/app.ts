@@ -16,9 +16,12 @@ import { createAuthGuard } from './modules/identity/guard.js';
 import { registerIdentityRoutes } from './modules/identity/routes.js';
 import { createWorkspaceScope } from './modules/identity/scope.js';
 import { createAssetDeps } from './modules/assets/deps.js';
+import { createExportSigner } from './modules/export/export-urls.js';
+import { registerExportDownloadRoute, registerExportRoutes } from './modules/export/routes.js';
 import { registerAssetRoutes, registerSignedRoutes } from './modules/assets/routes.js';
 import { registerProductRoutes } from './modules/products/routes.js';
 import { registerCampaignRoutes } from './modules/campaigns/routes.js';
+import { registerDraftAssetRoutes } from './modules/draft-assets/routes.js';
 import { registerDraftRoutes } from './modules/drafts/routes.js';
 import { NullJobQueue, type JobQueue } from './modules/jobs/queue.js';
 import { registerJobRoutes } from './modules/jobs/routes.js';
@@ -29,6 +32,11 @@ import type { Logger } from './platform/logger.js';
 import { generateRequestId } from './platform/request-id.js';
 import { installRoutePolicy } from './platform/route-policy.js';
 import type { Storage } from './storage/storage.js';
+import { parseSecretsKey } from './platform/secrets.js';
+import { registerUsageRoutes } from './modules/usage/routes.js';
+import { registerCampaignCostRoutes } from './modules/campaign-costs/routes.js';
+import { registerProviderSettingsRoutes } from './modules/provider-settings/routes.js';
+import type { HttpTransport } from '@creatorops/provider-core';
 import { registerHealthRoutes } from './routes/health.js';
 
 export interface AppOptions {
@@ -48,6 +56,10 @@ export interface AppOptions {
   readonly uploadIdleMs?: number;
   /** Maximum JSON body size in bytes. Defaults to 1 MiB. */
   readonly bodyLimit?: number;
+  /** Replaces the network call behind "Check connection". Tests only. */
+  readonly providerTransport?: HttpTransport;
+  /** Per-client limit on saving and checking provider settings per minute (default 20 and 10). */
+  readonly providerRateLimitMax?: number;
   /** Extra routes, used by tests. Registered before the app is ready. */
   readonly registerRoutes?: (app: FastifyInstance) => void;
 }
@@ -235,11 +247,41 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     ...(options.uploadIdleMs === undefined ? {} : { uploadIdleMs: options.uploadIdleMs }),
   });
   registerAssetRoutes(app, { deps: assetDeps, guard, scope });
+  registerDraftAssetRoutes(app, { deps: assetDeps, guard, scope });
   registerSignedRoutes(app, assetDeps, {
     ...(options.uploadRateLimitMax === undefined
       ? {}
       : { uploadsPerMinute: options.uploadRateLimitMax }),
   });
+  const exportDeps = {
+    db: options.db,
+    storage: options.storage,
+    exports: createExportSigner(config.SESSION_SECRET),
+  };
+  registerExportRoutes(app, { deps: exportDeps, guard, scope });
+  registerExportDownloadRoute(app, exportDeps);
+  registerProviderSettingsRoutes(app, {
+    deps: {
+      db: options.db,
+      secrets:
+        config.SECRETS_ENCRYPTION_KEY === undefined
+          ? undefined
+          : parseSecretsKey(config.SECRETS_ENCRYPTION_KEY, config.SECRETS_ENCRYPTION_KEY_ID),
+      ...(options.providerTransport === undefined
+        ? {}
+        : { transport: options.providerTransport, allowLocalHttp: true }),
+    },
+    guard,
+    scope,
+    ...(options.providerRateLimitMax === undefined
+      ? {}
+      : {
+          writesPerMinute: options.providerRateLimitMax,
+          checksPerMinute: options.providerRateLimitMax,
+        }),
+  });
+  registerUsageRoutes(app, { db: options.db, guard, scope });
+  registerCampaignCostRoutes(app, { db: options.db, guard, scope });
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, () => app.swagger());
   options.registerRoutes?.(app);
 

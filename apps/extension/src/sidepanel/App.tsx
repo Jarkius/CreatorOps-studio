@@ -4,9 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { CampaignsPanel } from './CampaignsPanel.js';
+import { CreatePanel } from './CreatePanel.js';
 import { canStartGeneration } from './campaigns.js';
 import { API_BASE_URL, DASHBOARD_URL, MOCK_AUTH } from './config.js';
 import { ProductsPanel } from './ProductsPanel.js';
+import { ShopeePanel } from './shopee/ShopeePanel.js';
 import { createSessionClient, type SessionClient } from './session.js';
 import { createDefaultTokenStore } from './token-store.js';
 
@@ -113,6 +115,18 @@ export function App({ session }: AppProps) {
 
         {me.isSuccess && activeWorkspace ? (
           <div className="mt-4 space-y-4">
+            <CreatePanel
+              api={client.api}
+              workspaceId={activeWorkspace.id}
+              dashboardUrl={DASHBOARD_URL}
+              canStart={canStartGeneration(activeWorkspace.role)}
+            />
+            <ShopeePanel
+              api={client.api}
+              workspaceId={activeWorkspace.id}
+              dashboardUrl={DASHBOARD_URL}
+              canCreate={canStartGeneration(activeWorkspace.role)}
+            />
             <ProductsPanel
               api={client.api}
               workspaceId={activeWorkspace.id}

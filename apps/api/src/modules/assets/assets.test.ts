@@ -860,6 +860,7 @@ describe('cover image', () => {
       .where(eq(schema.auditEvents.resourceId, image.id));
     expect(events.find((e) => e.action === 'asset.deleted')?.metadata).toEqual({
       clearedPrimaryFor: [product.id],
+      detachedFromDrafts: 0,
     });
 
     // A deleted file can no longer be chosen as a cover.
@@ -871,6 +872,58 @@ describe('cover image', () => {
 // ---- the library -----------------------------------------------------------------------------------------
 
 describe('library', () => {
+  it('filters by part of the file name, any case, and treats % and _ as plain characters', async () => {
+    const hana = await createPerson(testDb.db, config.SESSION_SECRET, 'qsearch');
+    const other = await createPerson(testDb.db, config.SESSION_SECRET, 'qsearch-other');
+    const names = ['Red Fan.png', 'พัดลมสีแดง.png', '100%_real.png', 'blue.png'];
+    const ids: Record<string, string> = {};
+    for (const [index, name] of names.entries()) {
+      ids[name] = (
+        await testDb.pool.query<{ id: string }>(
+          `insert into assets (workspace_id, type, mime_type, size_bytes, original_filename, sha256, storage_key, created_by)
+           values ($1, 'image', 'image/png', 10, $2, repeat('d', 64), $3, $4) returning id`,
+          [
+            hana.workspaceId,
+            name,
+            `ws/${hana.workspaceId}/q${String(index)}/original`,
+            hana.userId,
+          ],
+        )
+      ).rows[0]!.id;
+    }
+    await testDb.pool.query(
+      `insert into assets (workspace_id, type, mime_type, size_bytes, original_filename, sha256, storage_key, created_by)
+       values ($1, 'image', 'image/png', 10, 'red fan secret.png', repeat('d', 64), $2, $3)`,
+      [other.workspaceId, `ws/${other.workspaceId}/q/original`, other.userId],
+    );
+    const search = async (q: string) =>
+      AssetListResponseSchema.parse(
+        (
+          await app.inject({
+            method: 'GET',
+            url: `${assetsUrl(hana.workspaceId)}?q=${encodeURIComponent(q)}`,
+            headers: auth(hana),
+          })
+        ).json(),
+      ).items.map((a) => a.originalFilename);
+    expect(await search('red fan')).toEqual(['Red Fan.png']);
+    expect(await search('พัดลม')).toEqual(['พัดลมสีแดง.png']);
+    expect(await search('%')).toEqual(['100%_real.png']);
+    expect(await search('_')).toEqual(['100%_real.png']);
+    expect(await search('100%_')).toEqual(['100%_real.png']);
+    expect(await search('  ')).toHaveLength(4);
+    expect(await search('nothing')).toEqual([]);
+    // Another workspace's file never matches.
+    expect(await search('secret')).toEqual([]);
+    expect(ids['blue.png']).toBeDefined();
+    const tooLong = await app.inject({
+      method: 'GET',
+      url: `${assetsUrl(hana.workspaceId)}?q=${'a'.repeat(101)}`,
+      headers: auth(hana),
+    });
+    expect(tooLong.statusCode).toBe(400);
+  });
+
   it('lists newest first with a cursor, filters by type, and hides deleted files', async () => {
     const gail = await createPerson(testDb.db, config.SESSION_SECRET, 'gail');
     const first = await upload(gail, 'image/png', await png());

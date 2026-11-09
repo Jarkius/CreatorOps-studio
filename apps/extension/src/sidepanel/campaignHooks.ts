@@ -2,36 +2,48 @@ import { ApiError, pollDelayMs, type ApiClient } from '@creatorops/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
-import {
-  hasActiveJob,
-  newExtensionIdempotencyKey,
-  PANEL_CAMPAIGN_LIMIT,
-  PANEL_JOB_WINDOW,
-} from './campaigns.js';
+import { hasActiveJob, newExtensionIdempotencyKey, PANEL_CAMPAIGN_LIMIT } from './campaigns.js';
 
 /** Query keys for the panel. Every key starts with ['panel', ...] so one prefix clears them. */
 export const panelKeys = {
   campaigns: (workspaceId: string) => ['panel', 'campaigns', workspaceId] as const,
-  generateJobs: (workspaceId: string) => ['panel', 'generate-jobs', workspaceId] as const,
+  cost: (workspaceId: string, campaignId: string, jobKey: string) =>
+    ['panel', 'cost', workspaceId, campaignId, jobKey] as const,
 };
 
-export function usePanelCampaigns(api: ApiClient, workspaceId: string) {
+/**
+ * What one campaign cost, in baht. `jobKey` (the latest job's id and status) is part of the key, so
+ * the figure is read again when a job starts or ends; the server is the only source of the number.
+ */
+export function usePanelCampaignCost(
+  api: ApiClient,
+  workspaceId: string,
+  campaignId: string,
+  jobKey: string,
+) {
   return useQuery({
-    queryKey: panelKeys.campaigns(workspaceId),
-    queryFn: () => api.campaigns.list(workspaceId, { limit: PANEL_CAMPAIGN_LIMIT }),
+    queryKey: panelKeys.cost(workspaceId, campaignId, jobKey),
+    queryFn: () => api.campaigns.cost(workspaceId, campaignId),
+    // One read per campaign row is enough between job changes; focus changes must not re-read it.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 
 /**
- * The newest generate jobs of the workspace. Polled with the D-053 steps only while a listed job is
- * still queued or running; the list is the only source of job state (no local storage).
+ * The newest campaigns, each with its latest generate job (D-064), so one request shows every
+ * campaign's state however many jobs the workspace has. Polled with the D-053 steps only while a
+ * listed job is still queued or running; the API is the only source of job state (no local storage).
  */
-export function useGenerateJobs(api: ApiClient, workspaceId: string) {
+export function usePanelCampaigns(api: ApiClient, workspaceId: string) {
   return useQuery({
-    queryKey: panelKeys.generateJobs(workspaceId),
-    queryFn: () => api.jobs.list(workspaceId, { type: 'generate_brief', limit: PANEL_JOB_WINDOW }),
+    queryKey: panelKeys.campaigns(workspaceId),
+    queryFn: () => api.campaigns.list(workspaceId, { limit: PANEL_CAMPAIGN_LIMIT }),
     refetchInterval: (query) => {
-      if (!hasActiveJob(query.state.data?.items ?? [])) return false;
+      const jobs = (query.state.data?.items ?? []).flatMap((item) =>
+        item.latestGenerateJob === null ? [] : [item.latestGenerateJob],
+      );
+      if (!hasActiveJob(jobs)) return false;
       // dataUpdateCount is 1 after the first successful fetch, so the first poll uses step 0.
       return pollDelayMs(query.state.dataUpdateCount - 1);
     },
@@ -67,7 +79,7 @@ export function useStartGeneration(api: ApiClient, workspaceId: string) {
       }
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: panelKeys.generateJobs(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: panelKeys.campaigns(workspaceId) });
     },
   });
 }
@@ -78,7 +90,7 @@ export function useCancelGeneration(api: ApiClient, workspaceId: string) {
   return useMutation({
     mutationFn: (jobId: string) => api.jobs.cancel(workspaceId, jobId),
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: panelKeys.generateJobs(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: panelKeys.campaigns(workspaceId) });
     },
   });
 }

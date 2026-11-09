@@ -31,7 +31,13 @@ export const DRAFT_STATUS_VALUES = ['draft', 'in_review', 'approved'] as const;
 export const DraftStatusSchema = z.enum(DRAFT_STATUS_VALUES);
 export type DraftStatus = z.infer<typeof DraftStatusSchema>;
 
-export const JOB_TYPE_VALUES = ['generate_brief', 'regenerate_section'] as const;
+export const JOB_TYPE_VALUES = [
+  'generate_brief',
+  'regenerate_section',
+  'export_package',
+  'generate_video_prompts',
+  'assemble_video',
+] as const;
 export const JobTypeSchema = z.enum(JOB_TYPE_VALUES);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
@@ -45,8 +51,15 @@ export const JOB_ERROR_CODES = [
   'PROVIDER_UNAVAILABLE',
   'PROVIDER_RATE_LIMITED',
   'INVALID_PROVIDER_OUTPUT',
+  'PROVIDER_AUTH',
+  'PROVIDER_BUDGET',
+  'PROVIDER_COST_HOLD',
   'CONTENT_REFUSED',
   'SECTION_CHANGED',
+  'ASSET_UNAVAILABLE',
+  'EXPORT_TOO_LARGE',
+  'VIDEO_TOOL_MISSING',
+  'VIDEO_FAILED',
   'CANCELLED',
   'INTERNAL',
 ] as const;
@@ -189,13 +202,6 @@ export const CampaignListQuerySchema = z
 export type CampaignListQuery = z.input<typeof CampaignListQuerySchema>;
 /** What the API sees after parsing and defaults. */
 export type CampaignListQueryParsed = z.infer<typeof CampaignListQuerySchema>;
-
-export const CampaignListResponseSchema = z.object({
-  items: z.array(CampaignSchema),
-  /** Pass back as `cursor` for the next page; null when there are no more. */
-  nextCursor: z.string().nullable(),
-});
-export type CampaignListResponse = z.infer<typeof CampaignListResponseSchema>;
 
 export const CampaignParamsSchema = z.object({ workspaceId: z.string(), campaignId: z.string() });
 export type CampaignParams = z.infer<typeof CampaignParamsSchema>;
@@ -343,11 +349,70 @@ export const RegenerateSectionJobRequestSchema = z
   .strict();
 export type RegenerateSectionJobRequest = z.infer<typeof RegenerateSectionJobRequestSchema>;
 
+/**
+ * POST /api/v1/workspaces/:workspaceId/jobs/generate-video-prompts: four single-shot video prompts
+ * (one per scene) plus a voiceover line each, written by the workspace's text provider from the
+ * draft's product (D-080). `draftVersion` is the version the person was looking at.
+ */
+export const GenerateVideoPromptsJobRequestSchema = z
+  .object({ draftId: idString, draftVersion: z.number().int().min(1) })
+  .strict();
+export type GenerateVideoPromptsJobRequest = z.infer<typeof GenerateVideoPromptsJobRequestSchema>;
+
+/**
+ * POST /api/v1/workspaces/:workspaceId/jobs/assemble-video: joins the draft's scene clips, in scene
+ * order, into one 1080x1920 MP4 with Thai subtitles from the saved voiceover lines (D-086).
+ */
+export const AssembleVideoJobRequestSchema = z
+  .object({ draftId: idString, draftVersion: z.number().int().min(1) })
+  .strict();
+export type AssembleVideoJobRequest = z.infer<typeof AssembleVideoJobRequestSchema>;
+
+/** What a succeeded assemble_video job stores in `output`. */
+export const AssembleVideoOutputSchema = z.object({
+  draftId: z.string(),
+  assetId: z.string(),
+  durationMs: z.number().int(),
+  clipCount: z.number().int(),
+  /** True when Thai subtitles are burned into the video. */
+  subtitles: z.boolean(),
+  /** Why not: no voiceover lines for this draft version, or an ffmpeg without the subtitle filter. */
+  subtitleIssue: z.enum(['no_lines', 'no_subtitle_filter']).nullish(),
+  /** Scenes without a clip, left out of the video. */
+  skippedScenes: z.array(z.string()),
+  /** The subtitles as an .srt file (also when they could not be burned in); empty without lines. */
+  srt: z.string(),
+});
+export type AssembleVideoOutput = z.infer<typeof AssembleVideoOutputSchema>;
+
+export const VIDEO_PROMPT_SCENES = ['product_hero', 'detail', 'usage', 'final_shot'] as const;
+
+/** What a succeeded generate_video_prompts job stores in `output`. */
+export const VideoPromptsOutputSchema = z.object({
+  draftId: z.string(),
+  draftVersion: z.number().int(),
+  model: z.string(),
+  scenes: z
+    .array(
+      z.object({
+        scene: z.enum(VIDEO_PROMPT_SCENES),
+        prompt: z.string().min(1).max(2000),
+        voiceover: z.string().min(1).max(400),
+      }),
+    )
+    .length(4),
+});
+export type VideoPromptsOutput = z.infer<typeof VideoPromptsOutputSchema>;
+
 /** GET /api/v1/workspaces/:workspaceId/jobs query string. */
 export const JobListQuerySchema = z
   .object({
     status: JobStatusSchema.optional(),
     type: JobTypeSchema.optional(),
+    /** Only jobs for this campaign (generate jobs). */
+    campaignId: idString.optional(),
+    /** Only jobs for this draft (regenerate-section jobs). */
+    draftId: idString.optional(),
     limit: limitParam,
     cursor: cursorString.optional(),
   })
@@ -360,6 +425,22 @@ export const JobListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type JobListResponse = z.infer<typeof JobListResponseSchema>;
+
+/**
+ * A campaign in a list, with its newest generate job, so a screen needs one request to show every
+ * campaign's state however many jobs the workspace has (D-064). `null` when it was never generated.
+ */
+export const CampaignListItemSchema = CampaignSchema.extend({
+  latestGenerateJob: JobSchema.nullable(),
+});
+export type CampaignListItem = z.infer<typeof CampaignListItemSchema>;
+
+export const CampaignListResponseSchema = z.object({
+  items: z.array(CampaignListItemSchema),
+  /** Pass back as `cursor` for the next page; null when there are no more. */
+  nextCursor: z.string().nullable(),
+});
+export type CampaignListResponse = z.infer<typeof CampaignListResponseSchema>;
 
 export const JobParamsSchema = z.object({ workspaceId: z.string(), jobId: z.string() });
 export type JobParams = z.infer<typeof JobParamsSchema>;

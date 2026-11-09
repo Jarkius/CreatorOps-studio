@@ -102,6 +102,7 @@ export {
   CLAIM_WARNING_KIND_VALUES,
   CONTENT_LIMITS,
   CampaignListQuerySchema,
+  CampaignListItemSchema,
   CampaignListResponseSchema,
   CampaignParamsSchema,
   CampaignSchema,
@@ -132,6 +133,11 @@ export {
   JobTypeSchema,
   PLATFORM_VALUES,
   PlatformSchema,
+  GenerateVideoPromptsJobRequestSchema,
+  AssembleVideoJobRequestSchema,
+  AssembleVideoOutputSchema,
+  VIDEO_PROMPT_SCENES,
+  VideoPromptsOutputSchema,
   RegenerateSectionJobRequestSchema,
   SECTION_NAMES,
   SECTION_ORIGIN_VALUES,
@@ -147,6 +153,7 @@ export type {
   Campaign,
   CampaignListQuery,
   CampaignListQueryParsed,
+  CampaignListItem,
   CampaignListResponse,
   CampaignParams,
   CampaignStatus,
@@ -162,6 +169,10 @@ export type {
   DraftSections,
   DraftStatus,
   GenerateBriefJobRequest,
+  GenerateVideoPromptsJobRequest,
+  AssembleVideoJobRequest,
+  AssembleVideoOutput,
+  VideoPromptsOutput,
   Job,
   JobErrorCode,
   JobListQuery,
@@ -180,3 +191,9 @@ export type {
   UpdateCampaignRequest,
   UpdateDraftRequest,
 } from './content.js';
+
+export * from './campaign-cost.js';
+export * from './money.js';
+export * from './export.js';
+export * from './provider.js';
+export * from './usage.js';

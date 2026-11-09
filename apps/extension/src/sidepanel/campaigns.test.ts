@@ -6,7 +6,6 @@ import {
   dashboardCampaignPath,
   hasActiveJob,
   jobStatusText,
-  latestGenerateJobs,
   newExtensionIdempotencyKey,
 } from './campaigns.js';
 
@@ -53,27 +52,6 @@ describe('canStartGeneration', () => {
     expect(canStartGeneration('reviewer')).toBe(false);
     expect(canStartGeneration('viewer')).toBe(false);
     expect(canStartGeneration(undefined)).toBe(false);
-  });
-});
-
-describe('latestGenerateJobs', () => {
-  it('keeps the first (newest) job per campaign, not the last', () => {
-    const latest = latestGenerateJobs([
-      job('j3', { campaignId: 'c1', status: 'running' }),
-      job('j2', { campaignId: 'c2', status: 'failed' }),
-      job('j1', { campaignId: 'c1', status: 'succeeded' }),
-    ]);
-    expect(latest.get('c1')?.id).toBe('j3');
-    expect(latest.get('c2')?.id).toBe('j2');
-    expect(latest.size).toBe(2);
-  });
-
-  it('skips jobs that are not generate jobs for a campaign', () => {
-    const latest = latestGenerateJobs([
-      job('j1', { type: 'regenerate_section', campaignId: null, draftId: 'd1' }),
-      job('j2', { campaignId: null }),
-    ]);
-    expect(latest.size).toBe(0);
   });
 });
 

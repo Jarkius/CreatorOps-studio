@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-e2e
 coverage
 .env
 .env.*
@@ -12,3 +13,7 @@ test-results
 .data/
 *.pid
 *.pem
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -244,7 +244,7 @@ Thin client, per `03` §4 and `05` §4.
 | Item | Value |
 |---|---|
 | `manifest_version` | 3 |
-| `permissions` | `sidePanel`, `storage` |
+| `permissions` | `sidePanel`, `storage`, `scripting` (D-072) |
 | `host_permissions` | only the configured API origin |
 | `activeTab` | added only with the page-import slice, with its own decision entry |
 | content scripts | none until a documented feature needs one |

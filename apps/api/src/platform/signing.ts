@@ -5,7 +5,7 @@ import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
  * SESSION_SECRET with HKDF, so a signature made for one purpose can never validate for another
  * even if a request were forged across them.
  */
-export type SigningPurpose = 'upload' | 'media';
+export type SigningPurpose = 'upload' | 'media' | 'export';
 
 const BASE64URL_43 = /^[A-Za-z0-9_-]{43}$/;
 

@@ -168,3 +168,15 @@ describe('redaction gaps closed after review', () => {
     expect(redactValue(new Set(['a', 'Bearer abc.def']))).toEqual(['a', `Bearer ${REDACTED}`]);
   });
 });
+
+describe('redactString: provider API keys in free text', () => {
+  it('hides sk- style keys anywhere in a string, and leaves short or ordinary text alone', () => {
+    expect(redactString('call failed for key sk-or-v1-abcdef0123456789abcdef done')).toBe(
+      `call failed for key ${REDACTED} done`,
+    );
+    expect(redactString('{"key":"sk-proj_ABCDEFGHIJKLMNOP1234"}')).toBe(`{"key":"${REDACTED}"}`);
+    expect(redactString('sk-short and task-force and desk-lamp-0123456789abcdef')).toBe(
+      'sk-short and task-force and desk-lamp-0123456789abcdef',
+    );
+  });
+});

@@ -1,4 +1,4 @@
-# 08 — Phase 0–2 Plan and Working Method
+# 08 — Phase Plan and Working Method (Phases 0–3 built; later phases planned when they begin)
 
 **Status:** Accepted (owner delegation, 2026-11-03)
 **Builds on:** `06_IMPLEMENTATION_ROADMAP.md` (phases), `07_ACCEPTANCE_TESTS.md` (test checklist), `DECISIONS.md` (choices).

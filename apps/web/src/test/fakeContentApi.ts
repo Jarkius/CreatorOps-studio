@@ -1,5 +1,8 @@
 import type {
   Campaign,
+  CampaignCost,
+  CostReport,
+  ManualCost,
   Draft,
   DraftSections,
   DraftStatus,
@@ -114,6 +117,14 @@ export interface ContentFakeOptions {
   briefErrors?: { status: number; code: string; message: string }[];
   /** The value a succeeded regenerate-section job writes. Defaults to a Thai placeholder per section. */
   regenerateValue?: (draft: Draft, section: SectionName) => DraftSections[SectionName];
+  /** AI text spend per campaign id for the cost endpoint (what the usage ledger would say). */
+  aiCost?: Record<string, { calls: number; costUsd: number; anomalies?: number }>;
+  /** Baht per USD saved in the provider settings; undefined means the default rate. */
+  thbPerUsd?: number;
+  /** Baht per real US dollar for the US$ shown beside baht. Defaults to 35. */
+  marketThbPerUsd?: number;
+  /** Makes the cost report say it was cut at 100 campaigns. */
+  reportTruncated?: boolean;
 }
 
 export interface ContentFakeApi {
@@ -126,6 +137,12 @@ export interface ContentFakeApi {
   advanceJob(id: string, status: JobStatus, patch?: Partial<Job>): Job;
   /** Simulates another editor saving one section: rev + 1, origin edited, version + 1, status rules as in PATCH. */
   editElsewhere(draftId: string, section: SectionName, value: DraftSections[SectionName]): void;
+  /** Hand-typed cost lines by campaign id. */
+  manualCosts: Map<string, ManualCost[]>;
+  /** The `month` of every cost-report request, in order. */
+  reportMonths: string[];
+  /** What the cost endpoint says about AI text; change it to simulate new calls. */
+  aiCost: Record<string, { calls: number; costUsd: number; anomalies?: number }>;
 }
 
 export const PRODUCT_SHOWCASE = makeTemplate({ id: 'product-showcase' });
@@ -241,6 +258,31 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
   const briefErrors = [...(options.briefErrors ?? [])];
   let loseBriefResponses = options.loseBriefResponses ?? 0;
   let nextId = 1;
+  const manualCosts = new Map<string, ManualCost[]>();
+  const reportMonths: string[] = [];
+  const aiCost = { ...(options.aiCost ?? {}) };
+  const thbPerUsd = options.thbPerUsd ?? 35;
+  const round2 = (value: number) => Math.round(value * 100) / 100;
+  const costOf = (campaignId: string): CampaignCost => {
+    const ai = aiCost[campaignId] ?? { calls: 0, costUsd: 0 };
+    const items = manualCosts.get(campaignId) ?? [];
+    const manualTotal = round2(items.reduce((sum, item) => sum + item.amountThb, 0));
+    const aiThb = round2(ai.costUsd * thbPerUsd);
+    return {
+      currency: 'THB',
+      thbPerUsd,
+      rateSource: options.thbPerUsd === undefined ? 'default' : 'settings',
+      marketThbPerUsd: options.marketThbPerUsd ?? 35,
+      aiText: {
+        calls: ai.calls,
+        costUsd: ai.costUsd,
+        costThb: aiThb,
+        anomalies: ai.anomalies ?? 0,
+      },
+      manual: { items, totalThb: manualTotal },
+      totalThb: round2(aiThb + manualTotal),
+    };
+  };
 
   const listLimit = (url: URL) => Math.min(Number(url.searchParams.get('limit') ?? '25'), pageSize);
 
@@ -339,6 +381,46 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
     const action = parts[7];
     const method = call.method;
 
+    if (resource === 'cost-report' && method === 'GET') {
+      const month = url.searchParams.get('month') ?? '2026-11';
+      reportMonths.push(month);
+      const rows = campaigns
+        .filter((item) => item.workspaceId === ws)
+        .map((item) => costOf(item.id))
+        .map((cost, index) => ({
+          cost,
+          campaign: campaigns.filter((c) => c.workspaceId === ws)[index]!,
+        }))
+        .filter(({ cost }) => cost.totalThb > 0)
+        .map(({ cost, campaign }) => ({
+          campaignId: campaign.id,
+          name: campaign.name,
+          aiCalls: cost.aiText.calls,
+          aiThb: cost.aiText.costThb,
+          manualThb: cost.manual.totalThb,
+          totalThb: cost.totalThb,
+        }))
+        .sort((a, b) => b.totalThb - a.totalThb);
+      const total = (pick: (row: (typeof rows)[number]) => number) =>
+        round2(rows.reduce((sum, row) => sum + pick(row), 0));
+      const report: CostReport = {
+        month,
+        currency: 'THB',
+        thbPerUsd,
+        rateSource: options.thbPerUsd === undefined ? 'default' : 'settings',
+        marketThbPerUsd: options.marketThbPerUsd ?? 35,
+        totals: {
+          aiCalls: rows.reduce((sum, row) => sum + row.aiCalls, 0),
+          aiThb: total((row) => row.aiThb),
+          manualThb: total((row) => row.manualThb),
+          totalThb: total((row) => row.totalThb),
+        },
+        campaigns: rows,
+        truncated: options.reportTruncated ?? false,
+      };
+      return json(report);
+    }
+
     if (resource === 'templates' && method === 'GET' && id === undefined) {
       return json({ items: templates });
     }
@@ -349,7 +431,20 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
         const matching = campaigns.filter(
           (item) => item.workspaceId === ws && (status === null || item.status === status),
         );
-        return json(page(matching, listLimit(url), url.searchParams.get('cursor')));
+        // Like the API (D-064): each campaign carries its newest generate job (jobs are appended).
+        const withJob = matching.map((item) => ({
+          ...item,
+          latestGenerateJob:
+            jobs
+              .filter(
+                (job) =>
+                  job.workspaceId === ws &&
+                  job.type === 'generate_brief' &&
+                  job.campaignId === item.id,
+              )
+              .at(-1) ?? null,
+        }));
+        return json(page(withJob, listLimit(url), url.searchParams.get('cursor')));
       }
       if (id === undefined && method === 'POST') {
         const input = call.body as Record<string, unknown>;
@@ -376,6 +471,36 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
       const campaign = campaigns.find((item) => item.workspaceId === ws && item.id === id);
       if (campaign === undefined) return fail(404, 'NOT_FOUND', 'Campaign not found.');
       if (action === undefined && method === 'GET') return json(campaign);
+      if (action === 'cost' && method === 'GET') return json(costOf(campaign.id));
+      if (action === 'costs' && method === 'POST') {
+        const input = call.body as {
+          label: string;
+          scene?: ManualCost['scene'];
+          amountThb: number;
+        };
+        const line: ManualCost = {
+          id: `cost_${nextId++}`,
+          campaignId: campaign.id,
+          scene: input.scene ?? null,
+          label: input.label,
+          amountThb: input.amountThb,
+          createdAt: T,
+        };
+        manualCosts.set(campaign.id, [...(manualCosts.get(campaign.id) ?? []), line]);
+        return json(line, 201);
+      }
+      if (action === 'costs' && method === 'DELETE') {
+        const costId = decodeURIComponent(parts[8] ?? '');
+        const lines = manualCosts.get(campaign.id) ?? [];
+        if (!lines.some((line) => line.id === costId)) {
+          return fail(404, 'NOT_FOUND', 'Cost line not found.');
+        }
+        manualCosts.set(
+          campaign.id,
+          lines.filter((line) => line.id !== costId),
+        );
+        return json(costOf(campaign.id));
+      }
       if (action === undefined && method === 'PATCH') {
         const { version, ...changes } = call.body as Record<string, unknown> & { version: number };
         if (version !== campaign.version) {
@@ -510,5 +635,16 @@ export function createFakeContentApi(options: ContentFakeOptions = {}): ContentF
     }
   };
 
-  return { intercept, campaigns, drafts, jobs, templates, advanceJob, editElsewhere };
+  return {
+    intercept,
+    campaigns,
+    drafts,
+    jobs,
+    templates,
+    advanceJob,
+    editElsewhere,
+    manualCosts,
+    reportMonths,
+    aiCost,
+  };
 }

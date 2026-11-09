@@ -14,6 +14,24 @@ import {
   type UploadIntent,
 } from './asset.js';
 import { MeResponseSchema, MockTokenResponseSchema } from './auth.js';
+import {
+  ProviderCheckResponseSchema,
+  ProviderSettingsSchema,
+  type ProviderCheckResponse,
+  type ProviderSettings,
+  type PutProviderSettingsRequest,
+} from './provider.js';
+import {
+  CampaignCostSchema,
+  CostReportSchema,
+  ManualCostSchema,
+  type CampaignCost,
+  type CostReport,
+  type CostReportQuery,
+  type CreateManualCostRequest,
+  type ManualCost,
+} from './campaign-cost.js';
+import { UsageSummarySchema, type UsageSummary } from './usage.js';
 import type { MeResponse, MockTokenResponse } from './auth.js';
 import {
   CampaignListResponseSchema,
@@ -35,11 +53,26 @@ import {
   type Job,
   type JobListQuery,
   type JobListResponse,
+  type GenerateVideoPromptsJobRequest,
+  type AssembleVideoJobRequest,
   type RegenerateSectionJobRequest,
   type TemplateListResponse,
   type UpdateCampaignRequest,
   type UpdateDraftRequest,
 } from './content.js';
+import {
+  DraftAssetListResponseSchema,
+  ExportDownloadSchema,
+  ExportListResponseSchema,
+  ExportSchema,
+  type CreateExportRequest,
+  type DraftAssetListResponse,
+  type Export,
+  type ExportDownload,
+  type ExportListQuery,
+  type ExportListResponse,
+  type SetDraftAssetsRequest,
+} from './export.js';
 import {
   ProductListResponseSchema,
   ProductSchema,
@@ -145,12 +178,29 @@ export interface ApiClient {
     get(workspaceId: string, campaignId: string): Promise<Campaign>;
     /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
     update(workspaceId: string, campaignId: string, body: UpdateCampaignRequest): Promise<Campaign>;
+    /** What the campaign cost in baht: AI text from the ledger plus hand-typed lines. */
+    cost(workspaceId: string, campaignId: string): Promise<CampaignCost>;
+    addCost(
+      workspaceId: string,
+      campaignId: string,
+      body: CreateManualCostRequest,
+    ): Promise<ManualCost>;
+    /** Answers with the campaign cost that is left. */
+    removeCost(workspaceId: string, campaignId: string, costId: string): Promise<CampaignCost>;
   };
   drafts: {
     list(workspaceId: string, query?: DraftListQuery): Promise<DraftListResponse>;
     get(workspaceId: string, draftId: string): Promise<Draft>;
     /** Send the `version` you last saw; a stale one fails with code CONFLICT and `currentVersion`. */
     update(workspaceId: string, draftId: string, body: UpdateDraftRequest): Promise<Draft>;
+    /** The files attached to a draft, in package order, each with its scene and AI label. */
+    listAssets(workspaceId: string, draftId: string): Promise<DraftAssetListResponse>;
+    /** Replaces the whole ordered list of attachments in one call (attach, detach, reorder). */
+    setAssets(
+      workspaceId: string,
+      draftId: string,
+      body: SetDraftAssetsRequest,
+    ): Promise<DraftAssetListResponse>;
   };
   jobs: {
     list(workspaceId: string, query?: JobListQuery): Promise<JobListResponse>;
@@ -167,12 +217,58 @@ export interface ApiClient {
       body: GenerateBriefJobRequest,
       idempotencyKey: string,
     ): Promise<Job>;
+    /** Writes four video prompts for a draft. Same key rules as `generateBrief`. */
+    generateVideoPrompts(
+      workspaceId: string,
+      body: GenerateVideoPromptsJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+    /** Joins the draft's scene clips into one video with Thai subtitles. Same key rules. */
+    assembleVideo(
+      workspaceId: string,
+      body: AssembleVideoJobRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
     /** Same key rules as `generateBrief`. `expectedRev` is the section revision the user saw. */
     regenerateSection(
       workspaceId: string,
       body: RegenerateSectionJobRequest,
       idempotencyKey: string,
     ): Promise<Job>;
+    /**
+     * Builds a ZIP package of a draft (text, checklist and attached files). Same key rules as
+     * `generateBrief`. `draftVersion` is the version the user saw; a newer one fails with CONFLICT.
+     */
+    exportPackage(
+      workspaceId: string,
+      body: CreateExportRequest,
+      idempotencyKey: string,
+    ): Promise<Job>;
+  };
+  providerSettings: {
+    /** The key is never returned, only its last four characters. */
+    get(workspaceId: string): Promise<ProviderSettings>;
+    /** Owner or admin. Send `version` when changing saved settings; leave `apiKey` out to keep the key. */
+    save(workspaceId: string, body: PutProviderSettingsRequest): Promise<ProviderSettings>;
+    remove(workspaceId: string): Promise<ProviderSettings>;
+    /** One free read-only call to the provider; never generates anything. */
+    check(workspaceId: string): Promise<ProviderCheckResponse>;
+  };
+  usage: {
+    /** Real-provider calls and cost for the current calendar month (UTC). */
+    get(workspaceId: string): Promise<UsageSummary>;
+    /** Owner or admin: clears the hold that a cost anomaly put on new real-provider calls. */
+    acknowledgeAnomalies(workspaceId: string): Promise<UsageSummary>;
+  };
+  costs: {
+    /** What the workspace spent in a month (default this month), per campaign, in baht. */
+    report(workspaceId: string, query?: CostReportQuery): Promise<CostReport>;
+  };
+  exports: {
+    list(workspaceId: string, query?: ExportListQuery): Promise<ExportListResponse>;
+    get(workspaceId: string, exportId: string): Promise<Export>;
+    /** A signed URL (relative to the API origin) that works for five minutes. */
+    downloadUrl(workspaceId: string, exportId: string): Promise<ExportDownload>;
   };
   assets: {
     /** Step 1 of an upload: declare the file; then PUT the bytes to `uploadUrl`. */
@@ -185,7 +281,7 @@ export interface ApiClient {
   };
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface RequestSpec<S extends z.ZodType> {
   readonly method: Method;
@@ -382,6 +478,21 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         get(`${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema),
       update: (workspaceId, campaignId, body) =>
         send('PATCH', `${base(workspaceId)}/campaigns/${id(campaignId)}`, CampaignSchema, body),
+      cost: (workspaceId, campaignId) =>
+        get(`${base(workspaceId)}/campaigns/${id(campaignId)}/cost`, CampaignCostSchema),
+      addCost: (workspaceId, campaignId, body) =>
+        send(
+          'POST',
+          `${base(workspaceId)}/campaigns/${id(campaignId)}/costs`,
+          ManualCostSchema,
+          body,
+        ),
+      removeCost: (workspaceId, campaignId, costId) =>
+        send(
+          'DELETE',
+          `${base(workspaceId)}/campaigns/${id(campaignId)}/costs/${id(costId)}`,
+          CampaignCostSchema,
+        ),
     },
     drafts: {
       list: (workspaceId, query) =>
@@ -393,6 +504,15 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       get: (workspaceId, draftId) => get(`${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema),
       update: (workspaceId, draftId, body) =>
         send('PATCH', `${base(workspaceId)}/drafts/${id(draftId)}`, DraftSchema, body),
+      listAssets: (workspaceId, draftId) =>
+        get(`${base(workspaceId)}/drafts/${id(draftId)}/assets`, DraftAssetListResponseSchema),
+      setAssets: (workspaceId, draftId, body) =>
+        send(
+          'PUT',
+          `${base(workspaceId)}/drafts/${id(draftId)}/assets`,
+          DraftAssetListResponseSchema,
+          body,
+        ),
     },
     jobs: {
       list: (workspaceId, query) =>
@@ -408,10 +528,60 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         send('POST', `${base(workspaceId)}/jobs/generate-brief`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
+      generateVideoPrompts: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/generate-video-prompts`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+      assembleVideo: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/assemble-video`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
       regenerateSection: (workspaceId, body, idempotencyKey) =>
         send('POST', `${base(workspaceId)}/jobs/regenerate-section`, JobSchema, body, {
           [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
         }),
+      exportPackage: (workspaceId, body, idempotencyKey) =>
+        send('POST', `${base(workspaceId)}/jobs/export-package`, JobSchema, body, {
+          [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
+        }),
+    },
+    providerSettings: {
+      get: (workspaceId) => get(`${base(workspaceId)}/provider-settings`, ProviderSettingsSchema),
+      save: (workspaceId, body) =>
+        send('PUT', `${base(workspaceId)}/provider-settings`, ProviderSettingsSchema, body),
+      remove: (workspaceId) =>
+        send('DELETE', `${base(workspaceId)}/provider-settings`, ProviderSettingsSchema),
+      check: (workspaceId) =>
+        send('POST', `${base(workspaceId)}/provider-settings/check`, ProviderCheckResponseSchema),
+    },
+    usage: {
+      get: (workspaceId) => get(`${base(workspaceId)}/usage`, UsageSummarySchema),
+      acknowledgeAnomalies: (workspaceId) =>
+        send('POST', `${base(workspaceId)}/usage/acknowledge-anomalies`, UsageSummarySchema),
+    },
+    costs: {
+      report: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/cost-report`,
+          CostReportSchema,
+          query as RequestSpec<never>['query'],
+        ),
+    },
+    exports: {
+      list: (workspaceId, query) =>
+        get(
+          `${base(workspaceId)}/exports`,
+          ExportListResponseSchema,
+          query as RequestSpec<never>['query'],
+        ),
+      get: (workspaceId, exportId) =>
+        get(`${base(workspaceId)}/exports/${id(exportId)}`, ExportSchema),
+      downloadUrl: (workspaceId, exportId) =>
+        send(
+          'POST',
+          `${base(workspaceId)}/exports/${id(exportId)}/download-url`,
+          ExportDownloadSchema,
+        ),
     },
     assets: {
       createUploadIntent: (workspaceId, body) =>

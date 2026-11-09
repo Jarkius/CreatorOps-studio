@@ -20,6 +20,8 @@ const SENSITIVE_KEY =
 const MAX_DEPTH = 8;
 
 const BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi;
+// provider API keys that show up inside free text (sk-..., sk-or-v1-..., OpenRouter and OpenAI style)
+const API_KEY_LIKE = /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{15,}/g;
 // scheme://user:password@host -> keep user, hide password (the user may be empty: redis://:pw@host)
 const URL_PASSWORD = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]*):[^\s@/]+@/gi;
 // absolute URL with a query string
@@ -30,6 +32,7 @@ const PATH_QUERY = /(^|[^\w/])(\/[^\s?"'<>#]*)\?[^\s"'<>#]*/g;
 export function redactString(value: string): string {
   return value
     .replace(BEARER, `$1 ${REDACTED}`)
+    .replace(API_KEY_LIKE, REDACTED)
     .replace(URL_PASSWORD, `$1:${REDACTED}@`)
     .replace(ABSOLUTE_URL_QUERY, `$1?${REDACTED}`)
     .replace(PATH_QUERY, `$1$2?${REDACTED}`);

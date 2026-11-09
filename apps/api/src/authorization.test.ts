@@ -27,6 +27,8 @@ let victimAssetId: string;
 let victimCampaignId: string;
 let victimJobId: string;
 let victimDraftId: string;
+let victimExportId: string;
+let victimCostId: string;
 
 beforeAll(async () => {
   testDb = await createTestDb(requireDatabaseUrl());
@@ -86,6 +88,23 @@ beforeAll(async () => {
     })
     .returning({ id: schema.contentDrafts.id });
   victimDraftId = draft?.id ?? '';
+  const exportJob = await testDb.pool.query<{ id: string }>(
+    `insert into jobs (workspace_id, type, status, input, output, created_by, idempotency_key, request_hash, draft_id, attempts, started_at, finished_at)
+     values ($1, 'export_package', 'succeeded', '{}', '{}', $2, 'victim-export-key-1234', repeat('e', 64), $3, 1, now(), now()) returning id`,
+    [victim.workspaceId, victim.userId, victimDraftId],
+  );
+  const exportRow = await testDb.pool.query<{ id: string }>(
+    `insert into draft_exports (workspace_id, draft_id, job_id, created_by, draft_version, file_count, size_bytes, sha256, filename, storage_key, manifest, expires_at)
+     values ($1, $2, $3, $4, 1, 1, 1, repeat('f', 64), 'v.zip', 'exports/victim/v.zip', '{}', now() + interval '1 day') returning id`,
+    [victim.workspaceId, victimDraftId, exportJob.rows[0]?.id, victim.userId],
+  );
+  victimExportId = exportRow.rows[0]?.id ?? '';
+  const costRow = await testDb.pool.query<{ id: string }>(
+    `insert into campaign_costs (workspace_id, campaign_id, label, amount_thb, created_by)
+     values ($1, $2, 'Victim cost', 10, $3) returning id`,
+    [victim.workspaceId, victimCampaignId, victim.userId],
+  );
+  victimCostId = costRow.rows[0]?.id ?? '';
   fixtures = {
     foreignParams: {
       workspaceId: victim.workspaceId,
@@ -94,6 +113,8 @@ beforeAll(async () => {
       campaignId: victimCampaignId,
       jobId: victimJobId,
       draftId: victimDraftId,
+      exportId: victimExportId,
+      costId: victimCostId,
     },
     // Valid sample bodies, so a route that validates before it authorises would show up as 400.
     bodies: {
@@ -105,14 +126,36 @@ beforeAll(async () => {
         templateVersion: 1,
       },
       'POST /api/v1/workspaces/:workspaceId/jobs/generate-brief': { campaignId: victimCampaignId },
+      'POST /api/v1/workspaces/:workspaceId/jobs/generate-video-prompts': {
+        draftId: victimDraftId,
+        draftVersion: 1,
+      },
       'POST /api/v1/workspaces/:workspaceId/jobs/regenerate-section': {
         draftId: victimDraftId,
         section: 'hook',
         expectedRev: 1,
       },
+      'POST /api/v1/workspaces/:workspaceId/jobs/export-package': {
+        draftId: victimDraftId,
+        draftVersion: 1,
+      },
+      'POST /api/v1/workspaces/:workspaceId/jobs/assemble-video': {
+        draftId: victimDraftId,
+        draftVersion: 1,
+      },
       'PATCH /api/v1/workspaces/:workspaceId/drafts/:draftId': {
         version: 1,
         sections: { hook: 'Pwned' },
+      },
+      'PUT /api/v1/workspaces/:workspaceId/drafts/:draftId/assets': { assets: [] },
+      'PUT /api/v1/workspaces/:workspaceId/provider-settings': {
+        provider: 'openrouter',
+        model: 'vendor/model-x',
+        apiKey: 'sk-or-v1-0123456789abcdef',
+      },
+      'POST /api/v1/workspaces/:workspaceId/campaigns/:campaignId/costs': {
+        label: 'Planted',
+        amountThb: 5,
       },
       'PATCH /api/v1/workspaces/:workspaceId/campaigns/:campaignId': {
         version: 1,
@@ -150,6 +193,10 @@ describe('read-only members over every write route', () => {
       const report = await runReadOnlyMemberHarness(app, member.token, {
         ownParams: fixtures.foreignParams,
         bodies: fixtures.bodies,
+        // Any member may fetch a download link (D-067 item 6); it changes nothing but the audit log.
+        readOnlyAllowed: new Set([
+          'POST /api/v1/workspaces/:workspaceId/exports/:exportId/download-url',
+        ]),
       });
       expect(report.failures).toEqual([]);
       expect(report.checked).toEqual(

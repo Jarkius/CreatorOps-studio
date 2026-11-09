@@ -19,8 +19,18 @@ databaseUrl.pathname = '/creatorops_e2e';
 const DATABASE_URL = databaseUrl.toString();
 process.env.DATABASE_URL = DATABASE_URL;
 
+const REDIS_URL = process.env.REDIS_URL;
+
+if (!REDIS_URL) {
+  throw new Error(
+    'REDIS_URL is not set. Run: pnpm dev:redis, then export REDIS_URL="$(bash scripts/redis-local.sh url)" from the repo root.',
+  );
+}
+
 const API_URL = 'http://localhost:3000';
 const WEB_URL = 'http://localhost:5173';
+const WORKER_PORT = 3101;
+const SESSION_SECRET = 'a-long-e2e-only-secret-0123456789abcdef';
 
 export default defineConfig({
   testDir: path.join(here, 'e2e'),
@@ -46,10 +56,31 @@ export default defineConfig({
         AUTH_MODE: 'mock',
         API_BASE_URL: API_URL,
         WEB_ORIGIN: WEB_URL,
-        SESSION_SECRET: 'a-long-e2e-only-secret-0123456789abcdef',
+        SESSION_SECRET,
+        REDIS_URL,
         PORT: '3000',
         LOG_LEVEL: 'warn',
         // Uploaded files go to a temp directory, never into the repository.
+        DATA_DIR: path.join(os.tmpdir(), 'creatorops-web-e2e-media'),
+      },
+    },
+    {
+      // The worker runs generation jobs. It has no HTTP port, so a small wrapper opens a bare TCP
+      // port for Playwright to wait on and then starts the worker.
+      command: 'node e2e/start-worker.mjs',
+      cwd: here,
+      port: WORKER_PORT,
+      reuseExistingServer: false,
+      env: {
+        DATABASE_URL,
+        AUTH_MODE: 'mock',
+        API_BASE_URL: API_URL,
+        WEB_ORIGIN: WEB_URL,
+        SESSION_SECRET,
+        REDIS_URL,
+        LOG_LEVEL: 'warn',
+        WORKER_PORT: String(WORKER_PORT),
+        // The worker writes export packages that the API serves, so both use one directory.
         DATA_DIR: path.join(os.tmpdir(), 'creatorops-web-e2e-media'),
       },
     },

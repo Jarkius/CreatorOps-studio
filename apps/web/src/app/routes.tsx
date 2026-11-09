@@ -4,6 +4,7 @@ import { AssetLibraryPage } from '../features/assets/AssetLibraryPage.js';
 import { CampaignPage } from '../features/campaigns/CampaignPage.js';
 import { DraftPage } from '../features/drafts/DraftPage.js';
 import { CampaignsPage } from '../features/campaigns/CampaignsPage.js';
+import { CostReportPage } from '../features/costs/CostReportPage.js';
 import { NewCampaignPage } from '../features/campaigns/NewCampaignPage.js';
 import { OverviewPage } from '../features/overview/OverviewPage.js';
 import { NewProductPage } from '../features/products/NewProductPage.js';
@@ -12,6 +13,7 @@ import { ProductsPage } from '../features/products/ProductsPage.js';
 import { NewWorkspacePage } from '../features/workspaces/NewWorkspacePage.js';
 import { WorkspaceRequired } from '../features/workspaces/WorkspaceRequired.js';
 import { Layout } from './Layout.js';
+import { SettingsPage } from '../features/settings/SettingsPage.js';
 import { NotFoundPage } from './NotFoundPage.js';
 import { SessionGate } from './SessionGate.js';
 
@@ -27,6 +29,26 @@ export const routes: RouteObject[] = [
           <SessionGate>
             <WorkspaceRequired>
               <AssetLibraryPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/settings',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <SettingsPage />
+            </WorkspaceRequired>
+          </SessionGate>
+        ),
+      },
+      {
+        path: 'w/:workspaceId/costs',
+        element: (
+          <SessionGate>
+            <WorkspaceRequired>
+              <CostReportPage />
             </WorkspaceRequired>
           </SessionGate>
         ),

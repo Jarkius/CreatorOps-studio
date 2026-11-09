@@ -13,6 +13,8 @@ export const ASSET_PAGE_SIZE = 24;
 export interface AssetScope {
   readonly productId?: string;
   readonly type?: AssetType;
+  /** Part of the file name. */
+  readonly q?: string;
 }
 
 /** Every asset key starts with ['assets', workspaceId] so one prefix clears them all. */

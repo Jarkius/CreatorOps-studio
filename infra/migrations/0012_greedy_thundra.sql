@@ -1,0 +1,4 @@
+ALTER TABLE "jobs" DROP CONSTRAINT "jobs_type_check";--> statement-breakpoint
+ALTER TABLE "jobs" DROP CONSTRAINT "jobs_target_matches_type";--> statement-breakpoint
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_type_check" CHECK ("jobs"."type" in ('generate_brief', 'regenerate_section', 'export_package', 'generate_video_prompts'));--> statement-breakpoint
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_target_matches_type" CHECK (("jobs"."type" = 'generate_brief' and "jobs"."campaign_id" is not null) or ("jobs"."type" = 'regenerate_section' and "jobs"."draft_id" is not null) or ("jobs"."type" = 'export_package' and "jobs"."draft_id" is not null) or ("jobs"."type" = 'generate_video_prompts' and "jobs"."draft_id" is not null));

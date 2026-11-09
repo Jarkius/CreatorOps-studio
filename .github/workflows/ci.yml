@@ -42,6 +42,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0 # the docs check reads history
 
       - uses: pnpm/action-setup@v4
         # Version is read from the "packageManager" field in package.json.
@@ -53,6 +54,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Docs follow the end-of-slice checklist (warns, does not fail)
+        run: pnpm check:docs
 
       - name: Migrations are up to date
         run: |
@@ -68,6 +72,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: ffmpeg and PostgreSQL client tools for the final-video and backup tests (D-086, D-088)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-thai-tlwg postgresql-client
 
       - name: Test
         run: pnpm test
@@ -92,8 +99,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgres://creatorops:change-me@localhost:5432/creatorops
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1690,6 +1690,124 @@
                           },
                           "updatedAt": {
                             "type": "string"
+                          },
+                          "latestGenerateJob": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "workspaceId": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "generate_brief",
+                                  "regenerate_section",
+                                  "export_package",
+                                  "generate_video_prompts",
+                                  "assemble_video"
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "queued",
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "cancelled"
+                                ]
+                              },
+                              "input": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "output": {
+                                "nullable": true,
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "errorCode": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "PROVIDER_TIMEOUT",
+                                  "PROVIDER_UNAVAILABLE",
+                                  "PROVIDER_RATE_LIMITED",
+                                  "INVALID_PROVIDER_OUTPUT",
+                                  "PROVIDER_AUTH",
+                                  "PROVIDER_BUDGET",
+                                  "PROVIDER_COST_HOLD",
+                                  "CONTENT_REFUSED",
+                                  "SECTION_CHANGED",
+                                  "ASSET_UNAVAILABLE",
+                                  "EXPORT_TOO_LARGE",
+                                  "VIDEO_TOOL_MISSING",
+                                  "VIDEO_FAILED",
+                                  "CANCELLED",
+                                  "INTERNAL"
+                                ]
+                              },
+                              "errorMessage": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "provider": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "attempts": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "maxAttempts": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "campaignId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "draftId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "finishedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "workspaceId",
+                              "type",
+                              "status",
+                              "input",
+                              "output",
+                              "errorCode",
+                              "errorMessage",
+                              "provider",
+                              "attempts",
+                              "maxAttempts",
+                              "campaignId",
+                              "draftId",
+                              "createdAt",
+                              "startedAt",
+                              "finishedAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -1707,7 +1825,8 @@
                           "status",
                           "version",
                           "createdAt",
-                          "updatedAt"
+                          "updatedAt",
+                          "latestGenerateJob"
                         ],
                         "additionalProperties": false
                       }
@@ -3114,7 +3233,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3144,8 +3266,15 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3228,7 +3357,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3258,8 +3390,15 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3415,7 +3554,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3445,8 +3587,15 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3529,7 +3678,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3559,8 +3711,939 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/jobs/generate-video-prompts": {
+      "post": {
+        "summary": "Start writing four video prompts for a draft (requires an Idempotency-Key header)",
+        "tags": [
+          "jobs"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "draftVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "draftId",
+                  "draftVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/jobs/assemble-video": {
+      "post": {
+        "summary": "Start joining the draft's scene videos into one final video (requires an Idempotency-Key header)",
+        "tags": [
+          "jobs"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "draftVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "draftId",
+                  "draftVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/jobs/export-package": {
+      "post": {
+        "summary": "Start building the export package of a draft (requires an Idempotency-Key header)",
+        "tags": [
+          "jobs"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "draftVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "draftId",
+                  "draftVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
+                        "CANCELLED",
+                        "INTERNAL"
+                      ]
+                    },
+                    "errorMessage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "maxAttempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "campaignId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "type",
+                    "status",
+                    "input",
+                    "output",
+                    "errorCode",
+                    "errorMessage",
+                    "provider",
+                    "attempts",
+                    "maxAttempts",
+                    "campaignId",
+                    "draftId",
+                    "createdAt",
+                    "startedAt",
+                    "finishedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "generate_brief",
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "output": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "errorCode": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_RATE_LIMITED",
+                        "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
+                        "CONTENT_REFUSED",
+                        "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -3656,11 +4739,34 @@
               "type": "string",
               "enum": [
                 "generate_brief",
-                "regenerate_section"
+                "regenerate_section",
+                "export_package",
+                "generate_video_prompts",
+                "assemble_video"
               ]
             },
             "in": "query",
             "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "campaignId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "draftId",
             "required": false
           },
           {
@@ -3720,7 +4826,10 @@
                             "type": "string",
                             "enum": [
                               "generate_brief",
-                              "regenerate_section"
+                              "regenerate_section",
+                              "export_package",
+                              "generate_video_prompts",
+                              "assemble_video"
                             ]
                           },
                           "status": {
@@ -3750,8 +4859,15 @@
                               "PROVIDER_UNAVAILABLE",
                               "PROVIDER_RATE_LIMITED",
                               "INVALID_PROVIDER_OUTPUT",
+                              "PROVIDER_AUTH",
+                              "PROVIDER_BUDGET",
+                              "PROVIDER_COST_HOLD",
                               "CONTENT_REFUSED",
                               "SECTION_CHANGED",
+                              "ASSET_UNAVAILABLE",
+                              "EXPORT_TOO_LARGE",
+                              "VIDEO_TOOL_MISSING",
+                              "VIDEO_FAILED",
                               "CANCELLED",
                               "INTERNAL"
                             ]
@@ -3879,7 +4995,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -3909,8 +5028,15 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4026,7 +5152,10 @@
                       "type": "string",
                       "enum": [
                         "generate_brief",
-                        "regenerate_section"
+                        "regenerate_section",
+                        "export_package",
+                        "generate_video_prompts",
+                        "assemble_video"
                       ]
                     },
                     "status": {
@@ -4056,8 +5185,15 @@
                         "PROVIDER_UNAVAILABLE",
                         "PROVIDER_RATE_LIMITED",
                         "INVALID_PROVIDER_OUTPUT",
+                        "PROVIDER_AUTH",
+                        "PROVIDER_BUDGET",
+                        "PROVIDER_COST_HOLD",
                         "CONTENT_REFUSED",
                         "SECTION_CHANGED",
+                        "ASSET_UNAVAILABLE",
+                        "EXPORT_TOO_LARGE",
+                        "VIDEO_TOOL_MISSING",
+                        "VIDEO_FAILED",
                         "CANCELLED",
                         "INTERNAL"
                       ]
@@ -4420,6 +5556,15 @@
           },
           {
             "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
               "default": 25,
               "type": "integer",
               "minimum": 1,
@@ -4777,6 +5922,472 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspaceId}/drafts/{draftId}/assets": {
+      "get": {
+        "summary": "List the files attached to a draft, in package order",
+        "tags": [
+          "drafts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "draftId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "media"
+                            ]
+                          },
+                          "sortOrder": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "scene": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "product_hero",
+                              "detail",
+                              "usage",
+                              "final_shot"
+                            ]
+                          },
+                          "aiGenerated": {
+                            "type": "boolean"
+                          },
+                          "generator": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "asset": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "workspaceId": {
+                                "type": "string"
+                              },
+                              "productId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "image",
+                                  "video"
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "ready",
+                                  "deleted"
+                                ]
+                              },
+                              "mimeType": {
+                                "type": "string",
+                                "enum": [
+                                  "image/jpeg",
+                                  "image/png",
+                                  "image/webp",
+                                  "image/gif",
+                                  "video/mp4"
+                                ]
+                              },
+                              "sizeBytes": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "width": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "height": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "durationMs": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "originalFilename": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "thumbUrl": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "workspaceId",
+                              "productId",
+                              "type",
+                              "status",
+                              "mimeType",
+                              "sizeBytes",
+                              "width",
+                              "height",
+                              "durationMs",
+                              "originalFilename",
+                              "sha256",
+                              "url",
+                              "thumbUrl",
+                              "createdAt",
+                              "updatedAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "role",
+                          "sortOrder",
+                          "scene",
+                          "aiGenerated",
+                          "generator",
+                          "asset",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace the draft attachments with an ordered list (attach, detach, reorder, cover)",
+        "tags": [
+          "drafts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assets": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "role": {
+                          "default": "media",
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "media"
+                          ]
+                        },
+                        "scene": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "product_hero",
+                            "detail",
+                            "usage",
+                            "final_shot"
+                          ]
+                        },
+                        "aiGenerated": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "generator": {
+                          "nullable": true,
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "assetId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "assets"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "draftId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "media"
+                            ]
+                          },
+                          "sortOrder": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "scene": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "product_hero",
+                              "detail",
+                              "usage",
+                              "final_shot"
+                            ]
+                          },
+                          "aiGenerated": {
+                            "type": "boolean"
+                          },
+                          "generator": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "asset": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "workspaceId": {
+                                "type": "string"
+                              },
+                              "productId": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "image",
+                                  "video"
+                                ]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "ready",
+                                  "deleted"
+                                ]
+                              },
+                              "mimeType": {
+                                "type": "string",
+                                "enum": [
+                                  "image/jpeg",
+                                  "image/png",
+                                  "image/webp",
+                                  "image/gif",
+                                  "video/mp4"
+                                ]
+                              },
+                              "sizeBytes": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "width": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "height": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "durationMs": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "originalFilename": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "thumbUrl": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "workspaceId",
+                              "productId",
+                              "type",
+                              "status",
+                              "mimeType",
+                              "sizeBytes",
+                              "width",
+                              "height",
+                              "durationMs",
+                              "originalFilename",
+                              "sha256",
+                              "url",
+                              "thumbUrl",
+                              "createdAt",
+                              "updatedAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "role",
+                          "sortOrder",
+                          "scene",
+                          "aiGenerated",
+                          "generator",
+                          "asset",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/media/{assetId}/{variant}": {
       "get": {
         "summary": "Download a file or its thumbnail with a signed URL",
@@ -4827,6 +6438,1753 @@
         "responses": {
           "200": {
             "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/exports": {
+      "get": {
+        "summary": "List export packages",
+        "tags": [
+          "exports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "draftId",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "draftId": {
+                            "type": "string"
+                          },
+                          "jobId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ready",
+                              "expired"
+                            ]
+                          },
+                          "draftVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "fileCount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sha256": {
+                            "type": "string"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "expiresAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "draftId",
+                          "jobId",
+                          "status",
+                          "draftVersion",
+                          "fileCount",
+                          "sizeBytes",
+                          "sha256",
+                          "filename",
+                          "createdAt",
+                          "expiresAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/exports/{exportId}": {
+      "get": {
+        "summary": "Get an export package",
+        "tags": [
+          "exports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "exportId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "draftId": {
+                      "type": "string"
+                    },
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ready",
+                        "expired"
+                      ]
+                    },
+                    "draftVersion": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fileCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sha256": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "draftId",
+                    "jobId",
+                    "status",
+                    "draftVersion",
+                    "fileCount",
+                    "sizeBytes",
+                    "sha256",
+                    "filename",
+                    "createdAt",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/exports/{exportId}/download-url": {
+      "post": {
+        "summary": "Get a signed download link that works for five minutes",
+        "tags": [
+          "exports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "exportId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "expiresAt",
+                    "filename"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exports/{exportId}/download": {
+      "get": {
+        "summary": "Download a package with a signed URL",
+        "tags": [
+          "exports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "query",
+            "name": "u",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "in": "query",
+            "name": "exp",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "sig",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "exportId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/provider-settings": {
+      "get": {
+        "summary": "Read the text provider settings (the key is never returned)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save the text provider, model, key, prices and monthly limit (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openrouter",
+                      "custom"
+                    ]
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 400
+                  },
+                  "pricing": {
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "inputPerMillionUsd": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "outputPerMillionUsd": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "multiplier": {
+                        "default": 1,
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 100
+                      },
+                      "minPerRequestUsd": {
+                        "default": 0,
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "thbPerUsd": {
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 1000
+                      },
+                      "marketThbPerUsd": {
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 1000
+                      }
+                    },
+                    "required": [
+                      "inputPerMillionUsd",
+                      "outputPerMillionUsd"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "monthlyCapUsd": {
+                    "nullable": true,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100000
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove the saved provider and key (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "workspace",
+                        "environment",
+                        "mock"
+                      ]
+                    },
+                    "provider": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "openrouter",
+                        "custom"
+                      ]
+                    },
+                    "baseUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "keyLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "pricing": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "inputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "outputPerMillionUsd": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "multiplier": {
+                          "default": 1,
+                          "type": "number",
+                          "minimum": 0.1,
+                          "maximum": 100
+                        },
+                        "minPerRequestUsd": {
+                          "default": 0,
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10
+                        },
+                        "thbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        },
+                        "marketThbPerUsd": {
+                          "type": "number",
+                          "minimum": 0.01,
+                          "maximum": 1000
+                        }
+                      },
+                      "required": [
+                        "inputPerMillionUsd",
+                        "outputPerMillionUsd",
+                        "multiplier",
+                        "minPerRequestUsd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "monthlyCapUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "canStoreKey": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "source",
+                    "provider",
+                    "baseUrl",
+                    "model",
+                    "keyLast4",
+                    "pricing",
+                    "monthlyCapUsd",
+                    "canStoreKey",
+                    "version",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/provider-settings/check": {
+      "post": {
+        "summary": "Check the connection with one free read-only call (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "code",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/usage": {
+      "get": {
+        "summary": "Real-provider usage and cost this month",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "inputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "spentUsd": {
+                      "type": "number"
+                    },
+                    "reservedUsd": {
+                      "type": "number"
+                    },
+                    "capUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "countedUsd": {
+                      "type": "number"
+                    },
+                    "anomalies": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "costHold": {
+                      "type": "boolean"
+                    },
+                    "byModel": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "calls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "costUsd": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "calls",
+                          "costUsd"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "calls",
+                    "inputUnits",
+                    "outputUnits",
+                    "spentUsd",
+                    "reservedUsd",
+                    "capUsd",
+                    "countedUsd",
+                    "anomalies",
+                    "costHold",
+                    "byModel"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/usage/acknowledge-anomalies": {
+      "post": {
+        "summary": "Clear the hold after a cost anomaly (owner or admin)",
+        "tags": [
+          "provider"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "inputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outputUnits": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "spentUsd": {
+                      "type": "number"
+                    },
+                    "reservedUsd": {
+                      "type": "number"
+                    },
+                    "capUsd": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "countedUsd": {
+                      "type": "number"
+                    },
+                    "anomalies": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "costHold": {
+                      "type": "boolean"
+                    },
+                    "byModel": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "calls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "costUsd": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "calls",
+                          "costUsd"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "calls",
+                    "inputUnits",
+                    "outputUnits",
+                    "spentUsd",
+                    "reservedUsd",
+                    "capUsd",
+                    "countedUsd",
+                    "anomalies",
+                    "costHold",
+                    "byModel"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/cost-report": {
+      "get": {
+        "summary": "What the workspace spent in one month, per campaign, in baht",
+        "tags": [
+          "campaigns"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+            },
+            "in": "query",
+            "name": "month",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "THB"
+                      ]
+                    },
+                    "thbPerUsd": {
+                      "type": "number"
+                    },
+                    "rateSource": {
+                      "type": "string",
+                      "enum": [
+                        "settings",
+                        "default"
+                      ]
+                    },
+                    "marketThbPerUsd": {
+                      "type": "number"
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "aiCalls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "aiThb": {
+                          "type": "number"
+                        },
+                        "manualThb": {
+                          "type": "number"
+                        },
+                        "totalThb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "aiCalls",
+                        "aiThb",
+                        "manualThb",
+                        "totalThb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "campaigns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "campaignId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "aiCalls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "aiThb": {
+                            "type": "number"
+                          },
+                          "manualThb": {
+                            "type": "number"
+                          },
+                          "totalThb": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "campaignId",
+                          "name",
+                          "aiCalls",
+                          "aiThb",
+                          "manualThb",
+                          "totalThb"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "currency",
+                    "thbPerUsd",
+                    "rateSource",
+                    "marketThbPerUsd",
+                    "totals",
+                    "campaigns",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/cost": {
+      "get": {
+        "summary": "What a campaign cost in baht: AI text from the usage ledger plus hand-typed costs",
+        "tags": [
+          "campaigns"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "THB"
+                      ]
+                    },
+                    "thbPerUsd": {
+                      "type": "number"
+                    },
+                    "rateSource": {
+                      "type": "string",
+                      "enum": [
+                        "settings",
+                        "default"
+                      ]
+                    },
+                    "marketThbPerUsd": {
+                      "type": "number"
+                    },
+                    "aiText": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "costUsd": {
+                          "type": "number"
+                        },
+                        "costThb": {
+                          "type": "number"
+                        },
+                        "anomalies": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "costUsd",
+                        "costThb",
+                        "anomalies"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "manual": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "scene": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "product_hero",
+                                  "detail",
+                                  "usage",
+                                  "final_shot"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "amountThb": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "scene",
+                              "label",
+                              "amountThb",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "totalThb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "totalThb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "totalThb": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "thbPerUsd",
+                    "rateSource",
+                    "marketThbPerUsd",
+                    "aiText",
+                    "manual",
+                    "totalThb"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/costs": {
+      "post": {
+        "summary": "Add a hand-typed cost line (a scene or tool cost) in baht",
+        "tags": [
+          "campaigns"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "scene": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "product_hero",
+                      "detail",
+                      "usage",
+                      "final_shot"
+                    ]
+                  },
+                  "amountThb": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "label",
+                  "amountThb"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "campaignId": {
+                      "type": "string"
+                    },
+                    "scene": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "product_hero",
+                        "detail",
+                        "usage",
+                        "final_shot"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "amountThb": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "campaignId",
+                    "scene",
+                    "label",
+                    "amountThb",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/campaigns/{campaignId}/costs/{costId}": {
+      "delete": {
+        "summary": "Remove a hand-typed cost line; answers with the campaign cost that is left",
+        "tags": [
+          "campaigns"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "campaignId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "costId",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "THB"
+                      ]
+                    },
+                    "thbPerUsd": {
+                      "type": "number"
+                    },
+                    "rateSource": {
+                      "type": "string",
+                      "enum": [
+                        "settings",
+                        "default"
+                      ]
+                    },
+                    "marketThbPerUsd": {
+                      "type": "number"
+                    },
+                    "aiText": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "costUsd": {
+                          "type": "number"
+                        },
+                        "costThb": {
+                          "type": "number"
+                        },
+                        "anomalies": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "costUsd",
+                        "costThb",
+                        "anomalies"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "manual": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "scene": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "product_hero",
+                                  "detail",
+                                  "usage",
+                                  "final_shot"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "amountThb": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "scene",
+                              "label",
+                              "amountThb",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "totalThb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "totalThb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "totalThb": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "thbPerUsd",
+                    "rateSource",
+                    "marketThbPerUsd",
+                    "aiText",
+                    "manual",
+                    "totalThb"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

@@ -16,3 +16,16 @@ export function formatPrice(amount: string | null, currency: string | null): str
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(iso));
 }
+
+/** The Shopee page a product was imported from, or null when it came from somewhere else. */
+export function shopeeLinkOf(sourceUrl: string | null): string | null {
+  if (sourceUrl === null) return null;
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.toLowerCase();
+    const isShopee = host === 'shopee.co.th' || host.endsWith('.shopee.co.th');
+    return isShopee && (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : null;
+  } catch {
+    return null;
+  }
+}

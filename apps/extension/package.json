@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run --dir src",
-    "e2e": "node ../../scripts/e2e-db.mjs && tsc -p tsconfig.json && VITE_AUTH_MODE=mock VITE_API_BASE_URL=http://localhost:3000 vite build && playwright test"
+    "e2e": "node ../../scripts/e2e-db.mjs && tsc -p tsconfig.json && E2E_GRANT_META_AI=1 VITE_AUTH_MODE=mock VITE_API_BASE_URL=http://localhost:3000 vite build && playwright test"
   },
   "dependencies": {
     "@creatorops/contracts": "workspace:*",

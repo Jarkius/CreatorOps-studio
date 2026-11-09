@@ -1,9 +1,14 @@
 import { MockTextProvider } from '@creatorops/provider-core';
 
+import { parseSecretsKey } from './platform/secrets.js';
+import { resolveProvider } from './modules/provider-settings/resolver.js';
+
 import { createDb } from './db/client.js';
+import { LocalFsStorage } from './storage/local-fs.js';
 import { BullMqJobQueue, startQueueWorker } from './modules/jobs/bullmq-queue.js';
 import { processJob } from './modules/jobs/process.js';
 import { RECONCILE_INTERVAL_MS, reconcile } from './modules/jobs/reconcile.js';
+import { capabilitiesOf } from './modules/video/ffmpeg.js';
 import { prepare } from './startup.js';
 
 /** Jobs one worker process runs at the same time. */
@@ -28,7 +33,49 @@ if (!prepared.ok) {
   const db = createDb(pool);
   const queue = new BullMqJobQueue(redisUrl);
   // The mock provider is the only one until Q-001 is answered (D-052).
-  const deps = { db, provider: new MockTextProvider(), queue, log: logger };
+  const storage = new LocalFsStorage(prepared.config.DATA_DIR);
+  logger.info({ event: 'storage.dir', dataDir: prepared.config.DATA_DIR }, 'media directory');
+  const fallback = new MockTextProvider();
+  const secrets =
+    prepared.config.SECRETS_ENCRYPTION_KEY === undefined
+      ? undefined
+      : parseSecretsKey(
+          prepared.config.SECRETS_ENCRYPTION_KEY,
+          prepared.config.SECRETS_ENCRYPTION_KEY_ID,
+        );
+  const videoTools = {
+    ffmpeg: prepared.config.FFMPEG_PATH,
+    ffprobe: prepared.config.FFPROBE_PATH,
+    subtitleFont: prepared.config.SUBTITLE_FONT,
+  };
+  // Say once whether the final video can be made; the job itself fails plainly without ffmpeg.
+  capabilitiesOf(videoTools, AbortSignal.timeout(10_000)).then(
+    (can) =>
+      logger.info(
+        { event: 'video.tools_found', h264: can.h264, subtitles: can.subtitles },
+        can.h264
+          ? can.subtitles
+            ? 'ffmpeg found: final videos can be made, with subtitles'
+            : 'ffmpeg found, but it cannot draw subtitles (no libass): final videos come without burned-in subtitles'
+          : 'ffmpeg found, but it has no H.264 encoder (libx264): final videos will fail; install a full build',
+      ),
+    () =>
+      logger.warn(
+        { event: 'video.tools_missing' },
+        'ffmpeg not found: the final video will fail until it is installed (see the user guide)',
+      ),
+  );
+  const deps = {
+    db,
+    provider: fallback,
+    // A workspace that saved a provider gets it (metered); the others keep the built-in writer.
+    resolveProvider: (job: { id: string; workspaceId: string }, attempt: number) =>
+      resolveProvider({ db, fallback, secrets, log: logger }, job, attempt),
+    queue,
+    log: logger,
+    storage,
+    videoTools,
+  };
 
   const worker = startQueueWorker({
     redisUrl,

@@ -24,6 +24,7 @@ import {
   type AllowedMediaType,
 } from '../../media/detect.js';
 import { recordAuditEvent } from '../audit/repo.js';
+import { detachAsset } from '../draft-assets/repo.js';
 import type { RequestContext } from '../identity/context.js';
 import { assertCanWrite } from '../identity/permissions.js';
 import { findProduct } from '../products/repo.js';
@@ -503,6 +504,7 @@ export async function listAssets(
   const rows = await listAssetRows(deps.db, ctx, {
     productId: query.productId,
     type: query.type,
+    q: query.q,
     limit: query.limit + 1,
     after: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
   });
@@ -535,11 +537,12 @@ export async function deleteAsset(
     const deleted = await softDeleteAsset(tx, ctx, assetId);
     if (deleted === null) return null;
     const cleared = await clearPrimaryAsset(tx, ctx, deleted.id);
+    const detached = await detachAsset(tx, ctx.workspaceId, deleted.id);
     await recordAuditEvent(tx, ctx, {
       action: 'asset.deleted',
       resourceType: 'asset',
       resourceId: deleted.id,
-      metadata: { clearedPrimaryFor: cleared },
+      metadata: { clearedPrimaryFor: cleared, detachedFromDrafts: detached },
     });
     return deleted;
   });

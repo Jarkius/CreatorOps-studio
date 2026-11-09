@@ -1,22 +1,18 @@
-import { ApiError, type ApiClient, type Campaign, type Job } from '@creatorops/contracts';
+import { ApiError, type ApiClient, type CampaignListItem, type Job } from '@creatorops/contracts';
 import { Button, EmptyState, ErrorState, LoadingState, StatusPill } from '@creatorops/ui';
-import { useMemo } from 'react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
-import {
-  useCancelGeneration,
-  useGenerateJobs,
-  usePanelCampaigns,
-  useStartGeneration,
-} from './campaignHooks.js';
+import { useCancelGeneration, usePanelCampaigns, useStartGeneration } from './campaignHooks.js';
 import {
   dashboardCampaignPath,
   dashboardCampaignsPath,
   dashboardNewCampaignPath,
   jobStatusText,
-  latestGenerateJobs,
 } from './campaigns.js';
 import { dashboardHref } from './format.js';
+import type { HelperDeps } from './metaai/useMetaAi.js';
+import { CostLine } from './CostLine.js';
+import { ScenesPanel } from './ScenesPanel.js';
 
 export interface CampaignsPanelProps {
   readonly api: ApiClient;
@@ -24,6 +20,8 @@ export interface CampaignsPanelProps {
   readonly dashboardUrl: string;
   /** Owner, admin and editor only; the API still enforces it. */
   readonly canStart: boolean;
+  /** Replaced in tests; the panel uses the real browser. */
+  readonly helper?: HelperDeps;
 }
 
 /**
@@ -31,13 +29,17 @@ export interface CampaignsPanelProps {
  * latest generate job. The panel only starts and watches jobs; drafts are edited in the dashboard.
  * Everything shown comes from the API, so reopening the panel shows the same state.
  */
-export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: CampaignsPanelProps) {
+export function CampaignsPanel({
+  api,
+  workspaceId,
+  dashboardUrl,
+  canStart,
+  helper,
+}: CampaignsPanelProps) {
   const campaigns = usePanelCampaigns(api, workspaceId);
-  const jobs = useGenerateJobs(api, workspaceId);
   const start = useStartGeneration(api, workspaceId);
   const cancel = useCancelGeneration(api, workspaceId);
 
-  const latest = useMemo(() => latestGenerateJobs(jobs.data?.items ?? []), [jobs.data]);
   const visible = (campaigns.data?.items ?? []).filter(
     (campaign) => campaign.status !== 'archived',
   );
@@ -85,14 +87,14 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
             <CampaignRow
               key={campaign.id}
               campaign={campaign}
-              job={latest.get(campaign.id) ?? null}
+              job={campaign.latestGenerateJob}
               canStart={canStart}
               starting={start.isPending && start.variables === campaign.id}
               startError={start.isError && start.variables === campaign.id ? start.error : null}
               onStart={() => start.mutate(campaign.id)}
-              cancelling={cancel.isPending && cancel.variables === latest.get(campaign.id)?.id}
+              cancelling={cancel.isPending && cancel.variables === campaign.latestGenerateJob?.id}
               cancelError={
-                cancel.isError && cancel.variables === latest.get(campaign.id)?.id
+                cancel.isError && cancel.variables === campaign.latestGenerateJob?.id
                   ? cancel.error
                   : null
               }
@@ -101,15 +103,26 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
                 dashboardUrl,
                 dashboardCampaignPath(workspaceId, campaign.id),
               )}
+              renderCost={() => (
+                <CostLine
+                  api={api}
+                  workspaceId={workspaceId}
+                  campaignId={campaign.id}
+                  jobKey={`${campaign.latestGenerateJob?.id ?? 'none'}:${campaign.latestGenerateJob?.status ?? 'none'}`}
+                />
+              )}
+              renderScenes={() => (
+                <ScenesPanel
+                  api={api}
+                  workspaceId={workspaceId}
+                  campaignId={campaign.id}
+                  canStart={canStart}
+                  {...(helper === undefined ? {} : { helper })}
+                />
+              )}
             />
           ))}
         </ul>
-      ) : null}
-
-      {jobs.isError && campaigns.isSuccess ? (
-        <p role="alert" className="mt-3 text-sm text-[var(--co-danger)]">
-          Could not load generation status. Statuses may be out of date.
-        </p>
       ) : null}
 
       {campaigns.isSuccess ? (
@@ -129,7 +142,7 @@ export function CampaignsPanel({ api, workspaceId, dashboardUrl, canStart }: Cam
 }
 
 interface CampaignRowProps {
-  campaign: Campaign;
+  campaign: CampaignListItem;
   job: Job | null;
   canStart: boolean;
   starting: boolean;
@@ -139,6 +152,8 @@ interface CampaignRowProps {
   cancelError: unknown;
   onCancel: (job: Job) => void;
   campaignHref: string;
+  renderCost: () => ReactNode;
+  renderScenes: () => ReactNode;
 }
 
 function CampaignRow({
@@ -152,7 +167,10 @@ function CampaignRow({
   cancelError,
   onCancel,
   campaignHref,
+  renderCost,
+  renderScenes,
 }: CampaignRowProps) {
+  const [showScenes, setShowScenes] = useState(false);
   const active = job !== null && (job.status === 'queued' || job.status === 'running');
   const retry = job !== null && (job.status === 'failed' || job.status === 'cancelled');
   const label = starting ? 'Starting…' : active ? 'Generating…' : retry ? 'Try again' : 'Generate';
@@ -174,6 +192,8 @@ function CampaignRow({
           </div>
         </div>
       )}
+
+      {renderCost()}
 
       <div className="mt-2 flex flex-wrap gap-2">
         {canStart ? (
@@ -198,10 +218,24 @@ function CampaignRow({
             {cancelling ? 'Cancelling…' : 'Cancel'}
           </Button>
         ) : null}
+        {job?.status === 'succeeded' ? (
+          <Button
+            variant="secondary"
+            aria-label={`${showScenes ? 'Hide' : 'Show'} scenes for ${campaign.name}`}
+            aria-expanded={showScenes}
+            onClick={() => setShowScenes((open) => !open)}
+          >
+            {showScenes ? 'Hide scenes' : 'Scenes'}
+          </Button>
+        ) : null}
         <ActionLink href={campaignHref} label={`Open ${campaign.name} in the dashboard`}>
           Open
         </ActionLink>
       </div>
+
+      {showScenes && job?.status === 'succeeded' ? (
+        <div className="mt-3">{renderScenes()}</div>
+      ) : null}
 
       {startError === null || startError === undefined ? null : <RowError error={startError} />}
       {cancelError === null || cancelError === undefined ? null : <RowError error={cancelError} />}
