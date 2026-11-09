@@ -41,7 +41,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-014 | No browser automation of consumer AI websites | SUPERSEDED by D-071 (owner decision, 2026-11-04) |
 | D-015 | Thai is the default content language | ACCEPTED |
 | D-016 | No billing; usage events and budget caps from Phase 4 | ACCEPTED |
-| D-017 | Git: commits when asked; no pull request unless requested (branch name superseded by D-064) | ACCEPTED |
+| D-017 | Git: commits when asked; no pull request unless requested (branch name superseded by D-064, then D-089) | ACCEPTED |
 | D-018 | Greenfield repository; scaffolding starts at Phase 0 on owner go-ahead | ACCEPTED |
 | D-019 | Extension-first UX with a thin extension shell in Phase 1 | ACCEPTED |
 | D-020 | Phase numbering follows `06` (Phases 0–8) | ACCEPTED |
@@ -113,6 +113,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 | D-067 | Phase 5 plan (draft assets, export as a job, signed download) and the build order to MVP | ACCEPTED (advisor review 2026-11-04) |
 | D-065 | Phase 4 default provider: OpenRouter through the same OpenAI-compatible adapter; MaxPlus stays an optional config | ACCEPTED (advisor recommendation, owner suggested OpenRouter 2026-11-04) |
 | D-064 | S5.0 (Phase 3 follow-ups): latest generate job on the campaign list, job filters, branch rule, acceptance-tick rule | ACCEPTED |
+| D-089 | `main` is the integration branch; session branches merge into it by pull request | ACCEPTED |
 | Q-001 | Real text generation provider | ANSWERED in part (D-062); production vendor still open |
 | Q-002 | Real image and video providers and cost model | OPEN (gate for Phase 6) |
 | Q-003 | Production auth provider | OPEN (before any hosted deployment) |
@@ -200,7 +201,7 @@ On 2026-11-03 the owner delegated final design decisions ("review and make decis
 **Decision:** No billing, credits, or plans before a paid pilot. Usage events and per-workspace budget caps arrive in Phase 4 so pricing can be decided from real data. No "unlimited generation" promises (`06` cost discipline).
 
 ## D-017 — Git policy
-**Status:** ACCEPTED
+**Status:** ACCEPTED; branch name superseded by D-064 and D-089
 **Decision:** Work on the designated branch (the name was `ccr-14958772-bzlatd`; see D-064). Commit and push when the owner asks (a stop-hook request counts). No pull request unless explicitly requested.
 
 ## D-018 — Greenfield
@@ -686,6 +687,16 @@ The real provider refuses to start without configured prices (no guessed default
 **Status:** PROPOSED; superseded as the first route by D-082 (the page importer). The owner asked for a list of Shopee items with their commission rate, like AutoGenX.
 **Decision (proposed):** build it on Shopee's **official Affiliate Open API** only (Thailand host `open-api.affiliate.shopee.co.th/graphql`, observed to demand a signed Authorization header), with the owner's App ID and Secret stored encrypted on the server; a Find products page in the dashboard (search, sort by commission or sales, filter), and "Create product from this item" into the normal product and campaign flow. No scraping of Shopee pages and no undocumented endpoints (`CLAUDE.md`). Details, the fields to verify and the unknowns are in `docs/SHOPEE_AFFILIATE.md`.
 **Gate:** Q-008 below. Nothing is built until the owner has an approved Shopee Affiliate account with Open API credentials.
+
+## D-089 — `main` is the integration branch
+**Status:** ACCEPTED (2026-11-09, owner request). Supersedes the branch rule in D-064 and the branch name in D-017.
+**Context:** Work was done on session-named branches (`ccr-14958772-bzlatd`, `ccr-186e9c63-3y215n`) and the repository had no `main`. `main` was created from `ccr-14958772-bzlatd` at `41afaec` (the merge of PR #1, S3.0 to S3.8) and set as the GitHub default branch. The later work on `ccr-186e9c63-3y215n` reached `main` through PR #3. (This entry was first written as D-062 on `main`; renumbered because D-062 already names the Phase 4 provider choice.)
+**Decision:**
+- `main` is the integration branch and the GitHub default branch.
+- Session or feature branches are pushed as the session instructions say and merge into `main` by pull request.
+- The rest of D-017 stands: commit and push when the owner asks (a stop-hook request counts), and open no pull request unless asked.
+- Old session branches are deleted only after `git merge-base --is-ancestor <branch> main` confirms they are contained.
+
 
 ## Open questions
 

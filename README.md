@@ -8,7 +8,7 @@ An extension-first content operations tool for Thai solo sellers, affiliate crea
 
 ## Status
 
-Built and verified against fake pages and a mock provider (the owner tests the real Meta AI, Flow and Shopee tabs): monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, media uploads, campaigns and drafts with a job worker, real text through an OpenAI-compatible provider, the Meta AI and Flow helpers, the Shopee importer, video prompts and ZIP export. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. Run commands are under "Development commands" below.
+Built and verified against fake pages and a mock provider (the owner tests the real Meta AI, Flow and Shopee tabs): monorepo and CI, API with mock auth, web dashboard, Chrome MV3 side panel, workspaces, products, media uploads, campaigns and drafts with a job worker, real text through an OpenAI-compatible provider, the Meta AI and Flow helpers, the Shopee importer, video prompts and ZIP export. Current progress is in `docs/IMPLEMENTATION_STATUS.md`; a short handoff is in `docs/WORKING_NOTES.md`. See "Getting started" below to run it locally.
 
 ### Screenshots (captured from the running app)
 
@@ -73,7 +73,8 @@ To set up and use the product, read `docs/USER_GUIDE.md`; for whether it is read
 | `docs/05_SECURITY_AND_COMPLIANCE.md` | Security, privacy, platform rules |
 | `docs/06_IMPLEMENTATION_ROADMAP.md` | Phases 0–8 |
 | `docs/07_ACCEPTANCE_TESTS.md` | MVP acceptance checklist |
-| `docs/08_PHASE_PLAN.md` | Phase 0–2 slices, working method, definition of done |
+| `docs/08_PHASE_PLAN.md` | Phase 0–2 slices, working method, definition of done (Phase 3 plan is in `DECISIONS.md` D-045 to D-061) |
+| `docs/WORKING_NOTES.md` | Short handoff: where we are, commands, gotchas, next steps |
 | `docs/ARCHITECTURE.md` | Concrete layout, conventions, module pattern |
 | `docs/DECISIONS.md` | Decision log and open questions |
 | `docs/IMPLEMENTATION_STATUS.md` | Live progress |
@@ -97,6 +98,29 @@ infra/             docker compose and SQL migrations
 
 `.claude/skills/app-dev-methodology` is available to Claude Code in this project. It is a general planning guide; project rules in `CLAUDE.md` and `docs/` take precedence.
 
+## Getting started
+
+Everything runs locally on mock providers; no paid credentials are needed. PostgreSQL 16 and Redis 7 start without Docker.
+
+```
+pnpm install --frozen-lockfile
+pnpm dev:db && export DATABASE_URL="$(bash scripts/pg-local.sh url)"
+pnpm dev:redis && export REDIS_URL="$(bash scripts/redis-local.sh url)"
+pnpm db:migrate && pnpm db:seed
+```
+
+Set the API environment (see `.env.example`): `AUTH_MODE=mock`, `API_BASE_URL`, `WEB_ORIGIN`, `EXTENSION_ORIGIN`, and a random `SESSION_SECRET` (keep it out of git). Then:
+
+```
+pnpm build
+node apps/api/dist/server.js     # API
+pnpm dev:worker                  # background worker (needs REDIS_URL)
+pnpm --filter @creatorops/web dev   # dashboard (Vite)
+cd apps/extension && VITE_AUTH_MODE=mock VITE_API_BASE_URL=http://localhost:3000 pnpm exec vite build
+```
+
+Load `apps/extension/dist` as an unpacked extension in `chrome://extensions`. A plain `pnpm build` does not set `VITE_AUTH_MODE`, so the side panel would say "Sign-in is not configured yet". Services stop between sessions; restart them and re-export `DATABASE_URL` and `REDIS_URL` before running tests.
+
 ## Development commands
 
 Requires Node 22 or newer and pnpm 10.28.0 (set in `packageManager`; enable with `corepack enable`).
@@ -112,9 +136,14 @@ pnpm format:check          # Prettier check
 pnpm dev:db                # start PostgreSQL 16 locally without Docker (scripts/pg-local.sh)
 pnpm dev:db:compose        # or start it with Docker Compose
 pnpm dev:db:stop           # stop the local PostgreSQL
+pnpm dev:redis             # start Redis 7 locally without Docker (scripts/redis-local.sh)
+pnpm dev:redis:stop        # stop the local Redis
+pnpm dev:worker            # build, then run the background job worker
+pnpm db:migrate            # apply migrations (never rely on implicit schema creation)
+pnpm db:seed               # seed the dev database
 pnpm e2e                   # end-to-end tests (dashboard and extension) on a fresh creatorops_e2e database
 ```
 
 Copy `.env.example` to `.env` for local values. Real `.env` files are git-ignored.
 
-Database tests read `DATABASE_URL`. After `pnpm dev:db`, run `export DATABASE_URL="$(bash scripts/pg-local.sh url)"`. Without it they fail with instructions; set `SKIP_DB_TESTS=1` to skip them on purpose.
+Database tests read `DATABASE_URL`. After `pnpm dev:db`, run `export DATABASE_URL="$(bash scripts/pg-local.sh url)"`. Without it they fail with instructions; set `SKIP_DB_TESTS=1` to skip them on purpose. The Redis queue tests read `REDIS_URL` the same way (`SKIP_REDIS_TESTS=1` to skip). `pnpm e2e` needs `export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` where Chromium is preinstalled.

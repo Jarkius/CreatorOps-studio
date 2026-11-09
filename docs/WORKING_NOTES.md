@@ -2,7 +2,7 @@
 
 Read this first when resuming. It is a compact summary; the authoritative documents are listed in `docs/README.md`. Update it at the end of each session (keep it short).
 
-**Last updated:** 2026-11-07 · **Branch:** `ccr-186e9c63-3y215n` (D-064). **State:** everything is committed and pushed (last commit `336afaa`). Built and verified against fake pages (e2e: extension 26, dashboard 31): text through MaxPlus `qwen3.8-flash` with campaign cost in baht, Meta AI image helper, Google Flow video helper, video prompts button, Shopee Affiliate importer. **Working style: workable MVP first, not perfection (see `CLAUDE.md`).**
+**Last updated:** 2026-11-07 · **Branch:** `main` is the integration branch (D-089); work on the branch the session instructions name and merge by pull request. **State:** everything is committed and pushed (last commit `336afaa`). Built and verified against fake pages (e2e: extension 26, dashboard 31): text through MaxPlus `qwen3.8-flash` with campaign cost in baht, Meta AI image helper, Google Flow video helper, video prompts button, Shopee Affiliate importer. **Working style: workable MVP first, not perfection (see `CLAUDE.md`).**
 
 ## Where we are
 

@@ -21,4 +21,4 @@ For each slice:
 - No secrets in source, logs, or client bundles. Include `.env.example`.
 - Do not skip failing tests. Report blockers and anything needing credentials or approvals.
 - If a needed choice is not covered in `docs/DECISIONS.md`, add a decision entry rather than choosing silently.
-- Commit only when asked. Work on branch `ccr-14958772-bzlatd`. No pull request unless requested.
+- Commit only when asked. Work on the branch the session names; `main` is the integration branch (D-062). No pull request unless requested.
