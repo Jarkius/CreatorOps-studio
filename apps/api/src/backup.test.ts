@@ -20,6 +20,7 @@ import { createPerson, type Person } from './test/people.js';
 import { createTestDb, type TestDb } from './test/test-db.js';
 
 interface Manifest {
+  migrations: { count: number; expected: number | null };
   tables: Record<string, number>;
   files: { path: string; sha256: string }[];
   dump: { sha256: string };
@@ -307,6 +308,57 @@ describe.skipIf(!HAS_PG_TOOLS)('backup and restore', () => {
     expect(result.problems.join(' ')).toContain(
       'table assets: 1 rows after restore, 5 in the backup',
     );
+  });
+
+  it('says in plain words when the backed-up database is behind the code, instead of a bare failure', async () => {
+    const cli = new URL('../dist/db/cli.js', import.meta.url);
+    if (!existsSync(cli)) return; // the migrate check needs the built API
+    const behind = await createTestDb(requireDatabaseUrl());
+    try {
+      await behind.pool.query(
+        'delete from drizzle.__drizzle_migrations where id = (select max(id) from drizzle.__drizzle_migrations)',
+      );
+      const backup = await tools.backup({ databaseUrl: behind.url, dataDir, outRoot });
+      expect(backup.manifest.migrations.expected).toBeGreaterThan(backup.manifest.migrations.count);
+      const result = await tools.restoreBackup({
+        backupDir: backup.dir,
+        databaseUrl: behind.url,
+        targetDatabase: freshName(),
+        targetDataDir: freshDir(),
+        currentDatabase: behind.name,
+        currentDataDir: dataDir,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.problems.join(' ')).toContain('1 migration(s) behind the code');
+      expect(result.problems.join(' ')).toContain('creatorops_demo');
+    } finally {
+      await behind.drop();
+    }
+  });
+
+  it('names the partly restored database and folder when a restore fails midway, and does not drop them', async () => {
+    const backup = await tools.backup({ databaseUrl: testDb.url, dataDir, outRoot });
+    // A dump that passes its hash check but is not a dump: pg_restore fails after the database exists.
+    const bogus = Buffer.from('not a postgres dump');
+    writeFileSync(path.join(backup.dir, 'db.dump'), bogus);
+    const manifestFile = path.join(backup.dir, 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) as Manifest;
+    manifest.dump.sha256 = sha(bogus);
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    const target = freshName();
+    const targetDir = freshDir();
+    await expect(
+      tools.restoreBackup({
+        backupDir: backup.dir,
+        databaseUrl: testDb.url,
+        targetDatabase: target,
+        targetDataDir: targetDir,
+        currentDatabase: testDb.name,
+        currentDataDir: dataDir,
+      }),
+    ).rejects.toThrow(`partly restored database "${target}"`);
+    const left = await sql('select 1 from pg_database where datname = $1', [target]);
+    expect(left.rowCount).toBe(1);
   });
 
   it('the check restores into a scratch database and folder and removes both', async () => {

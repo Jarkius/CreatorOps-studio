@@ -21,6 +21,8 @@ export interface RetentionResult {
   readonly jobs: number;
   readonly exportRows: number;
   readonly intents: number;
+  /** Steps that threw (for example a new table that references jobs): the others still ran. */
+  readonly failed: readonly { readonly step: string; readonly error: unknown }[];
 }
 
 /** Rows deleted per statement, and how many statements per table in one run. */
@@ -49,22 +51,36 @@ export async function sweepRetention(
   db: Db,
   settings: RetentionSettings,
 ): Promise<RetentionResult> {
-  const audit = await inBatches(db, () =>
-    count(
-      db,
-      sql`delete from audit_events where id in (
+  // One step failing (say a new table whose foreign key to jobs is not in the guard below) must not
+  // stop the others, hour after hour: each step runs alone and is reported by name.
+  const failed: { step: string; error: unknown }[] = [];
+  const step = async (name: string, run: () => Promise<number>): Promise<number> => {
+    try {
+      return await run();
+    } catch (error) {
+      failed.push({ step: name, error });
+      return 0;
+    }
+  };
+  const audit = await step('audit', () =>
+    inBatches(db, () =>
+      count(
+        db,
+        sql`delete from audit_events where id in (
             select id from audit_events
             where created_at < now() - ${days(settings.auditDays)}
             order by created_at limit ${BATCH}
           ) returning 1`,
+      ),
     ),
   );
 
   // Only failed or cancelled jobs, finished long ago, with no usage rows and no export rows.
-  const jobs = await inBatches(db, () =>
-    count(
-      db,
-      sql`delete from jobs where id in (
+  const jobs = await step('jobs', () =>
+    inBatches(db, () =>
+      count(
+        db,
+        sql`delete from jobs where id in (
             select j.id from jobs j
             where j.status in ('failed', 'cancelled')
               and j.finished_at < now() - ${days(settings.jobDays)}
@@ -76,34 +92,39 @@ export async function sweepRetention(
               )
             order by j.finished_at limit ${BATCH}
           ) returning 1`,
+      ),
     ),
   );
 
   // Export rows whose package expired long ago (the sweeper already removed the file).
-  const exportRows = await inBatches(db, () =>
-    count(
-      db,
-      sql`delete from draft_exports where id in (
+  const exportRows = await step('exportRows', () =>
+    inBatches(db, () =>
+      count(
+        db,
+        sql`delete from draft_exports where id in (
             select id from draft_exports
             where status = 'expired'
               and expires_at < now() - ${days(settings.exportRowDays)}
             order by expires_at limit ${BATCH}
           ) returning 1`,
+      ),
     ),
   );
 
   // Finished upload intents: only a repeated "complete" for an old upload reads them.
-  const intents = await inBatches(db, () =>
-    count(
-      db,
-      sql`delete from upload_intents where id in (
+  const intents = await step('intents', () =>
+    inBatches(db, () =>
+      count(
+        db,
+        sql`delete from upload_intents where id in (
             select id from upload_intents
             where status = 'completed'
               and updated_at < now() - ${days(settings.intentDays)}
             order by updated_at limit ${BATCH}
           ) returning 1`,
+      ),
     ),
   );
 
-  return { audit, jobs, exportRows, intents };
+  return { audit, jobs, exportRows, intents, failed };
 }

@@ -82,8 +82,15 @@ if (!prepared.ok) {
     })
       .then(
         (result) => {
-          if (Object.values(result).some((n) => n > 0)) {
-            logger.info({ event: 'retention.swept', ...result }, 'removed old rows');
+          const { failed, ...counts } = result;
+          if (Object.values(counts).some((n) => n > 0)) {
+            logger.info({ event: 'retention.swept', ...counts }, 'removed old rows');
+          }
+          for (const item of failed) {
+            logger.error(
+              { event: 'retention.step_failed', step: item.step, err: item.error },
+              'a retention step failed; the other steps ran',
+            );
           }
         },
         (error: unknown) =>

@@ -31,6 +31,17 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+/** How many migrations the code in this checkout has. */
+const codeMigrationCount = () => {
+  const dir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'infra',
+    'migrations',
+  );
+  return existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith('.sql')).length : null;
+};
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pg = createRequire(path.join(root, 'apps', 'api', 'package.json'))('pg');
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
@@ -160,7 +171,7 @@ export async function backup({ databaseUrl, dataDir, outRoot }) {
     await client.query('begin isolation level repeatable read read only');
     const snapshot = (await client.query('select pg_export_snapshot() as id')).rows[0].id;
     const tables = await tableCounts(client);
-    const migrations = await migrationState(client);
+    const migrations = { ...(await migrationState(client)), expected: codeMigrationCount() };
     const dumpFile = path.join(dir, 'db.dump');
     await run(
       'pg_dump',
@@ -218,6 +229,7 @@ export async function restoreBackup({
   currentDatabase = databaseOf(databaseUrl),
   currentDataDir = defaults().dataDir,
   skipMigrateCheck = false,
+  scratch = false,
 }) {
   if (!NAME.test(targetDatabase)) {
     throw new Error('The target database name must be lower-case letters, digits and underscores.');
@@ -259,25 +271,33 @@ export async function restoreBackup({
     await target.end();
   }
 
-  // The database name is not secret; the password travels in the environment.
-  await run(
-    'pg_restore',
-    ['--no-owner', '--no-acl', '--exit-on-error', '--dbname', targetDatabase, dumpFile],
-    pgEnv(targetUrl),
-  );
-
-  mkdirSync(targetDataDir, { recursive: true, mode: 0o700 });
-  for (const file of manifest.files) {
-    const copied = await copyHashed(
-      path.join(backupDir, 'files', ...file.path.split('/')),
-      path.join(targetDataDir, ...file.path.split('/')),
+  try {
+    // The database name is not secret; the password travels in the environment.
+    await run(
+      'pg_restore',
+      ['--no-owner', '--no-acl', '--exit-on-error', '--dbname', targetDatabase, dumpFile],
+      pgEnv(targetUrl),
     );
-    if (copied.sha256 !== file.sha256) {
-      throw new Error(`A backed-up file is damaged: ${file.path}`);
+
+    mkdirSync(targetDataDir, { recursive: true, mode: 0o700 });
+    for (const file of manifest.files) {
+      const copied = await copyHashed(
+        path.join(backupDir, 'files', ...file.path.split('/')),
+        path.join(targetDataDir, ...file.path.split('/')),
+      );
+      if (copied.sha256 !== file.sha256) {
+        throw new Error(`A backed-up file is damaged: ${file.path}`);
+      }
     }
+    const problems = await checkRestore({ manifest, targetUrl, targetDataDir, skipMigrateCheck });
+    return { ok: problems.length === 0, problems, manifest, targetDatabase, targetDataDir };
+  } catch (error) {
+    if (scratch) throw error;
+    // Never dropped for you: say what was left and how to remove it.
+    throw new Error(
+      `${error.message}\nThe partly restored database "${targetDatabase}" and the folder ${targetDataDir} were left in place. Remove them before trying again: psql -c 'drop database ${targetDatabase} with (force)' (from the postgres database) and rm -r ${targetDataDir}`,
+    );
   }
-  const problems = await checkRestore({ manifest, targetUrl, targetDataDir, skipMigrateCheck });
-  return { ok: problems.length === 0, problems, manifest, targetDatabase, targetDataDir };
 }
 
 /** What a restore must show to count as proven. Returns a list of problems (empty means proven). */
@@ -337,7 +357,13 @@ async function checkRestore({ manifest, targetUrl, targetDataDir, skipMigrateChe
       const state = await migrationState(after);
       await after.end();
       if (state.count !== manifest.migrations.count) {
-        problems.push('migrate changed the restored database');
+        const behind =
+          (manifest.migrations.expected ?? manifest.migrations.count) - manifest.migrations.count;
+        problems.push(
+          behind > 0
+            ? `this database was ${String(behind)} migration(s) behind the code, so db:migrate changed the restored copy. The backup itself is fine; back up the database you actually use (pnpm demo uses creatorops_demo: --database creatorops_demo).`
+            : 'migrate changed the restored database',
+        );
       }
     } catch (error) {
       problems.push(`migrate failed on the restored database: ${error.message}`);
@@ -358,6 +384,7 @@ export async function verifyBackup({ backupDir, databaseUrl, skipMigrateCheck = 
       targetDatabase: scratchDb,
       targetDataDir: scratchDir,
       skipMigrateCheck,
+      scratch: true,
     });
   } finally {
     const admin = new pg.Client({ connectionString: withDatabase(databaseUrl, 'postgres') });
@@ -402,6 +429,12 @@ async function main(argv) {
     console.log(`Backing up database "${databaseOf(databaseUrl)}" and the files in ${dataDir}`);
     const result = await backup({ databaseUrl, dataDir, outRoot });
     console.log(`Backup written to ${result.dir}\n  ${summary(result.manifest)}`);
+    const { count, expected } = result.manifest.migrations;
+    if (expected !== null && count < expected) {
+      console.log(
+        `Note: this database is ${String(expected - count)} migration(s) behind the code. If you meant the database you actually use, run again with --database <name> (pnpm demo uses creatorops_demo).`,
+      );
+    }
     console.log(
       'Keep SECRETS_ENCRYPTION_KEY separately: it is not in the backup, and the saved provider keys cannot be read without it.',
     );

@@ -53,7 +53,7 @@ pnpm backup -- --database creatorops_demo   # the database `pnpm demo` uses
 
 It prints which database it dumped, and writes `.data/backups/<time>/` (a database dump, a copy of every media file, and a manifest with hashes). **Copy that folder off this computer**: a backup on the same disk does not survive the disk. **Keep `SECRETS_ENCRYPTION_KEY` somewhere safe and separate**: it is not in the backup, and without it the saved provider keys cannot be read (you would enter them again in Settings). Old backup folders are not deleted for you.
 
-**Prove it works:** `pnpm backup:check` makes a backup, restores it into a scratch database and folder, checks the row counts, the migrations, every file's size and hash, and that `db:migrate` changes nothing, then removes the scratch copies. Run it after setting up and now and then; a backup is only trusted if this passes.
+**Prove it works:** `pnpm backup:check -- --database creatorops_demo` (the database `pnpm demo` uses; a bare `pnpm backup:check` checks the database in `DATABASE_URL`, which may be an old development one and says so) makes a backup, restores it into a scratch database and folder, checks the row counts, the migrations, every file's size and hash, and that `db:migrate` changes nothing, then removes the scratch copies. Run it after setting up and now and then; a backup is only trusted if this passes.
 
 **Restore** (always into a new database and an empty folder, never over live data):
 
@@ -61,7 +61,7 @@ It prints which database it dumped, and writes `.data/backups/<time>/` (a databa
 pnpm restore -- .data/backups/<time> --database my_restored_db --data-dir /path/to/new/media
 ```
 
-It runs the same checks. Then start the API and the worker with `DATABASE_URL` pointing at `my_restored_db`, `DATA_DIR` set to the new folder, and the same `SECRETS_ENCRYPTION_KEY`. It needs the PostgreSQL client tools (`pg_dump`, `pg_restore`, at least as new as the server).
+It runs the same checks. If it fails after the database was created, it names the partly restored database and folder and how to remove them (it never drops anything itself). Then start the API and the worker with `DATABASE_URL` pointing at `my_restored_db`, `DATA_DIR` set to the new folder, and the same `SECRETS_ENCRYPTION_KEY`. It needs the PostgreSQL client tools (`pg_dump`, `pg_restore`, at least as new as the server).
 
 **Retention** runs by itself in the API process, once an hour. It removes audit events older than a year, failed or cancelled jobs older than 90 days (only if they have no cost records and no packages), expired package records 30 days after they expired, and finished upload records after 30 days. It never removes cost records or finished (succeeded) jobs. The periods can be longer (never shorter than the floors) with `AUDIT_RETENTION_DAYS`, `JOB_RETENTION_DAYS`, `EXPORT_ROW_RETENTION_DAYS` and `INTENT_RETENTION_DAYS` (see `.env.example`). The log line `retention.swept` shows what was removed.
 

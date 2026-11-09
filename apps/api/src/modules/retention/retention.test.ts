@@ -6,6 +6,7 @@ import { loadConfig } from '../../platform/config.js';
 import { requireDatabaseUrl, validEnv } from '../../test/db-url.js';
 import { createPerson, type Person } from '../../test/people.js';
 import { createTestDb, type TestDb } from '../../test/test-db.js';
+import { listFinishedJobsWithoutPackage } from '../export/repo.js';
 import { sweepRetention, type RetentionSettings } from './retention.js';
 
 const SETTINGS: RetentionSettings = {
@@ -203,6 +204,19 @@ describe('retention: export rows and upload intents', () => {
     expect(await exists('draft_exports', unswept)).toBe(true);
   });
 
+  it('leaves nothing for the export sweeper to re-list after it removes an expired row', async () => {
+    const id = await exportRow('expired', 60);
+    const jobId = (await sql('select job_id from draft_exports where id = $1', [id])).rows[0]
+      .job_id as string;
+    await sweepRetention(testDb.db, SETTINGS);
+    expect(await exists('draft_exports', id)).toBe(false);
+    // The package job stays (it succeeded) and the sweeper only looks at failed or cancelled ones.
+    expect(await exists('jobs', jobId)).toBe(true);
+    const ancient = new Date(Date.now() - 3650 * 24 * 3600 * 1000);
+    const listed = await listFinishedJobsWithoutPackage(testDb.db, ancient, new Date(), 1000);
+    expect(listed.map((row) => row.id)).not.toContain(jobId);
+  });
+
   async function intent(status: string, ageDays: number): Promise<string> {
     return one(
       `insert into upload_intents (workspace_id, user_id, asset_id, declared_mime, declared_size, original_filename, status, expires_at, created_at, updated_at)
@@ -239,6 +253,30 @@ describe('retention settings', () => {
       ['INTENT_RETENTION_DAYS', 'soon'],
     ] as const) {
       expect(() => loadConfig(validEnv({ [name]: bad })), `${name}=${bad}`).toThrow();
+    }
+  });
+});
+
+describe('retention: one failing step does not stop the others', () => {
+  it('reports the failed step by name while the other steps still run', async () => {
+    // A table that references jobs but is not in the jobs guard: deleting that job is refused.
+    await sql('create table retention_probe (job_id uuid references jobs (id))');
+    const blocked = await job('failed', 200);
+    await sql('insert into retention_probe values ($1)', [blocked]);
+    const oldAudit = await one(
+      `insert into audit_events (workspace_id, actor_user_id, action, resource_type, resource_id, created_at)
+       values ($1, $2, 'x.step', 'x', 'r', now() - interval '500 days') returning id`,
+      [alice.workspaceId, alice.userId],
+    );
+    try {
+      const result = await sweepRetention(testDb.db, SETTINGS);
+      expect(result.failed.map((item) => item.step)).toEqual(['jobs']);
+      expect(await exists('jobs', blocked)).toBe(true);
+      // The steps before and after it ran.
+      expect(await exists('audit_events', oldAudit)).toBe(false);
+    } finally {
+      await sql('drop table retention_probe');
+      await sql('delete from jobs where id = $1', [blocked]);
     }
   });
 });
