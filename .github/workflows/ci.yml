@@ -74,7 +74,14 @@ jobs:
         run: pnpm typecheck
 
       - name: ffmpeg and PostgreSQL client tools for the final-video and backup tests (D-086, D-088)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-thai-tlwg postgresql-client
+        # The backup tests restore a dump into the postgres:16 service, so the client tools must be
+        # version 16 as well: a newer pg_dump writes settings PostgreSQL 16 rejects (D-088).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-thai-tlwg postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
 
       - name: Test
         run: pnpm test

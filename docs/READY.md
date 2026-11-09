@@ -23,7 +23,7 @@
 - **Logging:** per-call provider lines (`provider.call`, `provider.call_failed`) and demo log files were added 2026-11-07; tested, but never seen on a real MaxPlus call. Still missing: a log from the extension itself (only Copy diagnostics) and a trace tying a panel action to its job.
 - **Final video (D-086):** joins scene clips with Thai subtitles; verified with real ffmpeg here (tests and a live run, frames checked by eye), not on the owner's machine; no voice audio yet.
 - **Data safety:** the database enforces its rules well (80 checks, 16 unique keys, 12 foreign keys, composite workspace keys, tests that try to break each), and since 2026-11-09 (D-088) there is a **tested backup and restore** (`pnpm backup:check` passed on the demo database) and an automatic retention policy. Still open: backups are manual and stay on this computer until you copy them off, no row-level security, and files sit on one local disk shared by the API and the worker (Q-004). Fine for a one-person pilot; settle before hosting.
-- **GitHub Actions** has never run. **Hosted deployment** does not exist (see the guide).
+- **GitHub Actions** runs on every push; the secret scan and the backup tests were red on 2026-11-09 (fixes in `IMPLEMENTATION_STATUS.md`, unconfirmed until a run passes). **Hosted deployment** does not exist (see the guide).
 
 ## Owner checklist (in this order)
 
