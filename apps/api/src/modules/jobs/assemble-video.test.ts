@@ -213,7 +213,8 @@ const job = async (id: string) => (await sql('select * from jobs where id = $1',
 const links = async (draftId: string) =>
   (await sql('select * from draft_assets where draft_id = $1 order by sort_order', [draftId])).rows;
 
-describe.skipIf(!HAS_FFMPEG)('assemble_video job (D-086)', () => {
+// Real ffmpeg runs here; a slow CI runner needs more than the 5 s default (one test ran out of time there).
+describe.skipIf(!HAS_FFMPEG)('assemble_video job (D-086)', { timeout: 60_000 }, () => {
   it('joins the scene clips in scene order, with subtitles, and attaches the final video last', async () => {
     const { draftId, productId } = await newDraft();
     await attachClip(draftId, 'detail', soundClip, 0);
