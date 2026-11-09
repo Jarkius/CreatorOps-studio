@@ -27,7 +27,10 @@
     "demo": "node scripts/demo.mjs",
     "eval:text": "node scripts/eval-text.mjs",
     "prompts:video": "node scripts/video-prompts.mjs",
-    "check:docs": "node scripts/check-docs.mjs"
+    "check:docs": "node scripts/check-docs.mjs",
+    "backup": "node scripts/db-backup.mjs backup",
+    "backup:check": "node scripts/db-backup.mjs check",
+    "restore": "node scripts/db-backup.mjs restore"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

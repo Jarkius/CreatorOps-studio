@@ -7,6 +7,7 @@ import { createExportSigner } from './modules/export/export-urls.js';
 import { sweepExports } from './modules/export/service.js';
 import { BullMqJobQueue } from './modules/jobs/bullmq-queue.js';
 import { NullJobQueue } from './modules/jobs/queue.js';
+import { sweepRetention } from './modules/retention/retention.js';
 import { LocalFsStorage } from './storage/local-fs.js';
 import { prepare } from './startup.js';
 
@@ -67,6 +68,34 @@ if (!prepared.ok) {
   sweep();
   const sweeper = setInterval(sweep, 10 * 60 * 1000);
   sweeper.unref();
+
+  // Retention (D-088): once an hour at most, never two runs at once.
+  let retentionRunning = false;
+  const retain = (): void => {
+    if (retentionRunning) return;
+    retentionRunning = true;
+    sweepRetention(db, {
+      auditDays: config.AUDIT_RETENTION_DAYS,
+      jobDays: config.JOB_RETENTION_DAYS,
+      exportRowDays: config.EXPORT_ROW_RETENTION_DAYS,
+      intentDays: config.INTENT_RETENTION_DAYS,
+    })
+      .then(
+        (result) => {
+          if (Object.values(result).some((n) => n > 0)) {
+            logger.info({ event: 'retention.swept', ...result }, 'removed old rows');
+          }
+        },
+        (error: unknown) =>
+          logger.error({ event: 'retention.failed', err: error }, 'retention run failed'),
+      )
+      .finally(() => {
+        retentionRunning = false;
+      });
+  };
+  retain();
+  const retainer = setInterval(retain, 60 * 60 * 1000);
+  retainer.unref();
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ event: 'server.stopping', signal }, 'shutting down');

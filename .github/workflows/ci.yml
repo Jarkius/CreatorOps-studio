@@ -73,8 +73,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: ffmpeg for the final-video tests (D-086)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-thai-tlwg
+      - name: ffmpeg and PostgreSQL client tools for the final-video and backup tests (D-086, D-088)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-thai-tlwg postgresql-client
 
       - name: Test
         run: pnpm test

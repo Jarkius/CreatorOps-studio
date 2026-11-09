@@ -53,6 +53,7 @@ pnpm dev:redis                                # Redis 7 without Docker (scripts/
 export REDIS_URL="$(bash scripts/redis-local.sh url)"   # needed by the worker and the queue tests
 pnpm dev:worker                               # background worker (node apps/api/dist/worker.js); the API is apps/api/dist/server.js
 pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm format:check
+pnpm backup:check                              # backup, restore into a scratch database, verify, remove (D-088); `pnpm backup`, `pnpm restore -- <dir> --database <new> --data-dir <new>`
 pnpm check:docs                               # warns if feat/fix commits landed without a dated section in IMPLEMENTATION_STATUS.md, or docs/skills drifted
 export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 pnpm e2e                                      # builds, then both suites, each on a fresh creatorops_e2e database
@@ -88,7 +89,7 @@ pnpm e2e                                      # builds, then both suites, each o
 
 ## Not verified / known gaps
 
-- Data (reviewed 2026-11-09): no tested backup or restore, no row-level security (scoping is composite keys plus the application), no retention policy for jobs, usage and audit rows, files on local disk (Q-004), `jobs.output` JSON not shape-checked by the database, a call reserved before an anomaly settles can still run (D-084).
+- Data (reviewed 2026-11-09; backup, tested restore and retention added the same day, D-088): backups are manual and local until the owner copies them off, no row-level security (scoping is composite keys plus the application), files on local disk (Q-004), `jobs.output` JSON not shape-checked by the database, a call reserved before an anomaly settles can still run (D-084).
 
 - API and worker must share `DATA_DIR` (the e2e config now does); a worker with a different directory makes export downloads 404.
 
@@ -150,6 +151,8 @@ Q-001 text provider, Q-002 image/video provider and spending cap, Q-005 Thai eva
 **Cost-anomaly hold built 2026-11-07 (D-084):** an unacknowledged anomaly stops new real-provider calls (even with no monthly limit) until an owner/admin presses "I checked it, continue" in Settings; migration 0013; 8 new API tests, 7 mutations killed, 3 web tests; e2e after it: extension 28, dashboard 31. Two older cap tests had to use a non-anomalous cost (0.012) because their 0.04 was an anomaly. The retried-job re-pay gap is still open.
 
 **Logging (2026-11-07):** the metered provider logs `provider.call` / `provider.call_failed` per call (no text, no key; 2 tests, mutation killed); `pnpm demo` is now `LOG_LEVEL=info` and tees each process to `.data/logs/*.log`. Still open: extension-side log, panel-to-job trace id.
+
+**Backup, restore and retention built 2026-11-09 (D-088):** `scripts/db-backup.mjs` (`pnpm backup`, `backup:check`, `restore`), `modules/retention` (hourly in the API; floors on the four `*_RETENTION_DAYS`), CI installs `postgresql-client`. API tests 625; retention 6 tests (8 mutations killed), backup 6 tests (9 killed); a real `backup:check` on the demo database passed. Owner: run `pnpm backup:check -- --database creatorops_demo` once and copy `.data/backups` off the machine; keep `SECRETS_ENCRYPTION_KEY` separately.
 
 **Process fix (2026-11-09):** the status file and lessons log had been skipped since 2026-11-05; caught up (`IMPLEMENTATION_STATUS.md` catch-up section, 6 lessons rows), the `app-dev-methodology` skill rewritten (69 lines, three-line end-of-slice checklist first), the same rule added to `CLAUDE.md`, and `pnpm check:docs` (also a CI step with `fetch-depth: 0`) warns when it is skipped or the skill copies drift. MaxPlus image key `creatorops-image` (id `9a1a20dd13cce91115dc0bf5`, pool `gpt-image`, 5 USD) exists; its reference-photo test waits on the owner swapping the saved management-token secret.
 

@@ -63,6 +63,12 @@ export const apiEnvSchema = z
     FFPROBE_PATH: z.string().min(1).default('ffprobe'),
     // Font for the burned-in Thai subtitles; missing Thai glyphs fall back to an installed font.
     SUBTITLE_FONT: z.string().min(1).max(80).default('Sans'),
+    // Retention (D-088): how long rows are kept. Every value has a floor, so a typo can never mean
+    // "delete everything", and none of these ever touches the usage ledger or succeeded jobs.
+    AUDIT_RETENTION_DAYS: z.coerce.number().int().min(90).max(3650).default(365),
+    JOB_RETENTION_DAYS: z.coerce.number().int().min(14).max(3650).default(90),
+    EXPORT_ROW_RETENTION_DAYS: z.coerce.number().int().min(7).max(3650).default(30),
+    INTENT_RETENTION_DAYS: z.coerce.number().int().min(7).max(3650).default(30),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(300),
     // Reverse-proxy hops to trust for the client address (X-Forwarded-For). 0 trusts none, so a
     // client cannot spoof its address. Set it to the number of proxies in front of the API.

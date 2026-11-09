@@ -55,7 +55,8 @@ Commands, env vars and local services are in `docs/WORKING_NOTES.md`; do not cop
 5. **Idempotency:** job creation is unique per workspace, user and key; replays return the first job.
 6. **Files and rows:** write the file to a fresh key first, then write the row in the transaction that settles the job; on any failure delete the file; sweepers clean what a crash leaves. Assets are soft-deleted; a hard delete is refused while anything references them.
 7. **Shapes and units:** JSON columns are validated with Zod when read and with a `CHECK` on their shape where the schema can; money is `numeric`, times are `timestamptz`, and leases and expiries use the database clock.
-8. **Known gaps (do not assume they are covered):** no row-level security (scoping relies on composite keys plus the application), no backup or restore procedure tested, no retention policy for jobs, usage and audit rows, files live on the local disk shared by the API and the worker (Q-004), and a call already reserved when an anomaly settles can still run.
+8. **Backup and retention (D-088):** files under `DATA_DIR` and every table are in `pnpm backup` automatically; `pnpm backup:check` proves a restore. A new table or file location that grows with use needs a retention decision in the slice: keep it (say so) or add it to `modules/retention` with a floor and tests that include young, wrong-status and referenced rows. Never retain-delete money records (`usage_events`) or succeeded jobs.
+9. **Known gaps (do not assume they are covered):** no row-level security (scoping relies on composite keys plus the application), backups are manual and stay on the machine until the owner copies them off, files live on the local disk shared by the API and the worker (Q-004), and a call already reserved when an anomaly settles can still run.
 
 ## 3. Hard limits (full text in `CLAUDE.md`)
 
@@ -75,6 +76,9 @@ TypeScript strict; migrations only; idempotent job creation; bounded retries, pe
 - Shell state does not persist: re-export `DATABASE_URL` and `REDIS_URL` each command and restart `pnpm dev:db`, `pnpm dev:redis` when services have stopped.
 - A rule inside a React hook survives mutation runs unless a test drives it or it is a pure function; extract it.
 - Assertions on text that appears twice in a row fail as strict-mode violations; scope them to the row.
+- Mutation runs: compute the mutated text **before** opening the file for writing, restore from a saved copy in `finally`, `git add` new files first (a bad pattern once truncated an untracked file), and run the clean baseline after the batch; assert on before/after sets, never on global state a mutation can leave behind.
+- A verifier's every check needs a test that makes it fail (a survived mutation showed a missing-file check with no test).
+- `pnpm <script> -- args` passes a literal `--` to the script; strip it and test the documented command line.
 - Test both sides of an ownership or lease check (the stale owner must stop and must not touch the new owner's row).
 
 ## 6. Keeping this useful
