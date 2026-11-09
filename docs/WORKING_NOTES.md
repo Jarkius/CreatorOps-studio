@@ -88,6 +88,8 @@ pnpm e2e                                      # builds, then both suites, each o
 
 ## Not verified / known gaps
 
+- Data (reviewed 2026-11-09): no tested backup or restore, no row-level security (scoping is composite keys plus the application), no retention policy for jobs, usage and audit rows, files on local disk (Q-004), `jobs.output` JSON not shape-checked by the database, a call reserved before an anomaly settles can still run (D-084).
+
 - API and worker must share `DATA_DIR` (the e2e config now does); a worker with a different directory makes export downloads 404.
 
 - Real toolbar click in Chrome; GitHub Actions has never run (including the e2e job and gitleaks).

@@ -1,6 +1,7 @@
 ---
 name: app-dev-methodology
-description: How to work on CreatorOps Studio. Use when starting or resuming a session, planning or building a slice or phase, delegating to a worker agent, asking the advisor for a review, or finishing work (docs, lessons, commit). It says what to read, how to verify in proportion, and the three-line end-of-slice checklist that keeps the next agent ahead.
+description: Use at the start of any CreatorOps Studio work session, and before building, changing or finishing any feature, migration, API route, job, screen or doc. It sets the vertical-slice method (thin end-to-end slices that a user can try), the data-consistency rules for the database and files, how much to verify, how to use the advisor, and the three-line end-of-slice checklist.
+version: 3.0.0
 ---
 
 # CreatorOps Studio: how we work
@@ -31,18 +32,30 @@ Recent slices were built by the orchestrator with advisor checkpoints, not worke
 2. `docs/README.md` (index), then for the slice: `docs/08_PHASE_PLAN.md`, the decisions it cites, the numbered requirement docs it touches, `docs/IMPLEMENTATION_STATUS.md`.
 3. `git log --oneline -5` and `git status`. Do not overwrite or restructure what exists before saying what is there.
 
-## 2. Build a slice
+## 2. Build vertical slices (the fast way to deliver)
 
-Small, working, one at a time. State the decision in one line and go on; ask the owner only when blocked by something only they can give (a key, an approval, a real-site test).
+A **slice** is the thinnest change that goes from the database to something the owner can try, all in one go: contract, migration, API, worker, UI, tests, and one real run. Never build a layer on its own ("all the tables first", "all the screens first"): a half-built layer cannot be tried and hides integration bugs until late.
 
-1. **Contract** in `packages/contracts` (Zod); validate all external input at the API boundary.
-2. **Backend and tests**: business logic and adapters get unit tests, API and persistence get integration tests on real PostgreSQL (and Redis for the queue). Mock providers first; no paid provider, publishing connector or broad extension permission without D-022's gates.
-3. **UI** with loading, empty and error states.
-4. **Verify in proportion.** Always: lint, typecheck, the touched tests, one real run of the feature when cheap. **Mutation checks and live runs for security-critical code only** (auth, secrets, workspace scoping, the usage ledger and cost hold, the job state machine, ffmpeg and process handling). Break the code on purpose and confirm a test fails; confirm the mutation really applied and the run printed a `Tests` line.
-5. **Advisor**: call it before committing to an approach on anything larger than a small fix, and before declaring done.
-6. Repo-wide, from the repo root: `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm format:check`, plus `pnpm e2e` when the API, dashboard or extension changed. A Vitest "Unhandled Errors" line is a failure.
+- **Size:** one outcome a person can see in the dashboard or side panel, reachable in a day or less. If it needs more, cut it down to the smallest version that still works end to end (for example: video joined without voice, photo saved without resizing) and list the rest as the next slice.
+- **Order inside a slice:** contract (`packages/contracts`, Zod) → schema and migration → service and routes with tests → worker if it is a job → UI with loading, empty and error states → live run → the three-line checklist. Each step leaves the repo green, so the slice can stop at any point and still be committed.
+- **State the decision in one line and go on.** Ask the owner only when blocked by something only they can give (a key, an approval, a real-site test).
+- **Mock first, real behind the same interface**; no paid provider, publishing connector or broad extension permission without D-022's gates.
+- **Verify in proportion.** Always: lint, typecheck, the touched tests, one real run when cheap. Mutation checks and live runs only for security-critical code (auth, secrets, workspace scoping, the usage ledger and cost hold, the job state machine, ffmpeg and process handling): break the code on purpose, confirm a test fails, and confirm the run printed a `Tests` line.
+- **Advisor** before committing to an approach on anything bigger than a small fix, and before declaring done.
+- Repo-wide from the root: `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm format:check`, plus `pnpm e2e` when the API, dashboard or extension changed. A Vitest "Unhandled Errors" line is a failure.
 
 Commands, env vars and local services are in `docs/WORKING_NOTES.md`; do not copy them here.
+
+## 2b. Data rules every slice must follow (how data stays correct)
+
+1. **The database enforces the invariants, not only the code.** Put every rule in the schema as a `CHECK`, `UNIQUE` or `FOREIGN KEY` (the schema has about 80 checks), then prove each one by trying to break it in `apps/api/src/db/migrations.test.ts`.
+2. **Workspace scoping is structural.** Every table has `workspace_id`; child tables use composite keys `(workspace_id, id)` so a link to another workspace is impossible in the database. Every query still carries the workspace, every write route checks the role, and a stranger gets 404 (tests prove both).
+3. **Migrations:** change `schema.ts`, run `pnpm db:generate`, commit the generated files untouched (CI fails on drift), forward-only. A new job type touches three checks (type, error code, target); bump `MIGRATION_COUNT`.
+4. **Writes that belong together share one transaction**, including the audit row. Lock the parent row (`FOR UPDATE` on the draft; the per-workspace advisory lock for the usage ledger). User-editable rows carry a `version` or section `rev` and answer 409 on a stale write. Job state writes name the status and the attempt they expect.
+5. **Idempotency:** job creation is unique per workspace, user and key; replays return the first job.
+6. **Files and rows:** write the file to a fresh key first, then write the row in the transaction that settles the job; on any failure delete the file; sweepers clean what a crash leaves. Assets are soft-deleted; a hard delete is refused while anything references them.
+7. **Shapes and units:** JSON columns are validated with Zod when read and with a `CHECK` on their shape where the schema can; money is `numeric`, times are `timestamptz`, and leases and expiries use the database clock.
+8. **Known gaps (do not assume they are covered):** no row-level security (scoping relies on composite keys plus the application), no backup or restore procedure tested, no retention policy for jobs, usage and audit rows, files live on the local disk shared by the API and the worker (Q-004), and a call already reserved when an anomaly settles can still run.
 
 ## 3. Hard limits (full text in `CLAUDE.md`)
 
