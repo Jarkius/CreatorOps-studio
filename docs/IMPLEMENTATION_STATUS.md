@@ -367,3 +367,9 @@ Written late: these slices were committed with `DECISIONS.md` and `WORKING_NOTES
 - **Incident:** a mutation run truncated the untracked `db-backup.mjs` (bad pattern, file opened for writing first); rebuilt from the transcript, re-verified, and the rule added to the skill and the lessons log.
 - **Not built:** scheduled or off-machine backups, backup encryption at rest, point-in-time recovery, cleanup of old backup folders, retention for succeeded jobs and the usage ledger (kept on purpose), row-level security. The snapshot-consistency of the counts has no concurrent-write test (the mutation that removes the snapshot would survive).
 
+
+## CI fixes after the main merge (2026-11-09)
+
+- **Secret scanning:** gitleaks reported 14 `generic-api-key` findings, all dummy keys in test files (15 to 32 characters, markers such as `abcdef` and `SECRET`). Added `.gitleaksignore` with the exact commit, file and line of each, so a real key is still reported. Not yet confirmed in CI.
+- **Backup tests failed in CI only (6 tests):** `apt` installed a PostgreSQL client newer than 16 on the runner; its dump contained `SET transaction_timeout`, which the `postgres:16` service rejects on restore. CI now installs `postgresql-client-16` from the PostgreSQL apt repository (not verified on the runner image yet). `scripts/db-backup.mjs` now refuses a pg_dump whose major version differs from the server, older or newer (`checkClientVersion`, new test; the mutation "allow newer" is killed). Backup tests 9 of 9 locally with client 16.
+- **Not verified:** the new CI steps, until a run finishes. The notes' claim that GitHub Actions has never run was wrong (132 runs by 2026-11-09).

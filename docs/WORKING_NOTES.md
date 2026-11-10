@@ -93,7 +93,7 @@ pnpm e2e                                      # builds, then both suites, each o
 
 - API and worker must share `DATA_DIR` (the e2e config now does); a worker with a different directory makes export downloads 404.
 
-- Real toolbar click in Chrome; GitHub Actions has never run (including the e2e job and gitleaks).
+- Real toolbar click in Chrome; GitHub Actions runs on every push; keep an eye on its results (see IMPLEMENTATION_STATUS, 2026-11-09).
 - Visual layout and real screen readers (only automated axe checks).
 - Extension does not show product images yet (the CSP already allows them since S3.0); current-page import deferred (D-019).
 - Pin GitHub Actions to commit SHAs before the first release.

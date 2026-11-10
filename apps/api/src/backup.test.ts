@@ -26,6 +26,7 @@ interface Manifest {
   dump: { sha256: string };
 }
 interface BackupTools {
+  checkClientVersion(dumpVersion: string, serverVersion: string): void;
   backup(o: {
     databaseUrl: string;
     dataDir: string;
@@ -334,6 +335,14 @@ describe.skipIf(!HAS_PG_TOOLS)('backup and restore', () => {
     } finally {
       await behind.drop();
     }
+  });
+
+  it('requires the pg_dump major version to match the server, older or newer', () => {
+    const dump = (v: string) => `pg_dump (PostgreSQL) ${v} (Ubuntu ${v}-0ubuntu1)`;
+    expect(() => tools.checkClientVersion(dump('16.15'), '16.4')).not.toThrow();
+    expect(() => tools.checkClientVersion(dump('15.8'), '16.4')).toThrow('older');
+    expect(() => tools.checkClientVersion(dump('18.1'), '16.4')).toThrow('newer');
+    expect(() => tools.checkClientVersion(dump('18.1'), '16.4')).toThrow('PostgreSQL 16 client');
   });
 
   it('names the partly restored database and folder when a restore fails midway, and does not drop them', async () => {

@@ -91,6 +91,22 @@ function run(command, args, env) {
 
 const major = (text) => Number(/(\d+)(?:\.\d+)?/.exec(text)?.[1] ?? 0);
 
+/**
+ * The pg_dump and pg_restore tools must be the same major version as the server. An older pg_dump
+ * cannot read a newer server. A newer one writes a dump with settings the older server rejects when
+ * restoring (PostgreSQL 17 and later write `SET transaction_timeout`, which PostgreSQL 16 refuses),
+ * so the backup would look fine and then fail to restore.
+ */
+export function checkClientVersion(dumpVersion, serverVersion) {
+  const client = major(dumpVersion);
+  const server = major(serverVersion);
+  if (client === server) return;
+  const relation = client < server ? 'older' : 'newer';
+  throw new Error(
+    `pg_dump is ${relation} (${dumpVersion}) than the server (${serverVersion}). Install the PostgreSQL ${server} client tools (pg_dump and pg_restore) so a backup can be restored.`,
+  );
+}
+
 async function sha256File(file) {
   const hash = createHash('sha256');
   await pipeline(createReadStream(file), hash);
@@ -162,9 +178,7 @@ export async function backup({ databaseUrl, dataDir, outRoot }) {
   try {
     const serverVersion = (await client.query('show server_version')).rows[0].server_version;
     const dumpVersion = execFileSync('pg_dump', ['--version'], { encoding: 'utf8' }).trim();
-    if (major(dumpVersion) < major(serverVersion)) {
-      throw new Error(`pg_dump is older (${dumpVersion}) than the server (${serverVersion}).`);
-    }
+    checkClientVersion(dumpVersion, serverVersion);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
 
